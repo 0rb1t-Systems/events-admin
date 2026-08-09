@@ -1,102 +1,210 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-09 (baseline agent context system)
+Last updated: 2026-08-09 (documented mandatory feature scaffold patterns)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
 ## Purpose
 This file is the persistent project context for AI-assisted chats.
 It is the single source of truth for:
-- current architecture
+- current architecture and module inventory
+- **mandatory** backend/frontend feature patterns (copy these, do not invent new ones)
 - important conventions
 - active runtime/dev state
 - recent changes and reasoning
 
 Every meaningful change to the codebase must also update this file.
+**Other chats should be able to read only this file and correctly scaffold a new feature.**
 
 ## Current Runtime / Workspace State
-- Full-stack Laravel + React SPA (Inertia-style Blade shell + Vite React app)
+- Full-stack Laravel + React SPA (Blade shell + Vite React app)
 - Dev: `composer run dev` (Unix) or `composer run dev:windows` (Windows)
   - Laravel serve: `http://localhost:8000` (Unix) / `http://localhost:8002` (Windows script)
-  - Vite HMR via `npm run dev` / `pnpm` Vite
+  - Vite HMR via `npm run dev` / pnpm Vite
   - Queue worker: `php artisan queue:listen`
-- API base: `http://localhost:8000/api/v1` (or `:8002` on Windows `dev:windows`)
+- API base URL (axios): `/api/v1` (same-origin)
+- Absolute API examples: `http://localhost:8000/api/v1` (or `:8002` on Windows)
 - Health: `GET /up`; API ping: `GET /api/ping`
 - Known gotchas:
-  - Windows uses `composer run dev:windows` (no Pail/pcntl); port **8002** not 8000
-  - Frontend package lock is **pnpm** (`pnpm-lock.yaml`); npm also documented
-  - Queue/cache/session default to **database** drivers — migrate before first run
+  - Windows `dev:windows` uses port **8002**, not 8000
+  - Lockfile is **pnpm** (`pnpm-lock.yaml`); npm also works
+  - Queue/cache/session default to **database** — migrate before first run
   - Do not commit `.env` or secrets
+  - Organization is effectively **single-tenant profile** (not a full CRUD list page like Users)
 
 ## Tech Stack
 ### Backend
 - PHP 8.2+, Laravel 12
 - Auth: Laravel Sanctum (Bearer tokens)
-- RBAC: spatie/laravel-permission
-- Audit: spatie/laravel-activitylog
+- RBAC: spatie/laravel-permission (`permission:` / `role:` middleware aliases in `bootstrap/app.php`)
+- Audit: spatie/laravel-activitylog (via `BaseController::logActivity`)
 - Location: stevebauman/location
-- Queue jobs (e.g. `SendEmailJob`), Mail via queued `MailService`
+- Queue: `SendEmailJob` + `MailService`
 
 ### Frontend
 - React 18 + TypeScript, Vite 5, `laravel-vite-plugin`
 - Redux Toolkit + TanStack React Query
-- React Router DOM 6
-- UI: Tailwind CSS 3, MUI, Mantine, Headless UI
+- React Router DOM 6 (`resources/js/src/router/routes.tsx`)
+- UI: Tailwind 3, MUI, Mantine, Headless UI; shared `DataTableWithSidebar`, `GenericModal`
 - Forms: React Hook Form / Formik; Yup / Zod
 - i18n: i18next (`public/locales/{en,ae}/translation.json`)
+- HTTP: `resources/js/src/utils/axios.ts` → `baseURL: "/api/v1"`
 
 ### Build / Tooling
-- Composer (PHP), pnpm/npm (Node)
-- PHPUnit 11 (`composer test` / `php artisan test`)
-- Laravel Pint; Vite (`npm run dev|build|preview`)
-- Config entrypoints: `vite.config.js`, `tailwind.config.cjs`, `postcss.config.cjs`, `tsconfig.json`, `phpunit.xml`
+- Composer + pnpm/npm
+- PHPUnit (`composer test`), Laravel Pint, Vite
+- Agent enforcement: `check-agent-update.sh`, `install-agent-hook.ps1`, `.github/workflows/agent-context-check.yml`
 
 ## Run Commands
 - Install: `composer install`; `pnpm install` (or `npm install`)
-- Env: copy `.env.example` → `.env`; `php artisan key:generate`; configure DB; `php artisan migrate`; `php artisan db:seed`
-- Primary dev: `composer run dev` or `composer run dev:windows`
-- Manual: `php artisan serve` + `php artisan queue:work` + `npm run dev`
-- Frontend only: `npm run dev` / `npm run build`
-- Tests: `composer test` or `php artisan test`
-- Agent hook (once after clone): `powershell -ExecutionPolicy Bypass -File .\install-agent-hook.ps1`
+- Env: `.env.example` → `.env`; `php artisan key:generate`; DB config; `php artisan migrate`; `php artisan db:seed`
+- Primary dev: `composer run dev` / `composer run dev:windows`
+- Tests: `composer test` / `php artisan test`
+- Hook once: `powershell -ExecutionPolicy Bypass -File .\install-agent-hook.ps1`
+
+---
+
+## MANDATORY FEATURE SCAFFOLD (DO NOT DEVIATE)
+
+When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do not invent alternate folder layouts, controllers without `BaseController`, ad-hoc fetchers, or untyped API calls.
+
+### Gold-standard references
+- **CRUD list resource:** Users (`UserController`, `routes/api/v1/users.php`, `pages/user/*`, `services/user.ts`, `types/user.ts`)
+- **Settings CRUD resource:** Roles (`RoleController`, `pages/settings/roles/*`, `services/role.ts`, `types/role.ts`)
+
+### A) Backend checklist (every new resource)
+
+1. **Migration** — `database/migrations/..._create_<table>_table.php` (+ alter migrations as needed)
+2. **Model** — `app/Models/<Name>.php`
+   - `$fillable`, casts, relations
+   - Use `SoftDeletes` when trash/restore is required (Users/Roles do)
+3. **Enum(s)** (if needed) — `app/Enums/`
+4. **Controller** — `app/Http/Controllers/Api/<Name>Controller.php`
+   - **MUST** `extends BaseController`
+   - Set protected props only where possible:
+     - `$model`
+     - `$searchableFields`
+     - `$sortableFields`
+     - `$relationships`
+     - `$validationRules` (`store` / `update`)
+   - Override `store`/`update`/etc. **only** for domain-specific logic (password hash, role sync, file upload) — still use `$this->successResponse` / `$this->createdResponse` / `$this->notFoundResponse` from traits
+   - Inherited from `BaseController`: `index`, `search`, `store`, `show`, `update`, `destroy`, `trashed`, `restore`, `forceDestroy`, `bulkDelete`, `bulkRestore`, `bulkForceDelete`, activity logging
+5. **API v1 route file** — `routes/api/v1/<resource>.php`
+   - Wrap in `Route::middleware('auth:sanctum')`
+   - Permission middleware per action (`permission:view …`, `create`, `edit`, `delete`)
+   - Standard shape (see Users):
+     - `GET /` index, `POST /` store, `GET /{id}` show, `PATCH /{id}` update, `DELETE /{id}` destroy
+     - Bulk: `DELETE /bulk/delete`, `POST /bulk/restore`, `DELETE /bulk/force-delete`
+     - Soft delete: `GET /trashed/list`, `POST /{id}/restore`, `DELETE /{id}/force`
+6. **Register routes** — in `routes/api.php` under `Route::prefix('v1')`:
+   ```php
+   Route::prefix('<resource>')->group(base_path('routes/api/v1/<resource>.php'));
+   ```
+7. **Permissions** — add to `database/seeders/RolePermissionSeeder.php` (and reseed / sync as needed)
+8. **Do not** put resource routes only in `web.php`; API belongs under `/api/v1`.
+
+### B) Frontend checklist (every new list/CRUD resource)
+
+1. **Types** — `resources/js/src/types/<name>.ts`
+   - Prefer extending `ITimestamped` from `types/common.ts`
+   - Export from `resources/js/src/types/index.ts`
+2. **Service** — `resources/js/src/services/<name>.ts`
+   - **MUST** `extends BaseApi<T>` from `services/baseApi.ts`
+   - Constructor: `super("/<resource>")` matching API prefix
+   - Export singleton: `export const <name>Api = new <Name>Api()`
+   - Add extra methods only when needed (like Organization profile/logo)
+3. **Page folder** — `resources/js/src/pages/<name>/`
+   ```
+   pages/<name>/
+     index.tsx                 # list page (DataTableWithSidebar, breadcrumbs, bulk actions)
+     components/
+       <Name>Detail.tsx        # sidebar detail pane
+       <Name>Form.tsx          # create/edit form
+       <Name>Modal.tsx         # GenericModal wrapper around Form
+   ```
+4. **index.tsx pattern** (see `pages/user/index.tsx`):
+   - React Query mutations via `<name>Api`
+   - `useSidebarDetail` for detail sidebar
+   - `useConfirmDialog` for deletes
+   - `DataTableWithSidebar` + column configs
+   - Modal open state + entity-to-edit state
+   - Toast via `sonner`
+5. **Modal** wraps Form in `GenericModal` (see `UserModal.tsx` / `RoleModal.tsx`)
+6. **Router** — register lazy route in `resources/js/src/router/routes.tsx` with `permissions: [...]`
+7. **Sidebar/nav** — update `resources/js/src/lib/sidebar.ts` (and i18n keys) when adding nav items
+
+### C) Exceptions (existing, do not force full CRUD scaffold)
+- **Auth** — `AuthController` + `routes/api/v1/auth.php` + `services/auth.ts` + `pages/login`, `pages/profile` (not index/Detail/Form/Modal CRUD)
+- **Organization** — profile/settings style (`getProfile` / logo uploads); page at `pages/organization/index.tsx` under Settings; service still extends `BaseApi`
+- **Logs** — mostly read-only list + `LogDetail` (no Form/Modal create flow)
+- **Settings mail** — form + test modal, not full BaseController CRUD entity
+- **Trash** — reuses soft-delete endpoints; tabbed under `/trash`
+
+---
 
 ## High-Level Architecture
-- Browser loads Blade (`resources/views/app.blade.php`) → Vite React app (`resources/js/src`)
-- SPA calls REST API under `/api/v1/*`
-- Auth: Sanctum personal access tokens; middleware `auth:sanctum`; Spatie `role` / `permission` aliases in `bootstrap/app.php`
-- API always JSON via `EnsureJsonResponse` prepended on `api` stack
-- Versioned route files: `routes/api.php` → `routes/api/v1/{auth,users,roles,settings,logs,organizations}.php`
-- Controllers: `app/Http/Controllers/Api/*`; shared traits `ApiResponseTrait`, `ApiFilterTrait`
-- Services: `MailService`, `LocationService`, `CommonServices`
-- Domain models: `User`, `Role`, `Organization`, `Settings` (+ Spatie permission/activity tables)
+```
+Browser → resources/views/app.blade.php → Vite React (resources/js/src)
+       → axios /api/v1/* → routes/api.php → routes/api/v1/*.php
+       → Api\*Controller (extends BaseController) → Model → DB
+```
+- Middleware: `EnsureJsonResponse` on API; Sanctum auth; Spatie permission aliases
+- Traits on BaseController: `ApiResponseTrait`, `ApiFilterTrait`
+- Backend services (non-controller): `MailService`, `LocationService`, `CommonServices`
+
+## Current Module Inventory
+
+| Domain | Model | Controller | API v1 file | FE page | FE service | FE types |
+|--------|-------|------------|-------------|---------|------------|----------|
+| Users | `User` | `UserController` | `users.php` | `pages/user/` (index+Detail+Form+Modal) | `user.ts` | `user.ts` |
+| Roles | `Role` | `RoleController` | `roles.php` | `pages/settings/roles/` (index+Detail+Form+Modal) | `role.ts` | `role.ts` |
+| Organizations | `Organization` | `OrganizationController` | `organizations.php` | `pages/organization/` (profile UI) | `organization.ts` | interface in service file |
+| Settings | `Settings` | `SettingsController` | `settings.php` | `pages/settings/` + mail | `mail.ts` etc. | `mail.ts` |
+| Logs | Activity (Spatie) | `LogController` | `logs.php` | `pages/logs/` (index+LogDetail) | `logs.ts` | — |
+| Auth | `User` | `AuthController` | `auth.php` | login/profile/lock-screen | `auth.ts` | `auth.ts` |
+
+Also: trash pages for users/roles; dashboard; global search (`services/globalSearch.ts`).
 
 ## Backend Structure Notes
-- `app/Http/Controllers/Api/` — Auth, User, Role, Organization, Settings, Log, BaseController
-- `app/Enums/` — `UserType`, `UserStatus`
-- `app/Jobs/SendEmailJob.php`, `app/Console/Commands/StartQueueWorker.php`
-- `database/migrations` — users, permissions, activity_log, settings, organizations, tokens, jobs/cache
+- Controllers: `app/Http/Controllers/Api/{Base,Auth,User,Role,Organization,Settings,Log}Controller.php`
+- Models: `User`, `Role`, `Organization`, `Settings`
+- Enums: `UserType`, `UserStatus`
+- Middleware: `EnsureJsonResponse`
+- Jobs: `SendEmailJob`
 - Seeders: `DatabaseSeeder`, `RolePermissionSeeder`, `SettingsSeeder`
+- Mail views: `resources/views/mail/*`
 
 ## Frontend Structure Notes
-- Entry: `resources/js/src/main.tsx`, `App.tsx`
-- Routing: `resources/js/src/router/`
-- Pages: dashboard, user, organization, logs, login, profile, search, lock-screen, settings-related layouts
-- API clients: `resources/js/src/services/` (`baseApi`, auth, user, role, organization, logs, mail, …)
-- State: `store/` (auth, organization, theme); contexts for organization/modal
-- Shared UI: `components/` (datatable, forms, upload, BulkCreateForm, etc.), `layouts/`
+- Entry: `main.tsx`, `App.tsx`
+- Router: `router/routes.tsx`, `router/index.tsx`
+- Shared list UX: `components/DataTableWithSidebar.tsx`, `GenericModal.tsx`, `GenericSidebar.tsx`, `DetailSidebar.tsx`
+- Hooks: `useSidebarDetail`, `useConfirmDialog`, `usePermission`, `useAuth`, `useAuthInit`
+- Store: `authSlice`, `organizationSlice`, `themeConfigSlice`
+- Contexts: `OrganizationContext`, `ModalContext`
+- Axios Bearer token from storage/Redux (`utils/axios.ts`, `utils/storage.ts`, `utils/auth.ts`)
 
 ## Data + Domain Conventions
-- Multi-org: `Organization` model + frontend `OrganizationContext` / `organizationSlice`
-- Users have typed status/type enums; soft deletes on roles
-- Permissions seeded via Spatie; frontend `usePermission`
-- API responses go through controller/trait JSON helpers
-- Activity log for audit; email templates under `resources/views/mail/`
+- Soft deletes + trash UI for Users and Roles
+- Spatie roles/permissions; FE `usePermission` + route `permissions` arrays
+- API list responses are Laravel paginator-shaped (`IApiResponse<T>` in `types/common.ts`)
+- Mutations use React Query; invalidate table query keys after success
+- Single organization profile (first row) for branding/logo
+- Activity log on BaseController write paths
 
 ## Known Risks / Watchouts
-- Thin automated test coverage under `tests/`
-- Keep Sanctum/CORS/SSL and raw-query usage reviewed on security-sensitive changes
-- Large static asset tree under `public/assets/` — avoid unrelated churn
-- Path-gate: critical edits require staging an updated `.agent` (see Automated Enforcement)
+- Thin test coverage under `tests/`
+- Organization type lives in service file (not `types/`) — prefer `types/` for new entities
+- Large `public/assets/` tree — avoid unrelated churn
+- Path-gate: critical path commits must stage updated `.agent`
+
+## Agent Behavior Rules (for every chat)
+1. Read this `.agent` file first.
+2. Before coding a feature, inspect the closest existing twin (Users or Roles) and copy its structure.
+3. Controllers extend `BaseController`; FE services extend `BaseApi`; pages use `index` + `components/{Detail,Form,Modal}` unless the domain is an documented exception.
+4. New API routes go in `routes/api/v1/<name>.php` and are imported from `routes/api.php`.
+5. Add/update TypeScript types and re-export from `types/index.ts`.
+6. Update this `.agent` in the same session (Last updated + Change Log + inventory/sections if architecture changed).
+7. Work is incomplete until code **and** `.agent` match.
 
 ## Update Protocol (Mandatory)
 
@@ -111,7 +219,7 @@ When any future chat changes code, this `.agent` file must be updated in the sam
    - behavior change
    - migration/config/env impact
    - verification performed
-3. If architecture/routes/modules/permissions/data model changed, update the matching sections above.
+3. If architecture/routes/modules/permissions/data model changed, update the matching sections above (especially **Current Module Inventory** and scaffold notes).
 
 ### Keep In Sync Rule
 - If code and `.agent` disagree, `.agent` is stale and must be fixed immediately.
@@ -125,6 +233,14 @@ When any future chat changes code, this `.agent` file must be updated in the sam
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-09 - Documented mandatory feature scaffold patterns
+- Files touched:
+  - `.agent`
+  - `.cursor/rules/project-agent-workflow.mdc`
+- Behavior change: context now encodes full backend/frontend patterns (`BaseController`, API v1 route files, page index+Detail+Form+Modal, `BaseApi`, types) so other chats can scaffold correctly; no product runtime change
+- Migration/config/env impact: none
+- Verification: patterns cross-checked against Users, Roles, Organization, routes/api.php, baseApi, BaseController
 
 ### 2026-08-09 - Baseline agent context system created
 - Files touched:

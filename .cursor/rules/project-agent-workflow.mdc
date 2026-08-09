@@ -7,11 +7,34 @@ alwaysApply: true
 
 Follow this order for every task:
 
-1. Read `.agent` first.
+1. Read `.agent` first (architecture, module inventory, and scaffold rules).
 2. Read applicable project rules.
-3. Inspect relevant files/components before editing.
-4. Implement changes by matching existing project patterns.
+3. Inspect the closest existing twin feature before editing (prefer Users or Roles).
+4. Implement by matching existing project patterns — never invent a parallel structure.
 5. Update `.agent` in the same session for every meaningful change.
+
+## Mandatory Structure Patterns
+
+### Backend (new CRUD resources)
+- Model + migration under `app/Models` and `database/migrations`.
+- Controller in `app/Http/Controllers/Api/` **must extend `BaseController`** and configure `$model`, `$searchableFields`, `$sortableFields`, `$relationships`, `$validationRules`.
+- Override store/update only for domain-specific logic; keep trait JSON responses.
+- Routes live in `routes/api/v1/<resource>.php` (Sanctum + permission middleware), then **import** via `Route::prefix(...)->group(base_path(...))` in `routes/api.php`.
+- Add permissions in `RolePermissionSeeder` when introducing new gates.
+
+### Frontend (new CRUD list resources)
+- Types in `resources/js/src/types/<name>.ts`, re-export from `types/index.ts`.
+- Service in `resources/js/src/services/<name>.ts` **must extend `BaseApi<T>`** and call `super("/<resource>")`.
+- Page layout:
+  - `pages/<name>/index.tsx`
+  - `pages/<name>/components/<Name>Detail.tsx`
+  - `pages/<name>/components/<Name>Form.tsx`
+  - `pages/<name>/components/<Name>Modal.tsx` (wraps Form in `GenericModal`)
+- Register lazy route + permissions in `router/routes.tsx`; update sidebar/i18n when needed.
+- Reuse `DataTableWithSidebar`, `useSidebarDetail`, `useConfirmDialog`, React Query, sonner toasts.
+
+### Exceptions
+Only Auth, Organization profile, Logs (read-only), Settings mail, and Trash may deviate — see `.agent`. Do not treat deviations as a new default.
 
 ## Consistency Rules
 
@@ -26,4 +49,4 @@ Follow this order for every task:
 - Run lints on edited files after substantive changes.
 - Do not commit generated uploads or secret files.
 - If a requested change conflicts with current architecture, ask before proceeding.
-- Work is not complete until `.agent` reflects the new state.
+- Work is not complete until `.agent` reflects the new state (inventory + Change Log).
