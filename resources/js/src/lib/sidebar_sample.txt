@@ -1,0 +1,260 @@
+// Import individual icon components
+import IconMenuDashboard from '../components/Icon/Menu/IconMenuDashboard';
+import IconMenuChat from '../components/Icon/Menu/IconMenuChat';
+import IconMenuMailbox from '../components/Icon/Menu/IconMenuMailbox';
+import IconMenuTodo from '../components/Icon/Menu/IconMenuTodo';
+import IconMenuNotes from '../components/Icon/Menu/IconMenuNotes';
+import IconMenuScrumboard from '../components/Icon/Menu/IconMenuScrumboard';
+import IconMenuContacts from '../components/Icon/Menu/IconMenuContacts';
+import IconMenuInvoice from '../components/Icon/Menu/IconMenuInvoice';
+import IconMenuCalendar from '../components/Icon/Menu/IconMenuCalendar';
+import IconMenuComponents from '../components/Icon/Menu/IconMenuComponents';
+import IconMenuElements from '../components/Icon/Menu/IconMenuElements';
+import IconMenuCharts from '../components/Icon/Menu/IconMenuCharts';
+import IconMenuWidgets from '../components/Icon/Menu/IconMenuWidgets';
+import IconMenuFontIcons from '../components/Icon/Menu/IconMenuFontIcons';
+import IconMenuDragAndDrop from '../components/Icon/Menu/IconMenuDragAndDrop';
+import IconMenuTables from '../components/Icon/Menu/IconMenuTables';
+import IconMenuDatatables from '../components/Icon/Menu/IconMenuDatatables';
+import IconMenuForms from '../components/Icon/Menu/IconMenuForms';
+import IconMenuUsers from '../components/Icon/Menu/IconMenuUsers';
+import IconMenuPages from '../components/Icon/Menu/IconMenuPages';
+import IconMenuAuthentication from '../components/Icon/Menu/IconMenuAuthentication';
+import IconMenuDocumentation from '../components/Icon/Menu/IconMenuDocumentation';
+
+// Import interface from types directory
+import { MenuItem } from '../types/sidebar';
+
+export const sidebarMenu: MenuItem[] = [
+    {
+        title: 'dashboard',
+        icon: IconMenuDashboard,
+        children: [
+            { title: 'sales', path: '/' },
+            { title: 'analytics', path: '/analytics' },
+            { title: 'finance', path: '/finance' },
+            { title: 'crypto', path: '/crypto' }
+        ]
+    },
+    {
+        title: 'apps',
+        isSection: true
+    },
+    {
+        title: 'chat',
+        icon: IconMenuChat,
+        path: '/apps/chat'
+    },
+    {
+        title: 'mailbox',
+        icon: IconMenuMailbox,
+        path: '/apps/mailbox'
+    },
+    {
+        title: 'todo_list',
+        icon: IconMenuTodo,
+        path: '/apps/todolist'
+    },
+    {
+        title: 'notes',
+        icon: IconMenuNotes,
+        path: '/apps/notes'
+    },
+    {
+        title: 'scrumboard',
+        icon: IconMenuScrumboard,
+        path: '/apps/scrumboard'
+    },
+    {
+        title: 'contacts',
+        icon: IconMenuContacts,
+        path: '/apps/contacts'
+    },
+    {
+        title: 'invoice',
+        icon: IconMenuInvoice,
+        children: [
+            { title: 'list', path: '/apps/invoice/list' },
+            { title: 'preview', path: '/apps/invoice/preview' },
+            { title: 'add', path: '/apps/invoice/add' },
+            { title: 'edit', path: '/apps/invoice/edit' }
+        ]
+    },
+    {
+        title: 'calendar',
+        icon: IconMenuCalendar,
+        path: '/apps/calendar'
+    },
+    {
+        title: 'user_interface',
+        isSection: true
+    },
+    {
+        title: 'components',
+        icon: IconMenuComponents,
+        children: [
+            { title: 'tabs', path: '/components/tabs' },
+            { title: 'accordions', path: '/components/accordions' },
+            { title: 'modals', path: '/components/modals' },
+            { title: 'cards', path: '/components/cards' },
+            { title: 'carousel', path: '/components/carousel' },
+            { title: 'countdown', path: '/components/countdown' },
+            { title: 'counter', path: '/components/counter' },
+            { title: 'sweet_alerts', path: '/components/sweetalert' },
+            { title: 'timeline', path: '/components/timeline' },
+            { title: 'notifications', path: '/components/notifications' },
+            { title: 'media_object', path: '/components/media-object' },
+            { title: 'list_group', path: '/components/list-group' },
+            { title: 'pricing_tables', path: '/components/pricing-table' },
+            { title: 'lightbox', path: '/components/lightbox' }
+        ]
+    },
+    {
+        title: 'elements',
+        icon: IconMenuElements,
+        children: [
+            { title: 'alerts', path: '/elements/alerts' },
+            { title: 'avatar', path: '/elements/avatar' },
+            { title: 'badges', path: '/elements/badges' },
+            { title: 'breadcrumbs', path: '/elements/breadcrumbs' },
+            { title: 'buttons', path: '/elements/buttons' },
+            { title: 'button_groups', path: '/elements/buttons-group' },
+            { title: 'color_library', path: '/elements/color-library' },
+            { title: 'dropdown', path: '/elements/dropdown' },
+            { title: 'infobox', path: '/elements/infobox' },
+            { title: 'jumbotron', path: '/elements/jumbotron' },
+            { title: 'loader', path: '/elements/loader' },
+            { title: 'pagination', path: '/elements/pagination' },
+            { title: 'popovers', path: '/elements/popovers' },
+            { title: 'progress_bar', path: '/elements/progress-bar' },
+            { title: 'search', path: '/elements/search' },
+            { title: 'tooltips', path: '/elements/tooltips' },
+            { title: 'treeview', path: '/elements/treeview' },
+            { title: 'typography', path: '/elements/typography' }
+        ]
+    },
+    {
+        title: 'charts',
+        icon: IconMenuCharts,
+        path: '/charts'
+    },
+    {
+        title: 'widgets',
+        icon: IconMenuWidgets,
+        path: '/widgets'
+    },
+    {
+        title: 'font_icons',
+        icon: IconMenuFontIcons,
+        path: '/font-icons'
+    },
+    {
+        title: 'drag_and_drop',
+        icon: IconMenuDragAndDrop,
+        path: '/dragndrop'
+    },
+    {
+        title: 'tables_and_forms',
+        isSection: true
+    },
+    {
+        title: 'tables',
+        icon: IconMenuTables,
+        path: '/tables'
+    },
+    {
+        title: 'datatables',
+        icon: IconMenuDatatables,
+        children: [
+            { title: 'basic', path: '/datatables/basic' },
+            { title: 'advanced', path: '/datatables/advanced' },
+            { title: 'skin', path: '/datatables/skin' },
+            { title: 'order_sorting', path: '/datatables/order-sorting' },
+            { title: 'multi_column', path: '/datatables/multi-column' },
+            { title: 'multiple_tables', path: '/datatables/multiple-tables' },
+            { title: 'alt_pagination', path: '/datatables/alt-pagination' },
+            { title: 'checkbox', path: '/datatables/checkbox' },
+            { title: 'range_search', path: '/datatables/range-search' },
+            { title: 'export', path: '/datatables/export' },
+            { title: 'column_chooser', path: '/datatables/column-chooser' }
+        ]
+    },
+    {
+        title: 'forms',
+        icon: IconMenuForms,
+        children: [
+            { title: 'basic', path: '/forms/basic' },
+            { title: 'input_group', path: '/forms/input-group' },
+            { title: 'layouts', path: '/forms/layouts' },
+            { title: 'validation', path: '/forms/validation' },
+            { title: 'input_mask', path: '/forms/input-mask' },
+            { title: 'select2', path: '/forms/select2' },
+            { title: 'touchspin', path: '/forms/touchspin' },
+            { title: 'checkbox_and_radio', path: '/forms/checkbox-radio' },
+            { title: 'switches', path: '/forms/switches' },
+            { title: 'wizards', path: '/forms/wizards' },
+            { title: 'file_upload', path: '/forms/file-upload' },
+            { title: 'quill_editor', path: '/forms/quill-editor' },
+            { title: 'markdown_editor', path: '/forms/markdown-editor' },
+            { title: 'date_and_range_picker', path: '/forms/date-picker' },
+            { title: 'clipboard', path: '/forms/clipboard' }
+        ]
+    },
+    {
+        title: 'user_and_pages',
+        isSection: true
+    },
+    {
+        title: 'users',
+        icon: IconMenuUsers,
+        children: [
+            { title: 'profile', path: '/users/profile' },
+            { title: 'account_settings', path: '/users/user-account-settings' }
+        ]
+    },
+    {
+        title: 'pages',
+        icon: IconMenuPages,
+        children: [
+            { title: 'knowledge_base', path: '/pages/knowledge-base' },
+            { title: 'contact_us_boxed', path: '/pages/contact-us-boxed', target: '_blank' },
+            { title: 'contact_us_cover', path: '/pages/contact-us-cover', target: '_blank' },
+            { title: 'faq', path: '/pages/faq' },
+            { title: 'coming_soon_boxed', path: '/pages/coming-soon-boxed', target: '_blank' },
+            { title: 'coming_soon_cover', path: '/pages/coming-soon-cover', target: '_blank' },
+            {
+                title: 'error',
+                children: [
+                    { title: '404', path: '/pages/error404', target: '_blank' },
+                    { title: '500', path: '/pages/error500', target: '_blank' },
+                    { title: '503', path: '/pages/error503', target: '_blank' }
+                ]
+            },
+            { title: 'maintenence', path: '/pages/maintenence', target: '_blank' }
+        ]
+    },
+    {
+        title: 'authentication',
+        icon: IconMenuAuthentication,
+        children: [
+            { title: 'login_boxed', path: '/auth/boxed-signin', target: '_blank' },
+            { title: 'register_boxed', path: '/auth/boxed-signup', target: '_blank' },
+            { title: 'unlock_boxed', path: '/auth/boxed-lockscreen', target: '_blank' },
+            { title: 'recover_id_boxed', path: '/auth/boxed-password-reset', target: '_blank' },
+            { title: 'login_cover', path: '/auth/cover-login', target: '_blank' },
+            { title: 'register_cover', path: '/auth/cover-register', target: '_blank' },
+            { title: 'unlock_cover', path: '/auth/cover-lockscreen', target: '_blank' },
+            { title: 'recover_id_cover', path: '/auth/cover-password-reset', target: '_blank' }
+        ]
+    },
+    {
+        title: 'supports',
+        isSection: true
+    },
+    {
+        title: 'documentation',
+        icon: IconMenuDocumentation,
+        path: 'https://vristo.sbthemes.com',
+        target: '_blank'
+    }
+];

@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+      "jsx": "react-jsx", // Required for JSX syntax
+      "module": "ESNext",
+      "target": "ESNext",
+      "moduleResolution": "node",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true
+    }
+  }

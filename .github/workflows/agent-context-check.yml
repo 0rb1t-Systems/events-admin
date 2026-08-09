@@ -1,0 +1,47 @@
+name: Agent Context Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  verify-agent-updated:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed files
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_ref="${{ github.event.pull_request.base.sha }}"
+            head_ref="${{ github.event.pull_request.head.sha }}"
+            files=$(git diff --name-only --diff-filter=ACMR "$base_ref" "$head_ref")
+          else
+            before="${{ github.event.before }}"
+            after="${{ github.sha }}"
+            if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+              files=$(git show --pretty="" --name-only --diff-filter=ACMR "$after")
+            else
+              files=$(git diff --name-only --diff-filter=ACMR "$before" "$after")
+            fi
+          fi
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$files" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce .agent update
+        run: |
+          files='${{ steps.changed.outputs.files }}'
+          [ -z "$files" ] && exit 0
+          echo "$files" | grep -Eq '^\.agent$' && exit 0
+          # MUST MATCH check-agent-update.sh regex
+          if echo "$files" | grep -Eq '^(app/|bootstrap/|config/|database/|resources/|routes/|tests/|composer\.json$|package\.json$|vite\.config\.js$|phpunit\.xml$|\.env\.example$|README\.md$|docs/)'; then
+            echo "ERROR: .agent must be updated when project code/config/docs change."
+            exit 1
+          fi

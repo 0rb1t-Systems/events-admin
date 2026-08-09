@@ -1,0 +1,29 @@
+---
+description: Enforce project context-first agent workflow and consistency
+alwaysApply: true
+---
+
+# Project Agent Workflow (Mandatory)
+
+Follow this order for every task:
+
+1. Read `.agent` first.
+2. Read applicable project rules.
+3. Inspect relevant files/components before editing.
+4. Implement changes by matching existing project patterns.
+5. Update `.agent` in the same session for every meaningful change.
+
+## Consistency Rules
+
+- Keep structure and naming consistent with nearby files.
+- Prefer minimal, focused edits over broad refactors.
+- Do not introduce new patterns when an existing one already fits.
+- Keep UI text/style aligned with existing screens unless asked to redesign.
+- Preserve existing behavior unless user explicitly requests behavior changes.
+
+## Completion Rules
+
+- Run lints on edited files after substantive changes.
+- Do not commit generated uploads or secret files.
+- If a requested change conflicts with current architecture, ask before proceeding.
+- Work is not complete until `.agent` reflects the new state.

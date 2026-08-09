@@ -1,0 +1,139 @@
+# Project Context Ledger (.agent)
+
+Last updated: 2026-08-09 (baseline agent context system)
+Repository: C:\Users\Hp\Documents\personal\event management
+Default branch: main
+
+## Purpose
+This file is the persistent project context for AI-assisted chats.
+It is the single source of truth for:
+- current architecture
+- important conventions
+- active runtime/dev state
+- recent changes and reasoning
+
+Every meaningful change to the codebase must also update this file.
+
+## Current Runtime / Workspace State
+- Full-stack Laravel + React SPA (Inertia-style Blade shell + Vite React app)
+- Dev: `composer run dev` (Unix) or `composer run dev:windows` (Windows)
+  - Laravel serve: `http://localhost:8000` (Unix) / `http://localhost:8002` (Windows script)
+  - Vite HMR via `npm run dev` / `pnpm` Vite
+  - Queue worker: `php artisan queue:listen`
+- API base: `http://localhost:8000/api/v1` (or `:8002` on Windows `dev:windows`)
+- Health: `GET /up`; API ping: `GET /api/ping`
+- Known gotchas:
+  - Windows uses `composer run dev:windows` (no Pail/pcntl); port **8002** not 8000
+  - Frontend package lock is **pnpm** (`pnpm-lock.yaml`); npm also documented
+  - Queue/cache/session default to **database** drivers — migrate before first run
+  - Do not commit `.env` or secrets
+
+## Tech Stack
+### Backend
+- PHP 8.2+, Laravel 12
+- Auth: Laravel Sanctum (Bearer tokens)
+- RBAC: spatie/laravel-permission
+- Audit: spatie/laravel-activitylog
+- Location: stevebauman/location
+- Queue jobs (e.g. `SendEmailJob`), Mail via queued `MailService`
+
+### Frontend
+- React 18 + TypeScript, Vite 5, `laravel-vite-plugin`
+- Redux Toolkit + TanStack React Query
+- React Router DOM 6
+- UI: Tailwind CSS 3, MUI, Mantine, Headless UI
+- Forms: React Hook Form / Formik; Yup / Zod
+- i18n: i18next (`public/locales/{en,ae}/translation.json`)
+
+### Build / Tooling
+- Composer (PHP), pnpm/npm (Node)
+- PHPUnit 11 (`composer test` / `php artisan test`)
+- Laravel Pint; Vite (`npm run dev|build|preview`)
+- Config entrypoints: `vite.config.js`, `tailwind.config.cjs`, `postcss.config.cjs`, `tsconfig.json`, `phpunit.xml`
+
+## Run Commands
+- Install: `composer install`; `pnpm install` (or `npm install`)
+- Env: copy `.env.example` → `.env`; `php artisan key:generate`; configure DB; `php artisan migrate`; `php artisan db:seed`
+- Primary dev: `composer run dev` or `composer run dev:windows`
+- Manual: `php artisan serve` + `php artisan queue:work` + `npm run dev`
+- Frontend only: `npm run dev` / `npm run build`
+- Tests: `composer test` or `php artisan test`
+- Agent hook (once after clone): `powershell -ExecutionPolicy Bypass -File .\install-agent-hook.ps1`
+
+## High-Level Architecture
+- Browser loads Blade (`resources/views/app.blade.php`) → Vite React app (`resources/js/src`)
+- SPA calls REST API under `/api/v1/*`
+- Auth: Sanctum personal access tokens; middleware `auth:sanctum`; Spatie `role` / `permission` aliases in `bootstrap/app.php`
+- API always JSON via `EnsureJsonResponse` prepended on `api` stack
+- Versioned route files: `routes/api.php` → `routes/api/v1/{auth,users,roles,settings,logs,organizations}.php`
+- Controllers: `app/Http/Controllers/Api/*`; shared traits `ApiResponseTrait`, `ApiFilterTrait`
+- Services: `MailService`, `LocationService`, `CommonServices`
+- Domain models: `User`, `Role`, `Organization`, `Settings` (+ Spatie permission/activity tables)
+
+## Backend Structure Notes
+- `app/Http/Controllers/Api/` — Auth, User, Role, Organization, Settings, Log, BaseController
+- `app/Enums/` — `UserType`, `UserStatus`
+- `app/Jobs/SendEmailJob.php`, `app/Console/Commands/StartQueueWorker.php`
+- `database/migrations` — users, permissions, activity_log, settings, organizations, tokens, jobs/cache
+- Seeders: `DatabaseSeeder`, `RolePermissionSeeder`, `SettingsSeeder`
+
+## Frontend Structure Notes
+- Entry: `resources/js/src/main.tsx`, `App.tsx`
+- Routing: `resources/js/src/router/`
+- Pages: dashboard, user, organization, logs, login, profile, search, lock-screen, settings-related layouts
+- API clients: `resources/js/src/services/` (`baseApi`, auth, user, role, organization, logs, mail, …)
+- State: `store/` (auth, organization, theme); contexts for organization/modal
+- Shared UI: `components/` (datatable, forms, upload, BulkCreateForm, etc.), `layouts/`
+
+## Data + Domain Conventions
+- Multi-org: `Organization` model + frontend `OrganizationContext` / `organizationSlice`
+- Users have typed status/type enums; soft deletes on roles
+- Permissions seeded via Spatie; frontend `usePermission`
+- API responses go through controller/trait JSON helpers
+- Activity log for audit; email templates under `resources/views/mail/`
+
+## Known Risks / Watchouts
+- Thin automated test coverage under `tests/`
+- Keep Sanctum/CORS/SSL and raw-query usage reviewed on security-sensitive changes
+- Large static asset tree under `public/assets/` — avoid unrelated churn
+- Path-gate: critical edits require staging an updated `.agent` (see Automated Enforcement)
+
+## Update Protocol (Mandatory)
+
+When any future chat changes code, this `.agent` file must be updated in the same work session.
+
+### Minimum Required Updates Per Change
+1. Update `Last updated` date + short summary.
+2. Append a Change Log entry with:
+   - date
+   - short title
+   - files touched
+   - behavior change
+   - migration/config/env impact
+   - verification performed
+3. If architecture/routes/modules/permissions/data model changed, update the matching sections above.
+
+### Keep In Sync Rule
+- If code and `.agent` disagree, `.agent` is stale and must be fixed immediately.
+- No feature / refactor / bugfix is complete until `.agent` reflects the new state.
+
+### Automated Enforcement
+- Local pre-commit hook: `.git/hooks/pre-commit` runs `check-agent-update.sh`
+- Guard script: `check-agent-update.sh`
+- Installer: `install-agent-hook.ps1`
+- CI gate: `.github/workflows/agent-context-check.yml`
+- Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
+
+## Change Log
+
+### 2026-08-09 - Baseline agent context system created
+- Files touched:
+  - `.agent`
+  - `.cursor/rules/project-agent-workflow.mdc`
+  - `check-agent-update.sh`
+  - `install-agent-hook.ps1`
+  - `.github/workflows/agent-context-check.yml`
+  - `README.md` (setup note)
+- Behavior change: agent context + commit enforcement only; no runtime product change
+- Migration/config/env impact: none
+- Verification: path-gate smoke checks pass/fail as expected
