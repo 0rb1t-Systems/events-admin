@@ -2,6 +2,8 @@ import {
     Trash2,
     Users,
     Shield,
+    Briefcase,
+    CalendarDays,
 } from "lucide-react";
 import React, { Suspense } from "react";
 import { useLocation, NavLink, Outlet, useNavigate } from "react-router-dom";
@@ -28,6 +30,18 @@ const TrashIndex: React.FC = () => {
             title: t("trashed_roles"),
             icon: <Shield className="w-5 h-5" />,
             path: "/trash/roles",
+        },
+        {
+            id: "organizers",
+            title: t("trashed_organizers"),
+            icon: <Briefcase className="w-5 h-5" />,
+            path: "/trash/organizers",
+        },
+        {
+            id: "events",
+            title: t("trashed_events"),
+            icon: <CalendarDays className="w-5 h-5" />,
+            path: "/trash/events",
         },
     ];
 

@@ -1,8 +1,8 @@
 import { IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Filter, Plus } from "lucide-react";
 import moment from "moment";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
@@ -14,14 +14,18 @@ import UserModal from "./components/UserModal";
 import { IUser } from "../../types";
 import { useTranslation } from "react-i18next";
 
+type UserTypeFilter = "" | "admin" | "user";
+
 const UserList = () => {
     const { t } = useTranslation();
     const queryClient = useQueryClient();
     const [selectedRecords, setSelectedRecords] = useState<IUser[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState<IUser | null>(null);
+    const [userTypeFilter, setUserTypeFilter] = useState<UserTypeFilter>("");
+    const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+    const filterRef = useRef<HTMLDivElement>(null);
 
-    // Use shared sidebar detail hook
     const {
         selectedId: selectedUserId,
         showSidebar,
@@ -31,16 +35,27 @@ const UserList = () => {
 
     const { confirmDelete } = useConfirmDialog();
 
-    // Delete mutation
+    useEffect(() => {
+        const onClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (
+                showTypeDropdown &&
+                filterRef.current &&
+                !filterRef.current.contains(target)
+            ) {
+                setShowTypeDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", onClickOutside);
+        return () => document.removeEventListener("mousedown", onClickOutside);
+    }, [showTypeDropdown]);
+
     const { mutate: deleteUser } = useMutation({
         mutationFn: (id: number) => userApi.delete(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["User Table"] });
             queryClient.invalidateQueries({ queryKey: [t("trashed_users")] });
-
             toast.success("User deleted successfully");
-
-            // If the deleted user was being viewed, close the sidebar
             if (selectedUserId) {
                 closeSidebar();
             }
@@ -50,16 +65,12 @@ const UserList = () => {
         },
     });
 
-    // Bulk Delete mutation
     const { mutate: bulkDeleteUser } = useMutation({
         mutationFn: (ids: number[]) => userApi.bulkDelete(ids),
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["User Table"] });
             queryClient.invalidateQueries({ queryKey: [t("trashed_users")] });
-
             toast.success(`${data.deleted_count} users deleted successfully`);
-
-            // If any deleted user was being viewed, close the sidebar
             if (selectedUserId) {
                 closeSidebar();
             }
@@ -119,7 +130,7 @@ const UserList = () => {
             title: "ID",
             type: "number",
             sortable: true,
-            width: 80,
+            width: 70,
         },
         {
             accessor: "name",
@@ -135,10 +146,34 @@ const UserList = () => {
             sortable: true,
         },
         {
+            accessor: "user_type",
+            title: "Type",
+            type: "status",
+            sortable: true,
+            width: 110,
+            options: [
+                { value: "admin", label: "Admin", color: "primary" },
+                { value: "user", label: "Participant", color: "secondary" },
+            ],
+        },
+        {
+            accessor: "status",
+            title: "Status",
+            type: "status",
+            sortable: true,
+            width: 100,
+            options: [
+                { value: "active", label: "Active", color: "success" },
+                { value: "inactive", label: "Inactive", color: "warning" },
+                { value: "suspended", label: "Suspended", color: "danger" },
+            ],
+        },
+        {
             accessor: "created_at",
-            title: "Created At",
+            title: "Created",
             type: "date",
             sortable: true,
+            width: 110,
             render: ({ created_at }) => (
                 <div>
                     {created_at ? moment(created_at).format("MM/DD/YYYY") : "-"}
@@ -160,7 +195,6 @@ const UserList = () => {
                     type: "edit",
                     onClick: (record) => openEditModal(record),
                 },
-
                 {
                     type: "delete",
                     onClick: (record) => handleDelete(record.id),
@@ -168,6 +202,10 @@ const UserList = () => {
             ],
         },
     ];
+
+    const tableQuery = userTypeFilter
+        ? { user_type: userTypeFilter }
+        : {};
 
     return (
         <div>
@@ -177,9 +215,9 @@ const UserList = () => {
                 title="User Table"
                 columns={columns}
                 fetchData={(params) => userApi.getAll(params)}
-                searchFields={["name", "email", "role"]}
+                searchFields={["name", "email"]}
                 sortCol="created_at"
-                query={{}}
+                query={tableQuery}
                 rowSelectionEnabled={true}
                 onSelectionChange={setSelectedRecords}
                 searchable={true}
@@ -198,14 +236,61 @@ const UserList = () => {
                     },
                 ]}
                 buttons={
-                    <button
-                        type="button"
-                        className="btn btn-primary gap-2"
-                        onClick={openCreateModal}
-                    >
-                        <Plus size={16} />
-                        Add New
-                    </button>
+                    <div className="flex gap-2 items-center">
+                        <div className="filter-dropdown relative" ref={filterRef}>
+                            <button
+                                type="button"
+                                className={`px-3 py-2 rounded-lg border flex items-center gap-2 text-sm ${
+                                    userTypeFilter
+                                        ? "bg-primary text-white border-primary"
+                                        : "border-gray-300 bg-white text-gray-700 dark:bg-[#1b2e4b] dark:border-[#1b2e4b] dark:text-white-light"
+                                }`}
+                                onClick={() => setShowTypeDropdown((v) => !v)}
+                            >
+                                <Filter size={16} />
+                                <span>
+                                    {userTypeFilter === "admin"
+                                        ? "Admin"
+                                        : userTypeFilter === "user"
+                                          ? "Participant"
+                                          : "All types"}
+                                </span>
+                            </button>
+                            {showTypeDropdown && (
+                                <div className="absolute right-0 z-20 mt-2 w-44 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-[#1b2e4b] dark:bg-[#0e1726]">
+                                    {[
+                                        { value: "" as UserTypeFilter, label: "All types" },
+                                        { value: "admin" as UserTypeFilter, label: "Admin" },
+                                        { value: "user" as UserTypeFilter, label: "Participant" },
+                                    ].map((option) => (
+                                        <button
+                                            key={option.label}
+                                            type="button"
+                                            className={`block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-[#1b2e4b] ${
+                                                userTypeFilter === option.value
+                                                    ? "text-primary font-medium"
+                                                    : "text-gray-700 dark:text-white-light"
+                                            }`}
+                                            onClick={() => {
+                                                setUserTypeFilter(option.value);
+                                                setShowTypeDropdown(false);
+                                            }}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            className="btn btn-primary gap-2"
+                            onClick={openCreateModal}
+                        >
+                            <Plus size={16} />
+                            Add New
+                        </button>
+                    </div>
                 }
                 showSidebar={showSidebar}
                 sidebarTitle="User Details"

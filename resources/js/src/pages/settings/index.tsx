@@ -1,4 +1,4 @@
-import { Mail, Shield, Building2 } from "lucide-react";
+import { Mail, Shield, Building2, Package, Tags } from "lucide-react";
 import React, { Suspense } from "react";
 import { useLocation, NavLink, Outlet, useNavigate } from "react-router-dom";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -12,6 +12,18 @@ const settingsItems = [
         title: "Roles & Permissions",
         icon: <Shield className="w-5 h-5" />,
         path: "/settings/roles",
+    },
+    {
+        id: "packages",
+        title: "Packages",
+        icon: <Package className="w-5 h-5" />,
+        path: "/settings/packages",
+    },
+    {
+        id: "event-categories",
+        title: "Event Categories",
+        icon: <Tags className="w-5 h-5" />,
+        path: "/settings/event-categories",
     },
     {
         id: "mail",

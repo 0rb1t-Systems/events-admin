@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // All role routes require authentication
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
 
     // Standard CRUD operations
     Route::get('/', [RoleController::class, 'index'])->middleware('permission:view roles');

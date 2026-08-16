@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (require complete standalone .agent context for other agents)
+Last updated: 2026-08-16 (Phase 4a: Events module — state machine + Admin oversight)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -71,7 +71,7 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 
 ### Gold-standard references
 - **CRUD list resource:** Users (`UserController`, `routes/api/v1/users.php`, `pages/user/*`, `services/user.ts`, `types/user.ts`)
-- **Settings CRUD resource:** Roles (`RoleController`, `pages/settings/roles/*`, `services/role.ts`, `types/role.ts`)
+- **Settings CRUD resource:** Roles (`RoleController`, `pages/settings/roles/*`, `services/role.ts`, `types/role.ts`) **and** Packages (`PackageController`, `pages/settings/packages/*`, `services/package.ts`, `types/package.ts`)
 
 ### A) Backend checklist (every new resource)
 
@@ -136,10 +136,14 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 
 ### C) Exceptions (existing, do not force full CRUD scaffold)
 - **Auth** — `AuthController` + `routes/api/v1/auth.php` + `services/auth.ts` + `pages/login`, `pages/profile` (not index/Detail/Form/Modal CRUD)
+- **Organizer auth** — `OrganizerAuthController` + `organizer-auth.php` (API only; no Web UI yet)
+- **Organizer Admin Form** — status suspend/reactivate only (not full identity edit)
+- **Organizer subscriptions** — Admin **oversight** only (`OrganizerSubscriptionController`): history list, assign, cancel — **not** full CRUD and not Web App self-serve
+- **Events Admin Form** — **moderation** only (featured / monetized / capacity / status transition). Full organizer event-creation UI is Web App scope. Status changes **must** use `POST /events/{id}/transition` (PATCH status is rejected).
 - **Organization** — profile/settings style (`getProfile` / logo uploads); page at `pages/organization/index.tsx` under Settings; service still extends `BaseApi`
 - **Logs** — mostly read-only list + `LogDetail` (no Form/Modal create flow)
 - **Settings mail** — form + test modal, not full BaseController CRUD entity
-- **Trash** — reuses soft-delete endpoints; tabbed under `/trash`
+- **Trash** — reuses soft-delete endpoints; tabbed under `/trash` (users, roles, organizers, events)
 
 ---
 
@@ -149,31 +153,173 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
        → axios /api/v1/* → routes/api.php → routes/api/v1/*.php
        → Api\*Controller (extends BaseController) → Model → DB
 ```
-- Middleware: `EnsureJsonResponse` on API; Sanctum auth; Spatie permission aliases
+- Middleware: `EnsureJsonResponse` on API; Sanctum auth; Spatie permission aliases; **`admin.panel`** (`EnsureAdminPanelAccess`) on Admin Panel resource routes; **`organizer.web`** for organizer-auth me routes
 - Traits on BaseController: `ApiResponseTrait`, `ApiFilterTrait`
-- Backend services (non-controller): `MailService`, `LocationService`, `CommonServices`
+- Domain services (non-controller): `MailService`, `LocationService`, `CommonServices`, **`EventStatusMachine`**, **`EventRegistrationGate`**, **`EventQuota`**
+- Domain ownership: **Users** (admin staff / participants) ≠ **Organizers** ≠ **Events** (belong to organizers). Packages gate how many events an organizer may create via `EventQuota`.
+
+## Auth + User Types (Phase 1 — EventHub multi-tenant foundation)
+
+EventHub participants are **Users** distinguished by `users.user_type` (`App\Enums\UserType`: `admin` | `user`). Organizers/Events are **not** in this phase.
+
+| Concern | Behavior |
+|--------|----------|
+| Column | `user_type` enum/string `admin\|user`. Original add was `2025_07_01_142344_...` (default was `user`). Phase 1 migration `2026_08_16_101700_set_users_user_type_default_to_admin` backfills **all existing rows to `admin`** and sets MySQL/pgsql default to `admin`. Do **not** edit already-run migrations. |
+| Enum | `app/Enums/UserType.php` — `ADMIN='admin'`, `USER='user'` |
+| Sanctum scopes | `app/Enums/SanctumAbility.php`: **`admin-panel`**, **`web-participant`** only. (Separate pre-existing session flag string `'locked'` is written onto token abilities by lock/unlock endpoints — not a login scope and not part of Phase 1.) |
+| Admin login | `POST /api/v1/auth/admin/login` — **only** `user_type=admin`. Issues token ability `admin-panel`. Participant with correct password → **403** + `errors.error_code: participant_admin_login_forbidden` (distinct from 401 Invalid credentials). |
+| Web login | `POST /api/v1/auth/login` — allowed for **both** `user` and `admin` (admins may later use Web App as participants). Issues `web-participant`. No Web App UI yet. |
+| Token coexistence | Admin may hold **both** `admin-panel` and `web-participant` tokens. Login rotates **only** same-scope tokens (by ability + known token names). Logout deletes **current** token only. |
+| Admin API guard | Middleware alias `admin.panel` requires authenticated `UserType::ADMIN` **and** token `can('admin-panel')`. Applied to `routes/api/v1/{users,roles,settings,logs,organizations}.php` and profile routes in `routes/api.php`. Auth login/logout/me/lock remain `auth:sanctum` only. |
+| Public register | Sets `user_type=user` (participants). |
+| Admin Users CRUD | Creates always force `user_type=admin`. **Updates ignore `user_type`** (read-only in Admin UI — no permission-gated write yet). |
+| Admin UI | Users table: Type + Status columns; Type filter (All / Admin / Participant). Detail sidebar shows full useful fields including read-only type. |
+| Tests | `tests/Feature/UserTypeAuthTest.php` — admin/participant login, 403 vs 401, dual tokens, web token blocked from `/users`, logout scope. |
+| Seed | `RolePermissionSeeder` admin user remains `user_type=admin` (`admin@example.com` / `password`). |
+
+## Organizers (Phase 2 — separate identity from Users)
+
+Organizers are **not** Users. Own table, own Authenticatable model, own Sanctum tokens, own Web auth routes. Admins oversee records; they never “log in as” an organizer.
+
+| Concern | Decision / behavior |
+|--------|---------------------|
+| Table | `organizers`: `business_name`, `contact_name`, `email` (**UNIQUE on this table only**), `phone`, `password`, `status` (`OrganizerStatus`: `active`\|`suspended`), timestamps, soft deletes |
+| Email uniqueness | DB unique index on `organizers.email` only. **Allowed** to equal a `users.email` (unrelated identities). Validated with `unique:organizers,email` on register — never `unique:users`. |
+| Auth guard | `config/auth.php` provider `organizers` + guard `organizer` (sanctum). Middleware alias `organizer.web` (`EnsureOrganizerWebAccess`). |
+| Sanctum ability | `SanctumAbility::OrganizerWeb = organizer-web` (Web App organizer sessions). Never issued to Users; never grants Admin Panel. |
+| Auth routes | `POST/GET /api/v1/organizer-auth/{register,login,logout,me}` — backend scaffolding only; **no login UI** (Web App later). |
+| Suspension | Sets `status=suspended`, **revokes all organizer tokens immediately**. Login returns 403 `organizer_suspended`. **Does not delete or cascade events.** **Phase 4 must respect:** suspended organizer’s events stay visible to admins; organizer-web cannot mutate events while suspended (enforce via `organizer.web` + status check / policy). |
+| Soft delete | Soft-delete keeps the row (`deleted_at`). Related future rows stay attached by `organizer_id`. **Future FKs (events, subscriptions): use `restrictOnDelete` (preferred)** so force-delete is refused while dependents exist; do **not** use Laravel’s default `cascade` on delete. Soft delete alone never hard-removes dependents. |
+| Admin API | `OrganizerController` extends `BaseController`. Routes `routes/api/v1/organizers.php` + `admin.panel`. Permissions: `view organizers`, `suspend organizers`, `delete organizers`. Endpoints: list/show, suspend/reactivate, trash/restore/force/bulk. **No PATCH/POST create-update of identity fields** (405 if attempted). |
+| Admin UI scope | View + status modal (suspend/reactivate) + soft-delete/trash. **Admins do not freely edit business name/contact/email/password** — Web App owns self-service. Flag product if later need “admin correction” edit. |
+| FE | `pages/organizer/` (index+Detail+Form-status+Modal), `services/organizer.ts`, `types/organizer.ts`. Table **Package** = active subscription name; **Events** = `events_count`. Detail: subscription history + real event count. Trash `/trash/organizers`. Nav: `organizers`. |
+| Activity log | `suspend` / `reactivate` / overridden `destroy` call `logActivity`; `restore` / `forceDestroy` / bulk via `BaseController`. |
+| Tests | `tests/Feature/OrganizerModuleTest.php` |
+
+## Packages & Subscriptions (Phase 3)
+
+Access to event creation is gated by **subscription packages**. Admins fully CRUD packages; organizers will subscribe via Web App later. Admin can assign/cancel now for oversight.
+
+### Data model (history, not a mutable column)
+
+| Table | Purpose |
+|-------|---------|
+| `packages` | Plan catalog: `name`, `description`, `price`, `event_quota` (**nullable**), `status` (`active`\|`archived`), timestamps |
+| `organizer_subscriptions` | **One row per subscription period** (history). Columns: `organizer_id`, `package_id`, `status` (`active`\|`expired`\|`cancelled`), `started_at`, `expires_at` (**nullable**), timestamps. FKs: **`restrictOnDelete`**. |
+
+**Do not** store “current package” as a column on `organizers`. Current plan = `Organizer::activeSubscription()`.
+
+### Assumptions (explicit)
+
+1. **`expires_at = null`** → not time-boxed until cancelled/replaced.
+2. **`event_quota = null`** → unlimited; **`0`** → no events. Use `App\Support\EventQuota` only (never falsy checks).
+3. Assign cancels prior active rows and inserts history.
+4. Delete package blocked if any subscription history; archive blocked if active subscribers.
+5. **`events_created`** in quota payloads = **real** `organizer.events()->count()` (Phase 4a wired).
+
+### Admin surface
+- Packages: Settings CRUD (`pages/settings/packages/`). Subscriptions: Organizer detail oversight.
+- Create event API calls `EventQuota::canCreateEvent` before insert.
+
+### Tests
+- `tests/Feature/PackageSubscriptionTest.php`
+
+## Events (Phase 4a — Admin oversight + backend)
+
+Events belong to organizers. This phase: schema, state machine, registration gates, Admin list/moderate. **Organizer Web App create UI is out of scope.**
+
+### Tables
+
+| Table | Notes |
+|-------|--------|
+| `event_categories` | `name` unique; soft deletes; Admin full CRUD; seeded defaults (Conference, Workshop, Concert, Sports, Networking, Festival) |
+| `events` | `organizer_id` (restrictOnDelete), `event_category_id` (nullOnDelete), title, description, city, address, latitude/longitude (nullable DB), banner_path, featured, monetized, **status**, capacity (nullable=unlimited), **registrations_count** (stand-in until registrations module), registration_deadline, starts_at, ends_at, soft deletes |
+| `event_images` | Gallery rows: `event_id`, `path`, `sort_order`. Prefer table over JSON so images can be removed/reordered individually. Cascade delete with event. |
+
+### Status state machine (`App\Services\EventStatusMachine`)
+
+Enum order: `draft → published → registration_open → sold_out → registration_closed → ongoing → completed → cancelled`
+
+**Transition table (from → allowed to):**
+
+| From | Allowed targets |
+|------|-----------------|
+| `draft` | `published`, `cancelled` |
+| `published` | `registration_open`, `draft`, `cancelled` |
+| `registration_open` | `sold_out`, `registration_closed`, `ongoing`, `cancelled` |
+| `sold_out` | `registration_closed`, `ongoing`, `cancelled` |
+| `registration_closed` | `ongoing`, `cancelled` |
+| `ongoing` | `completed`, `cancelled` |
+| `completed` | _(none — terminal)_ |
+| `cancelled` | _(none — terminal)_ |
+
+- **cancelled** is reachable from every non-terminal state **except** `completed`.
+- Invalid transitions → **400** with `errors.error_code: invalid_status_transition`.
+- API: `POST /api/v1/events/{id}/transition` `{ "status": "..." }`. PATCH must not set status.
+
+### Capacity → sold_out (decision)
+
+**Real-time computed check** against `registrations_count` vs `capacity`, then **fires** a state transition when appropriate:
+
+- `EventRegistrationGate::isCapacityReached()` — Gate A only (`null` unlimited, `0` always reached, else `registrations_count >= capacity`).
+- `EventStatusMachine::syncSoldOutFromCapacity()` — if status is `registration_open` **and** capacity reached → transition to `sold_out`. Does **not** look at deadline.
+- Triggered on admin update of capacity/count and via `POST /events/{id}/sync-capacity`.
+
+`registrations_count` is a column updated by future registration flows; Admin can set it for ops/tests until then.
+
+### Two independent registration gates (`App\Services\EventRegistrationGate`)
+
+| Gate | Method | Behavior |
+|------|--------|----------|
+| **A Capacity** | `isCapacityReached($event)` | Independent of deadline. Drives sold_out sync. |
+| **B Deadline** | `isRegistrationDeadlinePassed($event)` | Independent of capacity. Blocks when `registration_deadline` ≤ now even if seats remain and status is still `registration_open`. |
+
+`evaluate()` / `canAcceptRegistration()` applies status check, then **Gate B**, then **Gate A** as separate branches (never one combined condition). Exposed on Event as `registration_gates` append + `GET /events/{id}/registration-gates`.
+
+### Other edge decisions
+
+- **Lat/lng**: optional at DB; app requires **pair** if either is set (`validateLatLongPair`). Address is independently optional.
+- **Cancelled**: remains in admin lists; soft-delete allowed; **force-delete forbidden** for cancelled (history intact).
+- **Gallery delete**: unlinks file under `public/` (Organization logo pattern) then deletes DB row (`EventImage::deleteFileFromDisk`).
+- **Suspended organizers**: events stay admin-visible; organizer-web mutation still blocked by organizer.web + status (Phase 2). Event create still checks quota for the organizer.
+
+### Admin surface
+
+| Concern | Detail |
+|--------|--------|
+| Events | `EventController`, `routes/api/v1/events.php`, `pages/event/` (index+Detail+moderation Form/Modal), `services/event.ts`, `types/event.ts`. Permissions: `view/create/edit/delete events`. Trash `/trash/events`. |
+| Categories | `EventCategoryController`, `event-categories.php`, Settings `pages/settings/event-categories/`, `services/eventCategory.ts`. Permissions: `view/create/edit/delete event categories`. |
+
+### Tests
+- `tests/Feature/EventModuleTest.php` — transition table, invalid transition 400, dual gates, lat/lng pair, quota block, cancelled force-delete block, gallery file unlink, category CRUD.
 
 ## Current Module Inventory
 
 | Domain | Model | Controller | API v1 file | FE page | FE service | FE types |
 |--------|-------|------------|-------------|---------|------------|----------|
-| Users | `User` | `UserController` | `users.php` | `pages/user/` (index+Detail+Form+Modal) | `user.ts` | `user.ts` |
-| Roles | `Role` | `RoleController` | `roles.php` | `pages/settings/roles/` (index+Detail+Form+Modal) | `role.ts` | `role.ts` |
-| Organizations | `Organization` | `OrganizationController` | `organizations.php` | `pages/organization/` (profile UI) | `organization.ts` | interface in service file |
-| Settings | `Settings` | `SettingsController` | `settings.php` | `pages/settings/` + mail | `mail.ts` etc. | `mail.ts` |
-| Logs | Activity (Spatie) | `LogController` | `logs.php` | `pages/logs/` (index+LogDetail) | `logs.ts` | — |
+| Users | `User` (+ `user_type`) | `UserController` | `users.php` | `pages/user/` | `user.ts` | `user.ts` |
+| Organizers | `Organizer` | `OrganizerController` + `OrganizerAuthController` | `organizers.php` + `organizer-auth.php` | `pages/organizer/` + trash | `organizer.ts` | `organizer.ts` |
+| Packages | `Package` | `PackageController` | `packages.php` | `pages/settings/packages/` | `package.ts` | `package.ts` |
+| Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested in `organizers.php` | Organizer detail | `organizerSubscription.ts` | `package.ts` |
+| Events | `Event` (+ `EventImage`) | `EventController` | `events.php` | `pages/event/` + trash | `event.ts` | `event.ts` |
+| Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` | `pages/settings/event-categories/` | `eventCategory.ts` | `event.ts` |
+| Roles | `Role` | `RoleController` | `roles.php` | `pages/settings/roles/` | `role.ts` | `role.ts` |
+| Organizations | `Organization` | `OrganizationController` | `organizations.php` | `pages/organization/` | `organization.ts` | (in service) |
+| Settings | `Settings` | `SettingsController` | `settings.php` | `pages/settings/` + mail | `mail.ts` | `mail.ts` |
+| Logs | Activity (Spatie) | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
 | Auth | `User` | `AuthController` | `auth.php` | login/profile/lock-screen | `auth.ts` | `auth.ts` |
 
-Also: trash pages for users/roles; dashboard; global search (`services/globalSearch.ts`).
+Also: trash (users, roles, organizers, events); dashboard; global search.
 
 ## Backend Structure Notes
-- Controllers: `app/Http/Controllers/Api/{Base,Auth,User,Role,Organization,Settings,Log}Controller.php`
-- Models: `User`, `Role`, `Organization`, `Settings`
-- Enums: `UserType`, `UserStatus`
-- Middleware: `EnsureJsonResponse`
-- Jobs: `SendEmailJob`
-- Seeders: `DatabaseSeeder`, `RolePermissionSeeder`, `SettingsSeeder`
-- Mail views: `resources/views/mail/*`
+- Controllers: `Base`, `Auth`, `User`, `Role`, `Organization`, `Settings`, `Log`, `Organizer`, `OrganizerAuth`, `Package`, `OrganizerSubscription`, `Event`, `EventCategory`
+- Models: `User`, `Role`, `Organization`, `Settings`, `Organizer`, `Package`, `OrganizerSubscription`, `Event`, `EventCategory`, `EventImage`
+- Services: `EventStatusMachine`, `EventRegistrationGate`; Support: `EventQuota`
+- Enums: `UserType`, `UserStatus`, `SanctumAbility`, `OrganizerStatus`, `PackageStatus`, `SubscriptionStatus`, `EventStatus`
+- Middleware: `EnsureJsonResponse`, `EnsureAdminPanelAccess` (`admin.panel`), `EnsureOrganizerWebAccess` (`organizer.web`)
+- Auth: `users`/`web`; `organizers`/`organizer`
+- Seeders: `DatabaseSeeder`, `RolePermissionSeeder`, `SettingsSeeder`, `EventCategorySeeder`
+- Factories: `UserFactory`, `OrganizerFactory`, `PackageFactory`, `OrganizerSubscriptionFactory`, `EventFactory`, `EventCategoryFactory`, `EventImageFactory`
 
 ## Frontend Structure Notes
 - Entry: `main.tsx`, `App.tsx`
@@ -186,17 +332,25 @@ Also: trash pages for users/roles; dashboard; global search (`services/globalSea
 
 ## Data + Domain Conventions
 - Soft deletes + trash UI for Users and Roles
-- Spatie roles/permissions; FE `usePermission` + route `permissions` arrays
-- API list responses are Laravel paginator-shaped (`IApiResponse<T>` in `types/common.ts`)
+- `User.user_type`: `admin` (Admin Panel staff) vs `user` (Web participant). Admin UI treats type as **read-only**; do not add write UI without an explicit permission decision.
+- Spatie roles/permissions apply to admin staff; FE `usePermission` + route `permissions` arrays
+- Sanctum login abilities (not Spatie): `admin-panel` / `web-participant` only. Pre-existing lock-screen flag `'locked'` may appear in token `abilities` JSON but is not a `SanctumAbility` case and is not used for API authorization.
+- Audit note (Phase 1): codebase grep found no pre-existing `tokenCan()` / `ability:` middleware usage outside the new guard + AuthController lock flag + new tests. Prior tokens were unscoped (`createToken(...)` → `['*']`).
+- API list responses are Laravel paginator-shaped (`IApiResponse<T>` in `types/common.ts`); filters via `filter[field]=value` (Users type filter uses `filter[user_type]`)
 - Mutations use React Query; invalidate table query keys after success
 - Single organization profile (first row) for branding/logo
 - Activity log on BaseController write paths
 
 ## Known Risks / Watchouts
-- Thin test coverage under `tests/`
+- Feature tests: `UserTypeAuthTest`, `OrganizerModuleTest`, `PackageSubscriptionTest`, `EventModuleTest`; overall coverage still thin
+- Legacy Sanctum tokens with ability `*` still `tokenCan('admin-panel')` until admin re-login
 - Organization type lives in service file (not `types/`) — prefer `types/` for new entities
 - Large `public/assets/` tree — avoid unrelated churn
 - Path-gate: critical path commits must stage updated `.agent`
+- `ExceptionHandlerTest` 3 failures are pre-existing (SPA catch-all) — unrelated to Phases 1–4a
+- **`registrations_count`** is a stand-in until a real registrations module; keep Gate A/B separate when wiring signups
+- Suspended organizers: events remain admin-visible; block organizer-web mutations
+- After migrate: reseed permissions + `EventCategorySeeder`
 
 ## Agent Behavior Rules (for every chat)
 1. Read this `.agent` file first.
@@ -256,6 +410,85 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Phase 4a: Events module (state machine + Admin oversight)
+- Files touched:
+  - Migrations: `2026_08_16_140000_create_event_categories_table.php`, `140100_create_events_table.php`, `140200_create_event_images_table.php`
+  - Models: `Event`, `EventCategory`, `EventImage`; `Organizer::events()`
+  - Enum: `EventStatus`; Services: `EventStatusMachine` (transition table), `EventRegistrationGate` (dual gates)
+  - Controllers: `EventController`, `EventCategoryController`; Organizer list `withCount('events')`; subscription payloads use real event counts + EventQuota on create
+  - Routes: `events.php`, `event-categories.php`; permissions + `EventCategorySeeder`
+  - FE: `pages/event/*`, `pages/settings/event-categories/*`, trash Events, sidebar/i18n/router
+  - Tests: `tests/Feature/EventModuleTest.php` (12 tests)
+  - `.agent` (inventory + architecture + Events section fully refreshed)
+- Behavior: Admin event oversight + category CRUD; enforced status transitions; capacity→sold_out sync; deadline blocks registrations independently; cancelled not hard-deletable; gallery file unlink; lat/lng pair validation; EventQuota on create
+- Migration/config: `php artisan migrate`; seed permissions + categories
+- Verification: `EventModuleTest` 12 passed; Phase 1–3 filters still green
+
+### 2026-08-16 - Phase 3: Packages CRUD + organizer subscription history
+- Files touched:
+  - Migrations: `2026_08_16_130000_create_packages_table.php`, `2026_08_16_130100_create_organizer_subscriptions_table.php`
+  - Models: `Package`, `OrganizerSubscription`; `Organizer` relations `subscriptions` / `activeSubscription`
+  - Enums: `PackageStatus`, `SubscriptionStatus`; Support: `App\Support\EventQuota`
+  - Controllers: `PackageController`, `OrganizerSubscriptionController`
+  - Routes: `routes/api/v1/packages.php`, `organizers.php` (subscription endpoints), `routes/api.php`
+  - Factories: `PackageFactory`, `OrganizerSubscriptionFactory`
+  - Seeder permissions: `view/create/edit/delete packages`, `view/assign organizer subscriptions`
+  - FE: `pages/settings/packages/*`, `services/package.ts`, `services/organizerSubscription.ts`, `types/package.ts`
+  - FE wire: organizer list Package column + detail subscription oversight; Settings nav Packages
+  - Tests: `tests/Feature/PackageSubscriptionTest.php`
+  - `.agent`
+- Behavior change: Admin full CRUD for packages; subscription history table (not organizer column); assign/cancel oversight; delete/archive guarded against active/history subscribers; quota null vs 0 explicit everywhere via `EventQuota`
+- Assumptions documented: `expires_at` null = not time-boxed; `event_quota` null = unlimited vs `0` = no events; events_created placeholder 0 until Phase 4
+- Migration/config/env impact: `php artisan migrate`; re-seed/sync new permissions for existing admins
+- Verification: `php artisan test --filter=PackageSubscriptionTest` — 7 passed; `OrganizerModuleTest` — 9 passed
+
+### 2026-08-16 - Phase 2: Organizers module (separate auth + Admin oversight)
+- Files touched:
+  - `database/migrations/2026_08_16_120000_create_organizers_table.php`
+  - `app/Models/Organizer.php`, `app/Enums/OrganizerStatus.php`
+  - `app/Enums/SanctumAbility.php` (`organizer-web` only addition)
+  - `app/Http/Controllers/Api/OrganizerController.php`, `OrganizerAuthController.php`
+  - `app/Http/Middleware/EnsureOrganizerWebAccess.php`, `EnsureAdminPanelAccess.php` (reject non-User tokens)
+  - `config/auth.php` (organizer guard/provider), `bootstrap/app.php` (`organizer.web`)
+  - `routes/api.php`, `routes/api/v1/organizers.php`, `routes/api/v1/organizer-auth.php`
+  - `database/seeders/RolePermissionSeeder.php` (`view/suspend/delete organizers`; firstOrCreate)
+  - `database/factories/OrganizerFactory.php`
+  - FE: `pages/organizer/*`, `services/organizer.ts`, `types/organizer.ts`, trash/router/sidebar/i18n
+  - `tests/Feature/OrganizerModuleTest.php`
+  - `.agent`
+- Behavior change: Organizers are a separate auth identity; Admin Panel can view/suspend/reactivate/trash only (no identity edit); organizer-web tokens cannot hit admin APIs
+- Migration/config/env impact: `php artisan migrate`; re-seed or sync new permissions for existing admins (`view organizers`, `suspend organizers`, `delete organizers`)
+- Edge decisions for later phases:
+  - Suspension does not cascade-delete events; Phase 4 must keep events admin-visible and block organizer edits while suspended
+  - Future `organizer_id` FKs: **`restrictOnDelete`** (not cascade); soft-delete preserves row for relations
+  - Email uniqueness is per-table only (organizer may share email string with a User)
+- Verification: `php artisan test --filter=OrganizerModuleTest` — 8 passed; `UserTypeAuthTest` — 7 passed
+
+### 2026-08-16 - Phase 1: Users user_type + Sanctum admin/web scopes
+- Files touched:
+  - `database/migrations/2026_08_16_101700_set_users_user_type_default_to_admin.php` (new; backfill + default admin)
+  - `app/Enums/SanctumAbility.php` (new)
+  - `app/Enums/UserType.php` (existing; unchanged values)
+  - `app/Http/Middleware/EnsureAdminPanelAccess.php` (new)
+  - `bootstrap/app.php` (`admin.panel` alias)
+  - `app/Http/Controllers/Api/AuthController.php` (scoped tokens; 403 participant admin login; dual-token revoke)
+  - `app/Http/Controllers/Api/UserController.php` (force admin on create; ignore user_type on update)
+  - `app/Models/User.php` (`isAdmin` / `isParticipant`)
+  - `app/Traits/ApiResponseTrait.php` (optional errors on forbidden)
+  - `database/factories/UserFactory.php` (admin/participant states)
+  - `routes/api.php` + `routes/api/v1/{users,roles,settings,logs,organizations}.php` (`admin.panel`)
+  - `resources/js/src/pages/user/index.tsx` (type column + filter)
+  - `resources/js/src/pages/user/components/UserDetail.tsx` (dense complete detail + read-only type)
+  - `resources/js/src/pages/user/components/UserForm.tsx` (stop sending user_type writes)
+  - `resources/js/src/types/user.ts`
+  - `tests/Feature/UserTypeAuthTest.php`
+  - `.agent`
+- Behavior change: Admin Panel auth is ability-scoped; participants cannot get/use admin tokens (403 with `participant_admin_login_forbidden`); admins can hold web + admin tokens; Users UI shows/filters type read-only
+- Migration/config/env impact: run `php artisan migrate`; existing users backfilled to `admin` (verified non-admin count = 0)
+- Verification: `php artisan test --filter=UserTypeAuthTest` — 7 passed; DB query confirmed 0 non-admin users after migrate; full `composer test` = UserTypeAuthTest + Example tests pass; `ExceptionHandlerTest` 3 failures are **confirmed pre-existing** — reproduced on clean `main` with Phase 1 stashed (`git stash -u` → `composer test` → same 404/403/500→200 failures → `stash pop`). Unrelated to ability scoping.
+- Follow-up cleanup: removed `SanctumAbility::Locked` from the enum (lock flag stays as literal `'locked'` string as before Phase 1)
+- Forward note: Phase 1 introduced the first real Sanctum ability scopes in this app; Phase 2+ must watch for ability-scope regressions (nothing pre-Phase-1 depended on named abilities).
 
 ### 2026-08-16 - Require complete standalone .agent context
 - Files touched:

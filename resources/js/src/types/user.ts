@@ -6,7 +6,8 @@ export interface IUser extends ITimestamped {
     id: number;
     name: string;
     email: string;
-    user_type?: string;
+    /** admin = Admin Panel staff; user = Web App participant */
+    user_type?: "admin" | "user" | string;
     email_verified_at: string | null;
     phone?: string | null;
     address?: string | null;

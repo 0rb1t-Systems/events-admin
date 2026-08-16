@@ -96,12 +96,12 @@ trait ApiResponseTrait
     /**
      * Return a forbidden error response
      */
-    protected function forbiddenResponse(string $message = 'Access denied'): JsonResponse
+    protected function forbiddenResponse(string $message = 'Access denied', array $errors = []): JsonResponse
     {
         return response()->json([
             'success' => false,
             'message' => $message,
-            'errors' => [
+            'errors' => $errors !== [] ? $errors : [
                 'permission' => [$message]
             ],
             'status_code' => 403,

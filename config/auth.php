@@ -40,6 +40,15 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        /*
+         * Organizer Web App identity — completely separate from Users/admin.
+         * Sanctum personal access tokens are issued against App\Models\Organizer.
+         */
+        'organizer' => [
+            'driver' => 'sanctum',
+            'provider' => 'organizers',
+        ],
     ],
 
     /*
@@ -65,10 +74,10 @@ return [
             'model' => env('AUTH_MODEL', App\Models\User::class),
         ],
 
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
+        'organizers' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Organizer::class,
+        ],
     ],
 
     /*

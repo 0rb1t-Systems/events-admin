@@ -1,14 +1,13 @@
-// Import Lucide icons
 import {
     LayoutDashboard,
     Users,
     Settings,
     Trash2,
     ClipboardList,
-    Building2,
+    Briefcase,
+    CalendarDays,
 } from "lucide-react";
 
-// Import interface
 import { MenuItem } from "../types/sidebar";
 
 export const sidebarMenu: MenuItem[] = [
@@ -19,11 +18,16 @@ export const sidebarMenu: MenuItem[] = [
         permissions: ["view dashboard"],
     },
 
-    // Configuration Section
     {
         title: "configuration",
         isSection: true,
-        permissions: ["view users", "manage settings", "view organizations"],
+        permissions: [
+            "view users",
+            "view organizers",
+            "view events",
+            "manage settings",
+            "view organizations",
+        ],
     },
     {
         title: "users",
@@ -32,14 +36,24 @@ export const sidebarMenu: MenuItem[] = [
         permissions: ["view users"],
     },
     {
+        title: "organizers",
+        icon: Briefcase,
+        path: "/organizers",
+        permissions: ["view organizers"],
+    },
+    {
+        title: "events",
+        icon: CalendarDays,
+        path: "/events",
+        permissions: ["view events"],
+    },
+    {
         title: "settings",
         icon: Settings,
         path: "/settings",
         permissions: ["manage settings"],
-
     },
 
-    // System Monitoring Section
     {
         title: "system_monitoring",
         isSection: true,

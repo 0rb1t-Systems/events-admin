@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\SanctumAbility;
 use App\Enums\UserStatus;
 use App\Enums\UserType;
 use App\Http\Controllers\Controller;
@@ -49,6 +50,7 @@ class AuthController extends Controller
             'email_verification_code' => $emailVerificationCode,
             'email_verification_expires_at' => now()->addMinutes(30),
             'status' => UserStatus::INACTIVE, // User is inactive until email is verified
+            'user_type' => UserType::USER, // Public registration creates participants
         ]);
 
         // Log user registration
@@ -85,7 +87,9 @@ class AuthController extends Controller
     }
 
     /**
-     * Login user and create token (only for user type 'user')
+     * Web / participant login — issues a web-participant scoped token.
+     * Allowed for user_type=user and user_type=admin (admins may also use the Web App).
+     * Does not revoke admin-panel tokens.
      */
     public function login(Request $request)
     {
@@ -115,24 +119,6 @@ class AuthController extends Controller
             return $this->unauthorizedResponse('Invalid credentials');
         }
 
-        // Check if user type is 'user'
-        if ($user->user_type !== UserType::USER) {
-            // Log failed login attempt for wrong user type
-            $this->logAuthActivity([
-                'user' => null,
-                'request' => $request,
-                'locationData' => $locationData,
-                'event' => 'login',
-                'message' => 'Failed login attempt',
-                'extra' => [
-                    'email' => $request->email,
-                    'reason' => 'Wrong user type',
-                ]
-            ]);
-
-            return $this->unauthorizedResponse('Invalid credentials');
-        }
-
         if ($user->status === UserStatus::INACTIVE) {
             // Log failed login attempt for inactive user
             $this->logAuthActivity([
@@ -150,11 +136,13 @@ class AuthController extends Controller
             return $this->forbiddenResponse('Please verify your email address before logging in.');
         }
 
-        // Revoke all existing tokens for this user
-        $user->tokens()->delete();
+        // Revoke only prior web-participant tokens (keep admin-panel tokens intact)
+        $this->revokeTokensWithAbility($user, SanctumAbility::WebParticipant);
 
-        // Create new token
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $token = $user->createToken(
+            'web_participant_token',
+            [SanctumAbility::WebParticipant->value]
+        )->plainTextToken;
 
         // Log successful login
         $this->logAuthActivity([
@@ -162,7 +150,10 @@ class AuthController extends Controller
             'request' => $request,
             'locationData' => $locationData,
             'event' => 'login',
-            'message' => 'User logged in',
+            'message' => 'User logged in (web-participant)',
+            'extra' => [
+                'token_ability' => SanctumAbility::WebParticipant->value,
+            ]
         ]);
 
         return response()->json([
@@ -179,13 +170,15 @@ class AuthController extends Controller
                     'address' => $user->address,
                     'profile_image' => $user->profile_image,
                 ],
-                'token' => $token
+                'token' => $token,
+                'token_ability' => SanctumAbility::WebParticipant->value,
             ]
         ]);
     }
 
     /**
-     * Admin login - only for users with user_type 'admin'
+     * Admin login - only for users with user_type 'admin'.
+     * Issues admin-panel scoped token. Does not revoke web-participant tokens.
      */
     public function adminLogin(Request $request)
     {
@@ -216,11 +209,10 @@ class AuthController extends Controller
             return $this->unauthorizedResponse('Invalid credentials');
         }
 
-        // Check if user type is 'admin'
+        // Participant accounts cannot obtain admin-panel tokens
         if ($user->user_type !== UserType::ADMIN) {
-            // Log failed admin login attempt for wrong user type
             $this->logAuthActivity([
-                'user' => null,
+                'user' => $user,
                 'request' => $request,
                 'locationData' => $locationData,
                 'event' => 'admin_login',
@@ -228,11 +220,20 @@ class AuthController extends Controller
                 'extra' => [
                     'email' => $request->email,
                     'type' => 'admin',
-                    'reason' => 'Wrong user type',
+                    'reason' => 'participant_blocked_from_admin_panel',
+                    'user_type' => $user->user_type?->value ?? (string) $user->user_type,
                 ]
             ]);
 
-            return $this->unauthorizedResponse('Invalid credentials');
+            return response()->json([
+                'success' => false,
+                'message' => 'This account cannot access the Admin Panel. Participant accounts must use the Web App login.',
+                'errors' => [
+                    'error_code' => ['participant_admin_login_forbidden'],
+                    'permission' => ['This account cannot access the Admin Panel. Participant accounts must use the Web App login.'],
+                ],
+                'status_code' => 403,
+            ], 403);
         }
 
         if ($user->status === UserStatus::INACTIVE) {
@@ -253,11 +254,13 @@ class AuthController extends Controller
             return $this->forbiddenResponse('Please verify your email address before logging in.');
         }
 
-        // Revoke all existing tokens for this user
-        $user->tokens()->delete();
+        // Revoke only prior admin-panel tokens (keep web-participant tokens intact)
+        $this->revokeTokensWithAbility($user, SanctumAbility::AdminPanel);
 
-        // Create new token
-        $token = $user->createToken('admin_auth_token')->plainTextToken;
+        $token = $user->createToken(
+            'admin_auth_token',
+            [SanctumAbility::AdminPanel->value]
+        )->plainTextToken;
 
         // Load roles and permissions relationships
         $user->load(['roles']);
@@ -271,6 +274,7 @@ class AuthController extends Controller
             'message' => 'Admin logged in',
             'extra' => [
                 'type' => 'admin',
+                'token_ability' => SanctumAbility::AdminPanel->value,
             ]
         ]);
 
@@ -290,7 +294,8 @@ class AuthController extends Controller
                     'roles' => $user->roles->makeHidden('permissions'),
                     'permissions' => $user->getAllPermissions(),
                 ],
-                'token' => $token
+                'token' => $token,
+                'token_ability' => SanctumAbility::AdminPanel->value,
             ]
         ]);
     }
@@ -724,10 +729,15 @@ class AuthController extends Controller
             return $this->unauthorizedResponse('Invalid password');
         }
 
-        // Store lock state in user's current token metadata
+        // Store lock state in user's current token metadata (preserve existing scope abilities).
+        // Note: 'locked' is a session flag on the token, NOT a SanctumAbility login scope.
         $token = $request->user()->currentAccessToken();
+        $abilities = $token->abilities ?? [];
+        if (! in_array('locked', $abilities, true)) {
+            $abilities[] = 'locked';
+        }
         $token->update([
-            'abilities' => array_merge($token->abilities, ['locked']),
+            'abilities' => array_values($abilities),
             'updated_at' => now(),
         ]);
 
@@ -782,11 +792,11 @@ class AuthController extends Controller
             return $this->unauthorizedResponse('Invalid password');
         }
 
-        // Remove lock state from user's current token
+        // Remove lock state from user's current token (preserve admin-panel / web-participant)
         $token = $request->user()->currentAccessToken();
-        $abilities = array_filter($token->abilities, function ($ability) {
+        $abilities = array_values(array_filter($token->abilities ?? [], function ($ability) {
             return $ability !== 'locked';
-        });
+        }));
         $token->update([
             'abilities' => $abilities,
             'updated_at' => now(),
@@ -815,7 +825,7 @@ class AuthController extends Controller
         $user = $request->user();
         $token = $request->user()->currentAccessToken();
 
-        $isLocked = in_array('locked', $token->abilities);
+        $isLocked = in_array('locked', $token->abilities ?? [], true);
 
         return response()->json([
             'success' => true,
@@ -832,6 +842,31 @@ class AuthController extends Controller
         ]);
     }
 
+
+    /**
+     * Revoke only tokens for the given scope so admin-panel and web-participant can coexist.
+     * Matches by ability and known token names; on admin login also retires legacy "*" tokens.
+     */
+    private function revokeTokensWithAbility(User $user, SanctumAbility $ability): void
+    {
+        $scopeNames = match ($ability) {
+            SanctumAbility::AdminPanel => ['admin_auth_token'],
+            SanctumAbility::WebParticipant => ['web_participant_token', 'auth_token'],
+            default => [],
+        };
+
+        $user->tokens()->get()->each(function ($token) use ($ability, $scopeNames) {
+            $abilities = $token->abilities ?? [];
+            $hasAbility = in_array($ability->value, $abilities, true);
+            $nameMatch = in_array($token->name, $scopeNames, true);
+            $retireLegacyWildcardOnAdminLogin = $ability === SanctumAbility::AdminPanel
+                && in_array('*', $abilities, true);
+
+            if ($hasAbility || $nameMatch || $retireLegacyWildcardOnAdminLogin) {
+                $token->delete();
+            }
+        });
+    }
 
     /**
      * Helper to log authentication activities

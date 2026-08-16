@@ -36,6 +36,33 @@ class RolePermissionSeeder extends Seeder
             'view organizations',
             'edit organizations',
 
+            // organizers (Admin oversight — no free edit of identity fields)
+            'view organizers',
+            'suspend organizers',
+            'delete organizers',
+
+            // packages (Admin full CRUD)
+            'view packages',
+            'create packages',
+            'edit packages',
+            'delete packages',
+
+            // organizer subscriptions (Admin oversight — assign/cancel, not Web self-serve)
+            'view organizer subscriptions',
+            'assign organizer subscriptions',
+
+            // events (Admin oversight)
+            'view events',
+            'create events',
+            'edit events',
+            'delete events',
+
+            // event categories (Admin CRUD)
+            'view event categories',
+            'create event categories',
+            'edit event categories',
+            'delete event categories',
+
             // settings
             'manage settings',
 
@@ -54,22 +81,26 @@ class RolePermissionSeeder extends Seeder
         ];
 
         foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
+            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
         // Create roles and assign permissions
 
         // 1. Admin - can do everything
-        $adminRole = Role::create(['name' => 'admin']);
-        $adminRole->givePermissionTo(Permission::all()); // Admin gets all permissions
+        $adminRole = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        $adminRole->syncPermissions(Permission::all());
 
         // Create sample users and assign roles
-        $adminUser = User::create([
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => bcrypt('password'),
-            'user_type' => UserType::ADMIN,
-        ]);
-        $adminUser->assignRole('admin');
+        $adminUser = User::firstOrCreate(
+            ['email' => 'admin@example.com'],
+            [
+                'name' => 'Admin User',
+                'password' => bcrypt('password'),
+                'user_type' => UserType::ADMIN,
+            ]
+        );
+        if (! $adminUser->hasRole('admin')) {
+            $adminUser->assignRole('admin');
+        }
     }
 }

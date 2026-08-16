@@ -77,4 +77,14 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Role::class);
     }
+
+    public function isAdmin(): bool
+    {
+        return $this->user_type === UserType::ADMIN;
+    }
+
+    public function isParticipant(): bool
+    {
+        return $this->user_type === UserType::USER;
+    }
 }

@@ -22,6 +22,10 @@ const User = lazy(() => import("../pages/user"));
 const Settings = lazy(() => import("../pages/settings"));
 const SettingsMail = lazy(() => import("../pages/settings/mail"));
 const SettingsRoles = lazy(() => import("../pages/settings/roles"));
+const SettingsPackages = lazy(() => import("../pages/settings/packages"));
+const SettingsEventCategories = lazy(
+    () => import("../pages/settings/event-categories")
+);
 
 // Organization (Configuration)
 const Organization = lazy(() => import("../pages/organization"));
@@ -34,6 +38,14 @@ const LockScreen = lazy(() => import("../pages/lock-screen"));
 const TrashPage = lazy(() => import("../pages/trash"));
 const TrashUsers = lazy(() => import("../pages/trash/Users"));
 const TrashRoles = lazy(() => import("../pages/trash/Roles"));
+const TrashOrganizers = lazy(() => import("../pages/trash/Organizers"));
+const TrashEvents = lazy(() => import("../pages/trash/Events"));
+
+// Organizers (oversight)
+const Organizer = lazy(() => import("../pages/organizer"));
+
+// Events (oversight)
+const Event = lazy(() => import("../pages/event"));
 
 // Redirect component - now redirects from root (/) to /dashboard
 const RedirectToDashboard = () => <Navigate to="/dashboard" replace />;
@@ -93,6 +105,22 @@ export const protectedRoutes: RouteConfig[] = [
         permissions: ["view users"],
     },
 
+    // Organizers (Admin oversight)
+    {
+        path: "/organizers",
+        element: <Organizer />,
+        layout: "default",
+        permissions: ["view organizers"],
+    },
+
+    // Events (Admin oversight)
+    {
+        path: "/events",
+        element: <Event />,
+        layout: "default",
+        permissions: ["view events"],
+    },
+
     // Settings (with nested tabs)
     {
         path: "/settings",
@@ -111,6 +139,18 @@ export const protectedRoutes: RouteConfig[] = [
                 element: <SettingsRoles />,
                 layout: "default",
                 permissions: ["manage settings"],
+            },
+            {
+                path: "packages",
+                element: <SettingsPackages />,
+                layout: "default",
+                permissions: ["view packages"],
+            },
+            {
+                path: "event-categories",
+                element: <SettingsEventCategories />,
+                layout: "default",
+                permissions: ["view event categories"],
             },
             {
                 path: "organization",
@@ -146,6 +186,18 @@ export const protectedRoutes: RouteConfig[] = [
             {
                 path: "roles",
                 element: <TrashRoles />,
+                layout: "default",
+                permissions: ["view trash items"],
+            },
+            {
+                path: "organizers",
+                element: <TrashOrganizers />,
+                layout: "default",
+                permissions: ["view trash items"],
+            },
+            {
+                path: "events",
+                element: <TrashEvents />,
                 layout: "default",
                 permissions: ["view trash items"],
             },

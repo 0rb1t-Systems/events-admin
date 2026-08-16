@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // All settings routes require authentication
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
 
     // Email Configuration Routes
     Route::prefix('mail-config')->group(function () {

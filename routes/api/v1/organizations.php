@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // All organization routes require authentication
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
 
     // Standard CRUD operations (adapted for single organization)
     Route::get('/', [OrganizationController::class, 'index'])->middleware('permission:view organizations');

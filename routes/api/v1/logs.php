@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // All log routes require authentication
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     // Log Routes
     Route::get('/', [LogController::class, 'index']);//->middleware('permission:view logs');
     Route::get('/types', [LogController::class, 'getLogTypes']);//->middleware('permission:view logs');

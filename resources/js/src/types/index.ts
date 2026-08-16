@@ -4,3 +4,6 @@ export * from './auth';
 export * from './common';
 export * from './role';
 export * from './mail';
+export * from './organizer';
+export * from './package';
+export * from './event';

@@ -30,8 +30,23 @@ Route::prefix('v1')->group(function () {
     // Organizations routes
     Route::prefix('organizations')->group(base_path('routes/api/v1/organizations.php'));
 
-    // Profile routes
-    Route::middleware('auth:sanctum')->put('/auth/profile', [\App\Http\Controllers\Api\AuthController::class, 'updateProfile']);
-    Route::middleware('auth:sanctum')->post('/auth/profile-picture', [\App\Http\Controllers\Api\AuthController::class, 'updateProfilePicture']);
-    Route::middleware('auth:sanctum')->post('/auth/change-password', [\App\Http\Controllers\Api\AuthController::class, 'changePassword']);
+    // Organizers (Admin oversight)
+    Route::prefix('organizers')->group(base_path('routes/api/v1/organizers.php'));
+
+    // Packages (Admin CRUD — subscription plans)
+    Route::prefix('packages')->group(base_path('routes/api/v1/packages.php'));
+
+    // Events (Admin oversight)
+    Route::prefix('events')->group(base_path('routes/api/v1/events.php'));
+
+    // Event categories (Admin CRUD)
+    Route::prefix('event-categories')->group(base_path('routes/api/v1/event-categories.php'));
+
+    // Organizer Web App auth scaffolding (separate from User auth)
+    Route::prefix('organizer-auth')->group(base_path('routes/api/v1/organizer-auth.php'));
+
+    // Profile routes (Admin Panel scoped)
+    Route::middleware(['auth:sanctum', 'admin.panel'])->put('/auth/profile', [\App\Http\Controllers\Api\AuthController::class, 'updateProfile']);
+    Route::middleware(['auth:sanctum', 'admin.panel'])->post('/auth/profile-picture', [\App\Http\Controllers\Api\AuthController::class, 'updateProfilePicture']);
+    Route::middleware(['auth:sanctum', 'admin.panel'])->post('/auth/change-password', [\App\Http\Controllers\Api\AuthController::class, 'changePassword']);
 });

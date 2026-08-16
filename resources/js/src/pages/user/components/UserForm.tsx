@@ -156,31 +156,26 @@ const UserForm: React.FC<UserFormProps> = ({
             return;
         }
 
-        // Add userType to the data
-        let formDataWithUserType = {
-            ...data,
-            user_type: userType,
-        };
+        // user_type is server-controlled (Admin Panel creates admins; type is read-only in UI)
+        let payload: Record<string, unknown> = { ...data };
 
-        // Remove role_id if user is not admin
         if (userType !== "admin") {
-            const { role_id, ...dataWithoutRole } = formDataWithUserType;
-            formDataWithUserType = dataWithoutRole;
+            const { role_id, ...dataWithoutRole } = payload;
+            payload = dataWithoutRole;
         }
 
-        // Remove empty password fields when updating
+        // Never send user_type on update — backend ignores it; create forces admin server-side
         if (isEditMode && userToEdit) {
             if (!data.password) {
-                const { password, password_confirmation, ...restData } =
-                    formDataWithUserType;
+                const { password, password_confirmation, ...restData } = payload;
                 updateUser.mutate({
                     id: userToEdit.id,
-                    data: restData,
+                    data: restData as UserFormData,
                 });
             } else {
                 updateUser.mutate({
                     id: userToEdit.id,
-                    data: formDataWithUserType,
+                    data: payload as UserFormData,
                 });
             }
         } else {
@@ -192,7 +187,7 @@ const UserForm: React.FC<UserFormProps> = ({
                 });
                 return;
             }
-            createUser.mutate(formDataWithUserType);
+            createUser.mutate(payload as UserFormData);
         }
     };
 
