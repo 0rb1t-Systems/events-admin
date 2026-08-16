@@ -208,6 +208,7 @@ class Prompt13OwnershipAndAdminScreensTest extends TestCase
 
         EventInvitationTemplate::factory()->create([
             'event_id' => $event->id,
+            'mode' => null,
             'config' => [
                 'title' => 'Welcome',
                 'primary_color' => '#112233',

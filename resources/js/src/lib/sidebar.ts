@@ -90,6 +90,7 @@ export const sidebarMenu: MenuItem[] = [
             "manage settings",
             "view packages",
             "view event categories",
+            "view invitation templates",
             "view organizations",
         ],
         children: [
@@ -100,6 +101,11 @@ export const sidebarMenu: MenuItem[] = [
                 title: "event_categories",
                 path: "/settings/event-categories",
                 permissions: ["view event categories"],
+            },
+            {
+                title: "invitation_templates",
+                path: "/settings/invitation-templates",
+                permissions: ["view invitation templates"],
             },
             { title: "commission", path: "/settings/commission", permissions: ["manage settings"] },
             {

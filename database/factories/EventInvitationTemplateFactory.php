@@ -17,11 +17,16 @@ class EventInvitationTemplateFactory extends Factory
     {
         return [
             'event_id' => Event::factory(),
+            'mode' => null,
+            'system_template_id' => null,
+            'background_image_path' => null,
             'config' => [
                 'title' => fake()->sentence(3),
                 'primary_color' => '#0ea5e9',
                 'show_qr' => true,
             ],
+            'overlay_positions' => null,
+            'customizations' => null,
         ];
     }
 }

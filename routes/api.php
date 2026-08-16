@@ -56,6 +56,7 @@ Route::prefix('v1')->group(function () {
 
     // Invitation templates + QR scan logs (Phase 5b)
     Route::prefix('event-invitation-templates')->group(base_path('routes/api/v1/event-invitation-templates.php'));
+    Route::prefix('invitation-system-templates')->group(base_path('routes/api/v1/invitation-system-templates.php'));
     Route::prefix('qr-scan-logs')->group(base_path('routes/api/v1/qr-scan-logs.php'));
 
     // Certificates (admin re-issue — Prompt 13)

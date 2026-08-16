@@ -13,18 +13,30 @@ class EventInvitationTemplate extends Model
 
     protected $fillable = [
         'event_id',
+        'mode',
+        'system_template_id',
+        'background_image_path',
         'config',
+        'overlay_positions',
+        'customizations',
     ];
 
     protected function casts(): array
     {
         return [
             'config' => 'array',
+            'overlay_positions' => 'array',
+            'customizations' => 'array',
         ];
     }
 
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function systemTemplate(): BelongsTo
+    {
+        return $this->belongsTo(InvitationSystemTemplate::class, 'system_template_id');
     }
 }

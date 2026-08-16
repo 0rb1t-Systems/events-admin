@@ -349,11 +349,7 @@ class EventApi extends BaseApi<IEvent> {
 
     async getInvitationTemplate(eventId: number | string): Promise<{
         event_id: number;
-        template: {
-            id: number;
-            event_id: number;
-            config?: Record<string, unknown> | null;
-        } | null;
+        template: import("../types/invitationTemplate").IEventInvitationTemplate | null;
     }> {
         const response = await axiosInstance.get(
             `${this.endpoint}/${eventId}/invitation-template`

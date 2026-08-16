@@ -32,9 +32,3 @@ export interface ICheckInStats {
     already_used_scans: number;
     invalid_scans: number;
 }
-
-export interface IEventInvitationTemplate extends ITimestamped {
-    id: number;
-    event_id: number;
-    config?: Record<string, unknown> | null;
-}

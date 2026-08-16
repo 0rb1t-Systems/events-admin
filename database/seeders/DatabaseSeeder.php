@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             RolePermissionSeeder::class,
             SettingsSeeder::class,
             EventCategorySeeder::class,
+            InvitationSystemTemplateSeeder::class,
         ]);
     }
 }

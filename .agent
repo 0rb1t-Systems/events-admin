@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (Prompt 14: missing/partial Admin screens — payments, refunds, gallery upload, certificates, subscriptions; Feedback unchanged)
+Last updated: 2026-08-16 (Prompt 15: invitation system templates library + event template modes + canvas standard)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -36,12 +36,14 @@ Every meaningful change to the codebase must also update this file.
   - Do not commit `.env` or secrets
   - Organization is effectively **single-tenant profile** (not a full CRUD list page like Users)
   - After permission changes: reseed `RolePermissionSeeder` (or sync admin role) so gates match routes
-  - Full suite: **144 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
-  - Run `php artisan migrate` for `payments.gateway` (Prompt 12) and `event_feedback.hidden` (Prompt 13)
-  - After Prompt 13/14 permissions: reseed `RolePermissionSeeder` (adds `reissue certificates`, `moderate feedback`, **`refund payments`**)
+  - Full suite: **149 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
+  - Run `php artisan migrate` for invitation system templates + event_invitation_templates mode columns (Prompt 15)
+  - Seed: `InvitationSystemTemplateSeeder` (4 placeholder designs) via DatabaseSeeder
+  - After Prompt 13/14/15 permissions: reseed `RolePermissionSeeder` when needed (`view/manage invitation templates` already exist)
   - **FormCombobox / pickers:** Headless UI calls `displayValue(null)` when nothing is selected — formatters and `FormCombobox` must treat null as `""`. Avoid Unicode middle-dot (`·`) in template literals on Windows/Vite Babel (use ASCII ` - ` instead).
   - **Ownership (Prompt 13):** Admin = platform owner; Organizer = event owner. Event-operation actions (manual pay, QR check-in, Waafi charge) reject `admin-panel` tokens with `403` + `error_code: action_requires_organizer_scope` via `RejectsAdminPanelOrganizerActions`.
   - **Event Detail is the hub** for all event-scoped sub-resources (tickets, participants, payments+refunds, gallery upload, invitation preview, add-ons, analytics, finance).
+  - **Invitation designer / generation / overlay editor = Web App Phase 2** — Admin only manages system template library + read-only event preview.
 
 ## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
 These were decided during Admin Prompts 1–12. Confirm or correct before Web App work:
@@ -74,6 +76,7 @@ These were decided during Admin Prompts 1–12. Confirm or correct before Web Ap
 26. **Feedback moderation (Prompt 13)** — Platform-wide `/feedback` list + hide/show (`event_feedback.hidden`). Soft-hide only. **Web App MUST filter `where hidden = false`** on any public/organizer feedback query.
 27. **Invitation preview (Prompt 13/14)** — Read-only `InvitationTemplatePreview` on Event Detail; uses `GET /events/{id}/invitation-template` + `eventApi.getInvitationTemplate`.
 28. **Prompt 14 UI completeness** — Platform `/payments`, `/certificates`, `/subscriptions`; Event Detail payments+refunds + gallery upload. **Item 7 (rebuild Feedback) skipped** — Feedback already complete from Prompt 13; do not regress.
+29. **Invitation system (Prompt 15)** — Platform library `invitation_system_templates` (Admin CRUD under Settings). Event configs support `mode=template|custom`. Designer/generation/compositing = **Web App Phase 2**. Canvas locked at **800×1100px portrait**.
 ## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
 These were decided during Admin Prompts 1–11. Confirm or correct before Web App work:
 
@@ -635,13 +638,64 @@ FE: `FormFieldOversight` in Event Detail — **read-only** (no edit UI).
 - `tests/Unit/FormFieldValidationServiceTest.php` — standalone required/type/inactive/historical extras (14)
 - `tests/Feature/EventFormFieldModuleTest.php` — compound unique, deactivate vs delete, join validation wire, admin list/store/destroy (8)
 
+## Invitation Canvas Standard
+
+**Locked for Phase 2 generation engine** (Prompt 15). All system templates, custom uploads, and compositing must use this standard.
+
+### Canvas
+- **Size:** **800 × 1100 px** (portrait)
+- Helper: `App\Support\InvitationCanvas` (`WIDTH` / `HEIGHT` / `defaultOverlayPositions()` / `defaultCustomizations()`)
+
+### Output formats
+- **PNG** — primary (email / in-app display)
+- **PDF** — download
+- Both generated from the **same compositing pass** (Web App Phase 2)
+
+### Dynamic overlay fields (keys)
+| Key | Type | Position fields |
+|-----|------|-----------------|
+| `qr_code` | image zone | `x`, `y`, `width`, `height` |
+| `participant_name` | text | `x`, `y`, `font_size`, `font_color` |
+| `event_title` | text | `x`, `y`, `font_size`, `font_color` |
+| `event_date` | text | `x`, `y`, `font_size`, `font_color` |
+| `event_time` | text | `x`, `y`, `font_size`, `font_color` |
+| `event_venue` | text | `x`, `y`, `font_size`, `font_color` |
+| `ticket_type` | text | `x`, `y`, `font_size`, `font_color` |
+| `organizer_logo` | image zone | `x`, `y`, `width`, `height` |
+
+Overlay position schema object: `{ x: int, y: int, width?: int, height?: int, font_size?: int, font_color?: string }` — coordinates are pixels relative to the 800×1100 canvas origin (top-left).
+
+### Custom upload requirements (organizer mode = custom)
+- **Dimensions:** must match canvas **800 × 1100 px**
+- **Formats:** PNG or JPG
+- **Max size:** 5 MB (admin system background uploads use the same limit)
+
+### Schema notes
+- `invitation_system_templates` — platform library (Admin CRUD). Soft-delete; **force-delete blocked** if referenced by any `event_invitation_templates.system_template_id`.
+- `event_invitation_templates` — per-event config:
+  - `mode`: `template` | `custom` | `null` (not configured)
+  - `system_template_id` (nullable FK, nullOnDelete) when mode=template
+  - `background_image_path` when mode=custom
+  - **`config`** — legacy JSON kept for backward compatibility (do not remove)
+  - **`overlay_positions`** — new positional JSON (Phase 2 designer writes here)
+  - **`customizations`** — `{ primary_color, secondary_color, logo_path, header_text, font_family }`
+
+### Admin surfaces
+- Settings → Invitation Templates (`/settings/invitation-templates`) — library CRUD
+- Event Detail → Invitation template — read-only mode-aware preview
+
+### Explicitly deferred to Web App Phase 2
+Organizer designer UI, overlay drag/position editor, invitation PNG/PDF generation engine.
+
 ## Invitation + QR (Phase 5b)
 
 Digital invitation templates + cryptographically random `participations.qr_token` + scan validation state machine + scan audit log. Scanner UI is Web App; Admin gets scan history + check-in stats.
 
 ### Tables
 
-**`event_invitation_templates`** (`2026_08_16_180000_...`): `event_id` (unique), `config` JSON (flexible branding/layout), timestamps.
+**`event_invitation_templates`** (`2026_08_16_180000_...` + Prompt 15 alter `2026_08_16_220100_...`): `event_id` (unique), `mode` (`template|custom|null`), `system_template_id` (nullable FK), `background_image_path`, legacy `config` JSON, `overlay_positions` JSON, `customizations` JSON, timestamps.
+
+**`invitation_system_templates`** (`2026_08_16_220000_...`): platform library — name, slug (unique), thumbnail/background paths, default overlay/customization JSON, active, soft deletes.
 
 **`qr_scan_logs`** (`2026_08_16_180100_...`): `scanned_token`, nullable `participation_id` / `event_id`, `result` (`valid|already_used|invalid`), nullable `gate`, `scanner_user_id`, `scanner_organizer_id`, `meta` JSON. **Every attempt is logged** (success and failure).
 
@@ -788,7 +842,8 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Feedback | `EventFeedback` (+ `hidden`) | `FeedbackController` + EventAddOn | `feedback.php` + nested + POST event-feedback | `pages/feedback/` + Event Detail aggregates | `feedback.ts` | `feedback.ts` |
 | Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested `organizers.php` | **`pages/subscription/`** + Organizer Detail assign/cancel | `subscription.ts` / `organizerSubscription.ts` | `package.ts` |
 | Event add-ons | Announcement, Sponsor, Speaker, Session | `EventAddOnController` | nested `events.php` | Event Detail CRUD/send | `event.ts` | `event.ts` |
-| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | nested + resource | Event Detail **read-only preview** ✅ | `event.ts` (`getInvitationTemplate`) | — |
+| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | nested + resource | Event Detail **read-only preview** (modes) ✅ | `event.ts` (`getInvitationTemplate`) | `invitationTemplate.ts` |
+| Invitation system templates | `InvitationSystemTemplate` | `InvitationSystemTemplateController` | `invitation-system-templates.php` | **Settings → Invitation Templates** CRUD ✅ | `invitationSystemTemplate.ts` | `invitationTemplate.ts` |
 | QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` history only | `qrScanLog.ts` | `qrScan.ts` |
 | Settings | `Settings` | `SettingsController` | `settings.php` | mail + commission | `mail.ts` / `payout.ts` | `mail.ts` / `payment.ts` |
 | Logs | Activity log | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
@@ -926,6 +981,15 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Prompt 15: Invitation system templates & event modes
+- **Part 1:** `invitation_system_templates` table + `InvitationSystemTemplate` model (soft deletes); `InvitationSystemTemplateController` CRUD with image upload; routes `invitation-system-templates.php`; Settings FE `pages/settings/invitation-templates/`; seeder 4 placeholders (Modern Blue, Festive Gold, Minimal Dark, Classic Cream)
+- **Part 2:** Migration adds `mode`, `system_template_id`, `background_image_path`, `overlay_positions`, `customizations` to `event_invitation_templates`; keeps legacy `config`; model + `forEvent` loads `systemTemplate`; Event Detail preview mode-aware
+- **Part 3:** Documented **Invitation Canvas Standard** (800×1100 portrait) in `.agent` + `App\Support\InvitationCanvas`
+- Permissions: existing `view invitation templates` / `manage invitation templates` (no new strings)
+- Force-delete blocked when template is in use by any event config
+- Tests: `InvitationSystemTemplateTest` (5) — suite **149 passed / 3 ExceptionHandlerTest failed**
+- Migrations: `2026_08_16_220000_...`, `2026_08_16_220100_...`
 
 ### 2026-08-16 - Prompt 14: Missing & partial Admin screens (skip Feedback rebuild)
 - **Skipped item 7:** Platform Feedback already completed in Prompt 13 — not touched.

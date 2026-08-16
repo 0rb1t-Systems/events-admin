@@ -2,30 +2,31 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import Loader from "../../../components/Loader";
 import { eventApi } from "../../../services/event";
+import { IEventInvitationTemplate } from "../../../types/invitationTemplate";
 
 interface Props {
     eventId: number;
 }
 
-const KNOWN_FIELDS: { key: string; label: string }[] = [
-    { key: "title", label: "Header text" },
-    { key: "subtitle", label: "Subtitle" },
-    { key: "primary_color", label: "Primary color" },
-    { key: "secondary_color", label: "Secondary color" },
-    { key: "background_color", label: "Background color" },
-    { key: "logo_url", label: "Logo" },
-    { key: "show_qr", label: "Show QR" },
-    { key: "show_date", label: "Show date" },
-    { key: "show_venue", label: "Show venue" },
-    { key: "layout", label: "Layout" },
-    { key: "message", label: "Message" },
-];
+const Field = ({
+    label,
+    children,
+}: {
+    label: string;
+    children: React.ReactNode;
+}) => (
+    <div>
+        <label className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {label}
+        </label>
+        <div className="mt-0.5 text-sm text-gray-900 dark:text-white">{children}</div>
+    </div>
+);
 
-const formatValue = (value: unknown): string => {
-    if (value === null || value === undefined || value === "") return "Not configured";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    if (typeof value === "object") return JSON.stringify(value);
-    return String(value);
+const modeLabel = (mode?: string | null) => {
+    if (mode === "template") return "Template (system design)";
+    if (mode === "custom") return "Custom (uploaded background)";
+    return "Not configured";
 };
 
 const InvitationTemplatePreview: React.FC<Props> = ({ eventId }) => {
@@ -41,8 +42,9 @@ const InvitationTemplatePreview: React.FC<Props> = ({ eventId }) => {
         );
     }
 
-    const template = data?.template;
-    if (!template) {
+    const template = (data?.template || null) as IEventInvitationTemplate | null;
+
+    if (!template || !template.mode) {
         return (
             <p className="text-sm text-gray-500 dark:text-gray-400">
                 No invitation template has been configured for this event yet. The
@@ -51,59 +53,103 @@ const InvitationTemplatePreview: React.FC<Props> = ({ eventId }) => {
         );
     }
 
-    const config = (template.config && typeof template.config === "object"
-        ? template.config
-        : {}) as Record<string, unknown>;
-
-    const knownKeys = new Set(KNOWN_FIELDS.map((f) => f.key));
-    const extraKeys = Object.keys(config).filter((k) => !knownKeys.has(k));
+    const customizations = template.customizations ?? {};
+    const overlays = template.overlay_positions ?? {};
+    const legacyConfig = template.config ?? {};
 
     return (
         <div className="space-y-3 text-sm">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-                Read-only preview of organizer-authored invitation card config.
+                Read-only preview of organizer invitation setup (designer is Web App).
             </p>
 
             <div className="grid grid-cols-2 gap-3">
-                {KNOWN_FIELDS.map(({ key, label }) => (
-                    <div key={key}>
-                        <label className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                            {label}
-                        </label>
-                        <div className="mt-0.5 text-gray-900 dark:text-white">
-                            {key.includes("color") &&
-                            typeof config[key] === "string" &&
-                            String(config[key]).startsWith("#") ? (
-                                <span className="inline-flex items-center gap-2">
-                                    <span
-                                        className="inline-block h-3 w-3 rounded border border-gray-200 dark:border-gray-600"
-                                        style={{ backgroundColor: String(config[key]) }}
-                                    />
-                                    {formatValue(config[key])}
-                                </span>
-                            ) : (
-                                formatValue(config[key])
-                            )}
-                        </div>
-                    </div>
-                ))}
+                <Field label="Mode">{modeLabel(template.mode)}</Field>
+                <Field label="ID">{template.id}</Field>
             </div>
 
-            {extraKeys.length > 0 && (
-                <div>
-                    <label className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Additional fields
-                    </label>
-                    <ul className="mt-1 space-y-1 text-xs text-gray-700 dark:text-gray-300">
-                        {extraKeys.map((key) => (
+            {template.mode === "template" && (
+                <div className="space-y-2 rounded border border-gray-100 p-2 dark:border-[#1b2e4b]">
+                    <Field label="System template">
+                        {template.system_template?.name ??
+                            (template.system_template_id
+                                ? `#${template.system_template_id}`
+                                : "Not configured")}
+                    </Field>
+                    {template.system_template?.slug && (
+                        <Field label="Slug">
+                            <code className="text-xs">{template.system_template.slug}</code>
+                        </Field>
+                    )}
+                    {template.system_template?.background_image_path && (
+                        <Field label="System background">
+                            <code className="break-all text-xs">
+                                {template.system_template.background_image_path}
+                            </code>
+                        </Field>
+                    )}
+                </div>
+            )}
+
+            {template.mode === "custom" && (
+                <Field label="Custom background">
+                    <code className="break-all text-xs">
+                        {template.background_image_path || "Not configured"}
+                    </code>
+                </Field>
+            )}
+
+            <div>
+                <label className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Customizations
+                </label>
+                <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+                    {(
+                        [
+                            ["primary_color", "Primary color"],
+                            ["secondary_color", "Secondary color"],
+                            ["font_family", "Font"],
+                            ["header_text", "Header text"],
+                            ["logo_path", "Logo path"],
+                        ] as const
+                    ).map(([key, label]) => (
+                        <div key={key}>
+                            <span className="text-gray-500">{label}: </span>
+                            <span className="text-gray-900 dark:text-white">
+                                {(customizations as any)?.[key] ??
+                                    (legacyConfig as any)?.[key] ??
+                                    "Not configured"}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div>
+                <label className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Overlay positions
+                </label>
+                {Object.keys(overlays).length === 0 ? (
+                    <p className="mt-1 text-xs text-gray-500">Not configured</p>
+                ) : (
+                    <ul className="mt-1 max-h-40 space-y-1 overflow-auto text-xs">
+                        {Object.entries(overlays).map(([key, pos]) => (
                             <li key={key}>
                                 <span className="font-medium">{key}:</span>{" "}
-                                {formatValue(config[key])}
+                                {pos
+                                    ? `x=${pos.x ?? "?"}, y=${pos.y ?? "?"}${
+                                          pos.width != null ? `, w=${pos.width}` : ""
+                                      }${pos.height != null ? `, h=${pos.height}` : ""}${
+                                          pos.font_size != null
+                                              ? `, size=${pos.font_size}`
+                                              : ""
+                                      }`
+                                    : "Not configured"}
                             </li>
                         ))}
                     </ul>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 };
