@@ -45,6 +45,9 @@ Route::prefix('v1')->group(function () {
     // Ticket types + discount codes (admin oversight endpoints)
     require base_path('routes/api/v1/ticket-types.php');
 
+    // Participations (admin oversight)
+    require base_path('routes/api/v1/participations.php');
+
     // Organizer Web App auth scaffolding (separate from User auth)
     Route::prefix('organizer-auth')->group(base_path('routes/api/v1/organizer-auth.php'));
 

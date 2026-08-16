@@ -31,6 +31,9 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     Route::post('/{id}/discount-codes/validate', [\App\Http\Controllers\Api\DiscountCodeController::class, 'validateForEvent'])
         ->middleware('permission:view discount codes');
 
+    Route::get('/{id}/participations', [\App\Http\Controllers\Api\ParticipationController::class, 'forEvent'])
+        ->middleware('permission:view participations');
+
     Route::post('/{id}/gallery', [EventController::class, 'uploadGalleryImage'])->middleware('permission:edit events');
     Route::post('/{id}/gallery/reorder', [EventController::class, 'reorderGallery'])->middleware('permission:edit events');
     Route::delete('/{id}/gallery/{imageId}', [EventController::class, 'deleteGalleryImage'])->middleware('permission:edit events');

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import Loader from "../../../components/Loader";
 import { useConfirmDialog } from "../../../hooks";
 import { eventApi } from "../../../services/event";
+import ParticipationOversight from "./ParticipationOversight";
 
 interface Props {
     eventId: number | null;
@@ -126,8 +127,14 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                 <Field label="Featured">{event.featured ? "Yes" : "No"}</Field>
                 <Field label="Monetized">{event.monetized ? "Yes" : "No"}</Field>
                 <Field label="Capacity">
-                    {formatCapacity(event.capacity, event.registrations_count)}
+                    {formatCapacity(event.capacity, event.registered_count ?? event.registrations_count)}
+                    {event.seats_remaining != null && (
+                        <span className="ml-1 text-xs text-gray-500">
+                            ({event.seats_remaining} left)
+                        </span>
+                    )}
                 </Field>
+                <Field label="Waitlisted">{event.waitlisted_count ?? 0}</Field>
                 <Field label="Reg. deadline">
                     {event.registration_deadline
                         ? moment(event.registration_deadline).format("MMM DD, YYYY HH:mm")
@@ -177,6 +184,13 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                 >
                     Sync sold_out from capacity
                 </button>
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Participations
+                </h4>
+                <ParticipationOversight eventId={eventId} />
             </div>
 
             <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">

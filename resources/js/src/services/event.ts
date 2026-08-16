@@ -48,6 +48,30 @@ class EventApi extends BaseApi<IEvent> {
         return response.data.data || response.data;
     }
 
+    async participations(eventId: number | string): Promise<{
+        event_id: number;
+        capacity: {
+            registered_count: number;
+            waitlisted_count: number;
+            seats_remaining: number | null;
+            capacity: number | null;
+        };
+        participations: import("../types/event").IParticipation[];
+    }> {
+        const response = await axiosInstance.get(`${this.endpoint}/${eventId}/participations`);
+        return response.data.data || response.data;
+    }
+
+    async promoteParticipation(id: number | string) {
+        const response = await axiosInstance.post(`/participations/${id}/promote`);
+        return response.data.data || response.data;
+    }
+
+    async cancelParticipation(id: number | string) {
+        const response = await axiosInstance.post(`/participations/${id}/cancel`);
+        return response.data.data || response.data;
+    }
+
     async disableTicketSales(ticketTypeId: number | string): Promise<ITicketType> {
         const response = await axiosInstance.post(`/ticket-types/${ticketTypeId}/disable-sales`);
         return response.data.data || response.data;

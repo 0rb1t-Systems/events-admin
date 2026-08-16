@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\EventStatus;
 use App\Services\EventRegistrationGate;
+use App\Services\ParticipationService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -37,6 +38,9 @@ class Event extends Model
 
     protected $appends = [
         'registration_gates',
+        'registered_count',
+        'waitlisted_count',
+        'seats_remaining',
     ];
 
     protected function casts(): array
@@ -80,9 +84,42 @@ class Event extends Model
         return $this->hasMany(DiscountCode::class);
     }
 
+    public function participations(): HasMany
+    {
+        return $this->hasMany(Participation::class);
+    }
+
     public function getRegistrationGatesAttribute(): array
     {
         return EventRegistrationGate::evaluate($this);
+    }
+
+    /** Live registered count (synced column preferred). */
+    public function getRegisteredCountAttribute(): int
+    {
+        if (array_key_exists('registrations_count', $this->attributes)) {
+            return (int) $this->attributes['registrations_count'];
+        }
+
+        return app(ParticipationService::class)->countSeatOccupying((int) $this->id);
+    }
+
+    public function getWaitlistedCountAttribute(): int
+    {
+        if (! $this->id) {
+            return 0;
+        }
+
+        return app(ParticipationService::class)->countWaitlisted((int) $this->id);
+    }
+
+    public function getSeatsRemainingAttribute(): ?int
+    {
+        if ($this->capacity === null) {
+            return null;
+        }
+
+        return max(0, (int) $this->capacity - $this->registered_count);
     }
 
     public function isCapacityUnlimited(): bool

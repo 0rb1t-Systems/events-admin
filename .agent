@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (Phase 4b: Ticket types + discount codes oversight)
+Last updated: 2026-08-16 (Phase 4c: Participation module — waitlist + atomic claims)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -142,6 +142,7 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Events Admin Form** — **moderation** only (featured / capacity / status transition). **`monetized` is derived from paid ticket types** — cannot be forced contrary to tiers. Status changes **must** use `POST /events/{id}/transition` (PATCH status rejected).
 - **Ticket types Admin** — oversight in Event Detail (list + disable/enable sales). Not top-level nav. Soft-delete OK; force-delete blocked if `quantity_sold > 0`. Full tier CRUD is Web App later.
 - **Discount codes Admin** — read-only in Event Detail (+ ops create/validate APIs). Scope enforced in queries.
+- **Participations Admin** — oversight nested in Event Detail (list, promote waitlist, cancel). Join API is admin stand-in; Web App owns participant join UX. Not a mandatory full CRUD scaffold page.
 - **Organization** — profile/settings style (`getProfile` / logo uploads); page at `pages/organization/index.tsx` under Settings; service still extends `BaseApi`
 - **Logs** — mostly read-only list + `LogDetail` (no Form/Modal create flow)
 - **Settings mail** — form + test modal, not full BaseController CRUD entity
@@ -157,7 +158,7 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 ```
 - Middleware: `EnsureJsonResponse` on API; Sanctum auth; Spatie permission aliases; **`admin.panel`** (`EnsureAdminPanelAccess`) on Admin Panel resource routes; **`organizer.web`** for organizer-auth me routes
 - Traits on BaseController: `ApiResponseTrait`, `ApiFilterTrait`
-- Domain services (non-controller): `MailService`, `LocationService`, `CommonServices`, **`EventStatusMachine`**, **`EventRegistrationGate`**, **`EventMonetization`**, **`EventQuota`**
+- Domain services (non-controller): `MailService`, `LocationService`, `CommonServices`, **`EventStatusMachine`**, **`EventRegistrationGate`**, **`EventMonetization`**, **`ParticipationService`**, **`EventQuota`**
 - Domain ownership: **Users** (admin staff / participants) ≠ **Organizers** ≠ **Events** (belong to organizers). Packages gate how many events an organizer may create via `EventQuota`.
 
 ## Auth + User Types (Phase 1 — EventHub multi-tenant foundation)
@@ -349,6 +350,74 @@ WHERE id = :id
 ### Tests
 - `tests/Feature/TicketTypeModuleTest.php` — monetized sync, atomic claim, soft/force delete, discount scope.
 
+## Participations (Phase 4c)
+
+Links a **User** (participant) to an **Event**, optional **TicketType**, JSON `custom_field_answers` (schema later in Phase 5 Form Builder), nullable `qr_token` (Phase 5 invitations).
+
+### Status enum (final — Phase 6 + Phase 9 depend on this)
+
+`ParticipationStatus`: **`waitlisted` | `joined` | `paid` | `checked_in` | `cancelled`**
+
+| Status | Meaning |
+|--------|---------|
+| waitlisted | Capacity/ticket full; awaiting promotion |
+| joined | Confirmed seat (payment may still be pending) |
+| paid | Payment confirmed — **synced from Payment SoT (Phase 6)** |
+| checked_in | Attendee checked in (Phase 9) |
+| cancelled | Withdrawn; **excluded from unique (user,event) index** |
+
+Seat-occupying (count toward capacity / `registered_count`): `joined`, `paid`, `checked_in`.
+
+### Payment status boundary (Phase 6 MUST follow)
+
+- **Source of truth:** `payments` table (Phase 6) for money movement.
+- **Mirror on participation:** `payment_status` enum `not_required | pending | paid | refunded | failed` — denormalized for admin UI/queries.
+- Phase 6 syncs `participations.payment_status` (and may set `status=paid`) from Payment records. **Do not** invent a second ledger that contradicts `payments`.
+
+### Unique participation constraint (DB-level)
+
+One **non-cancelled** participation per `(user_id, event_id)`:
+
+- **SQLite (tests):**  
+  `CREATE UNIQUE INDEX participations_user_event_active_unique ON participations (user_id, event_id) WHERE status != 'cancelled'`
+- **MySQL:** generated column `active_user_event_key` = `IF(status = 'cancelled', NULL, CONCAT(user_id, '-', event_id)) STORED` + `UNIQUE (active_user_event_key)`  
+  (NULLs do not collide → multiple cancelled allowed)
+
+Migration: `2026_08_16_160000_create_participations_table.php`.
+
+### Atomic ticket claim + transaction boundary
+
+`ParticipationService::join` / `promoteFromWaitlist` run inside **`DB::transaction`**:
+
+1. `lockForUpdate` on event (and ticket type when needed)
+2. **`TicketType::claimQuantityAtomically()`** (Phase 4b helper — not reinvented)
+3. `Participation::create(...)`
+
+If create fails, the transaction rolls back the claim UPDATE. Verified by `test_transaction_rolls_back_claim_when_insert_fails`. Waitlisted creates **do not** claim quantity until promotion.
+
+### Waitlist
+
+When event capacity is full (or ticket claim fails with allowWaitlist), status=`waitlisted`. Admin `POST /participations/{id}/promote` moves to `joined` and claims ticket atomically when a seat opens.
+
+### Live counters on Event
+
+Appends: `registered_count` (synced `registrations_count`), `waitlisted_count`, `seats_remaining` (null if unlimited capacity).
+
+### Admin surface
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /events/{id}/participations` | Per-event oversight + capacity snapshot |
+| `GET /participations` | Cross-event list (filter event_id / organizer_id) |
+| `POST /participations` | Admin join stand-in |
+| `POST /participations/{id}/promote` | Waitlist → joined |
+| `POST /participations/{id}/cancel` | Cancel + release ticket if seat held |
+
+FE: `ParticipationOversight` inside Event Detail sidebar.
+
+### Tests
+- `tests/Feature/ParticipationModuleTest.php` — unique index scope, txn claim+insert, rollback, waitlist, promote, quantity race simulation, admin API.
+
 ## Current Module Inventory
 
 | Domain | Model | Controller | API v1 file | FE page | FE service | FE types |
@@ -361,6 +430,7 @@ WHERE id = :id
 | Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` | `pages/settings/event-categories/` | `eventCategory.ts` | `event.ts` |
 | Ticket types | `TicketType` | `TicketTypeController` | nested + `ticket-types.php` | Event Detail | `event.ts` | `event.ts` |
 | Discount codes | `DiscountCode` | `DiscountCodeController` | nested + `ticket-types.php` | Event Detail | `event.ts` | `event.ts` |
+| Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event Detail | `event.ts` | `event.ts` |
 | Roles | `Role` | `RoleController` | `roles.php` | `pages/settings/roles/` | `role.ts` | `role.ts` |
 | Organizations | `Organization` | `OrganizationController` | `organizations.php` | `pages/organization/` | `organization.ts` | (in service) |
 | Settings | `Settings` | `SettingsController` | `settings.php` | `pages/settings/` + mail | `mail.ts` | `mail.ts` |
@@ -370,14 +440,11 @@ WHERE id = :id
 Also: trash (users, roles, organizers, events); dashboard; global search.
 
 ## Backend Structure Notes
-- Controllers: `Base`, `Auth`, `User`, `Role`, `Organization`, `Settings`, `Log`, `Organizer`, `OrganizerAuth`, `Package`, `OrganizerSubscription`, `Event`, `EventCategory`, `TicketType`, `DiscountCode`
-- Models: `User`, `Role`, `Organization`, `Settings`, `Organizer`, `Package`, `OrganizerSubscription`, `Event`, `EventCategory`, `EventImage`, `TicketType`, `DiscountCode`
-- Services: `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`; Support: `EventQuota`
-- Enums: `UserType`, `UserStatus`, `SanctumAbility`, `OrganizerStatus`, `PackageStatus`, `SubscriptionStatus`, `EventStatus`, `DiscountCodeType`
-- Middleware: `EnsureJsonResponse`, `EnsureAdminPanelAccess` (`admin.panel`), `EnsureOrganizerWebAccess` (`organizer.web`)
-- Auth: `users`/`web`; `organizers`/`organizer`
-- Seeders: `DatabaseSeeder`, `RolePermissionSeeder`, `SettingsSeeder`, `EventCategorySeeder`
-- Factories: `UserFactory`, `OrganizerFactory`, `PackageFactory`, `OrganizerSubscriptionFactory`, `EventFactory`, `EventCategoryFactory`, `EventImageFactory`, `TicketTypeFactory`, `DiscountCodeFactory`
+- Controllers: … `TicketType`, `DiscountCode`, `Participation`
+- Models: … `TicketType`, `DiscountCode`, `Participation`
+- Services: `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`, `ParticipationService`; Support: `EventQuota`
+- Enums: … `EventStatus`, `DiscountCodeType`, `ParticipationStatus`, `ParticipationPaymentStatus`
+- Factories: … `TicketTypeFactory`, `DiscountCodeFactory`, `ParticipationFactory`
 
 ## Frontend Structure Notes
 - Entry: `main.tsx`, `App.tsx`
@@ -400,8 +467,9 @@ Also: trash (users, roles, organizers, events); dashboard; global search.
 - Activity log on BaseController write paths
 
 ## Known Risks / Watchouts
-- Feature tests: `UserTypeAuthTest`, `OrganizerModuleTest`, `PackageSubscriptionTest`, `EventModuleTest`, `TicketTypeModuleTest`
+- Feature tests: `UserTypeAuthTest`, `OrganizerModuleTest`, `PackageSubscriptionTest`, `EventModuleTest`, `TicketTypeModuleTest`, `ParticipationModuleTest`
 - **Phase 6 must use `TicketType::claimQuantityAtomically` / conditional UPDATE** — do not invent a parallel inventory path
+- **Phase 6 Payments** is SoT; sync `participations.payment_status` / `status=paid` from Payment records only
 - Legacy Sanctum tokens with ability `*` still `tokenCan('admin-panel')` until admin re-login
 - Organization type lives in service file (not `types/`) — prefer `types/` for new entities
 - Large `public/assets/` tree — avoid unrelated churn
@@ -469,6 +537,20 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Phase 4c: Participation module (waitlist + atomic ticket claims)
+- Files touched:
+  - Migration: `2026_08_16_160000_create_participations_table.php` (partial unique index / MySQL generated key)
+  - Models: `Participation`; `Event` appends `registered_count` / `waitlisted_count` / `seats_remaining`
+  - Enums: `ParticipationStatus`, `ParticipationPaymentStatus`
+  - Service: `ParticipationService` (join/promote/cancel in DB::transaction + `TicketType::claimQuantityAtomically`)
+  - Controller/routes: `ParticipationController`, `participations.php`, nested under events
+  - FE: `ParticipationOversight` in Event Detail
+  - Tests: `ParticipationModuleTest.php` (8)
+  - `.agent` — status enum, payment SoT boundary, unique index lines, txn boundary
+- Behavior: waitlist when capacity full; promote claims ticket; cancel releases quantity; Event live counters
+- Migration: `php artisan migrate`; reseed permissions (`view/manage participations`)
+- Verification: 8 participation tests passed; Phase 4a/4b still green
 
 ### 2026-08-16 - Phase 4b: Ticket types + discount codes (Admin oversight)
 - Files touched:

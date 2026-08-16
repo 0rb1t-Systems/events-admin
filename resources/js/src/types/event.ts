@@ -56,6 +56,21 @@ export interface IDiscountCode extends ITimestamped {
     active: boolean;
 }
 
+export interface IParticipation {
+    id: number;
+    user_id: number;
+    event_id: number;
+    ticket_type_id?: number | null;
+    status: "waitlisted" | "joined" | "paid" | "checked_in" | "cancelled" | string;
+    payment_status: "not_required" | "pending" | "paid" | "refunded" | "failed" | string;
+    custom_field_answers?: Record<string, unknown> | null;
+    qr_token?: string | null;
+    created_at?: string;
+    updated_at?: string;
+    user?: { id: number; name: string; email: string } | null;
+    ticket_type?: ITicketType | null;
+}
+
 export interface IEvent extends ITimestamped {
     id: number;
     organizer_id: number;
@@ -73,6 +88,9 @@ export interface IEvent extends ITimestamped {
     /** null = unlimited; 0 = no seats */
     capacity: number | null;
     registrations_count: number;
+    registered_count?: number;
+    waitlisted_count?: number;
+    seats_remaining?: number | null;
     registration_deadline?: string | null;
     starts_at?: string | null;
     ends_at?: string | null;

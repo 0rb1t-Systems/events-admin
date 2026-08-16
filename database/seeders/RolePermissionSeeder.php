@@ -72,6 +72,10 @@ class RolePermissionSeeder extends Seeder
             'view discount codes',
             'create discount codes',
 
+            // participations (Admin oversight)
+            'view participations',
+            'manage participations',
+
             // settings
             'manage settings',
 
