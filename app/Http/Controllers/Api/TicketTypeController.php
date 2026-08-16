@@ -79,7 +79,8 @@ class TicketTypeController extends BaseController
     }
 
     /**
-     * Admin moderation: sales_enabled (+ optional sort_order). Not full tier editing.
+     * Admin full update: name, price, quantity_limit, sales_enabled, sort_order.
+     * Price changes re-sync monetized flag.
      */
     public function update(Request $request, $id)
     {
@@ -89,13 +90,21 @@ class TicketTypeController extends BaseController
         }
 
         $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'price' => 'sometimes|numeric|min:0',
+            'quantity_limit' => 'nullable|integer|min:0',
             'sales_enabled' => 'sometimes|boolean',
             'sort_order' => 'sometimes|integer|min:0',
-            // Price adjust kept out of default admin moderation — organizers own pricing.
         ]);
 
         $old = $ticketType->getOriginal();
+        $priceChanged = isset($validated['price']) && (float) $validated['price'] !== (float) $ticketType->price;
+
         $ticketType->update($validated);
+
+        if ($priceChanged) {
+            EventMonetization::syncMonetized($ticketType->fresh()->event);
+        }
 
         $this->logActivity(
             'Ticket type was updated',

@@ -127,4 +127,41 @@ class PaymentController extends BaseController
 
         return $this->successResponse($this->finance->summary($event));
     }
+
+    /**
+     * Record a manual/offline payment for a participation (admin op).
+     */
+    public function recordManual(Request $request)
+    {
+        $validated = $request->validate([
+            'participation_id' => 'required|integer|exists:participations,id',
+            'amount' => 'nullable|numeric|min:0',
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        $participation = Participation::findOrFail($validated['participation_id']);
+
+        try {
+            $payment = $this->payments->recordManual(
+                $participation,
+                isset($validated['amount']) ? (float) $validated['amount'] : null,
+                $validated['note'] ?? null
+            );
+        } catch (InvalidArgumentException $e) {
+            return $this->badRequestResponse($e->getMessage());
+        }
+
+        $this->logActivity(
+            'Manual payment recorded',
+            $payment,
+            [
+                'reference_id' => $payment->reference_id,
+                'amount' => $payment->amount,
+                'admin_id' => auth()->id(),
+            ],
+            'created'
+        );
+
+        return $this->createdResponse($payment->fresh($this->relationships), 'Manual payment recorded.');
+    }
 }

@@ -73,6 +73,52 @@ export interface IParticipation {
 
 export type FormFieldType = "text" | "number" | "select" | "checkbox" | "date";
 
+export type SponsorTier = "platinum" | "gold" | "silver" | "partner";
+
+export interface IEventAnnouncement {
+    id: number;
+    event_id: number;
+    subject: string;
+    body?: string | null;
+    sent_at?: string | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface IEventSponsor {
+    id: number;
+    event_id: number;
+    name: string;
+    tier: SponsorTier | string;
+    sort_order: number;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface IEventSpeaker {
+    id: number;
+    event_id: number;
+    name: string;
+    title?: string | null;
+    organization?: string | null;
+    bio?: string | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface IEventSession {
+    id: number;
+    event_id: number;
+    title: string;
+    starts_at?: string | null;
+    ends_at?: string | null;
+    room?: string | null;
+    speaker_id?: number | null;
+    speaker?: IEventSpeaker | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface IEventFormField extends ITimestamped {
     id: number;
     event_id: number;

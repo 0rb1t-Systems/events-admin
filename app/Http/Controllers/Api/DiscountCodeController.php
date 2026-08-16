@@ -130,4 +130,71 @@ class DiscountCodeController extends BaseController
 
         return $this->createdResponse($code);
     }
+
+    /**
+     * Update allowed fields on an existing discount code.
+     */
+    public function update(Request $request, $id)
+    {
+        $code = DiscountCode::find($id);
+        if (! $code) {
+            return $this->notFoundResponse();
+        }
+
+        $validated = $request->validate([
+            'code' => 'sometimes|string|max:64',
+            'event_id' => 'nullable|integer|exists:events,id',
+            'organizer_id' => 'nullable|integer|exists:organizers,id',
+            'type' => ['sometimes', Rule::in(DiscountCodeType::values())],
+            'value' => 'sometimes|numeric|min:0',
+            'usage_limit' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
+            'active' => 'sometimes|boolean',
+        ]);
+
+        $type = $validated['type'] ?? $code->type?->value;
+        $value = $validated['value'] ?? $code->value;
+
+        if ($type === DiscountCodeType::PERCENT->value && (float) $value > 100) {
+            return $this->badRequestResponse('Percent discount cannot exceed 100.');
+        }
+
+        if (isset($validated['code'])) {
+            $validated['code'] = strtoupper($validated['code']);
+        }
+
+        $old = $code->getOriginal();
+        $code->update($validated);
+
+        $this->logActivity(
+            'Discount code was updated',
+            $code,
+            ['old' => $old, 'attributes' => $code->getAttributes()],
+            'updated'
+        );
+
+        return $this->successResponse($code->fresh(), 'Discount code updated');
+    }
+
+    /**
+     * Soft-delete a discount code.
+     */
+    public function destroy($id)
+    {
+        $code = DiscountCode::find($id);
+        if (! $code) {
+            return $this->notFoundResponse();
+        }
+
+        $code->delete();
+
+        $this->logActivity(
+            'Discount code was deleted',
+            $code,
+            ['code' => $code->code],
+            'deleted'
+        );
+
+        return $this->noContentResponse('Discount code deleted');
+    }
 }

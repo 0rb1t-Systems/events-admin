@@ -152,19 +152,23 @@ class ParticipationController extends BaseController
         return $this->successResponse($participation, 'Promoted from waitlist');
     }
 
-    public function cancel($id)
+    public function cancel(Request $request, $id)
     {
         $participation = Participation::find($id);
         if (! $participation) {
             return $this->notFoundResponse();
         }
 
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
+
         $participation = $this->participations->cancel($participation);
 
         $this->logActivity(
             'Participation cancelled',
             $participation,
-            [],
+            ['reason' => $validated['reason'] ?? null],
             'participation_cancelled'
         );
 

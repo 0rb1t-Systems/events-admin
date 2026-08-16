@@ -54,16 +54,42 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
         ->middleware('permission:view event analytics');
     Route::get('/{id}/announcements', [\App\Http\Controllers\Api\EventAddOnController::class, 'announcements'])
         ->middleware('permission:view event announcements');
+    Route::post('/{id}/announcements', [\App\Http\Controllers\Api\EventAddOnController::class, 'storeAnnouncement'])
+        ->middleware('permission:manage event announcements');
     Route::get('/{id}/certificates', [\App\Http\Controllers\Api\EventAddOnController::class, 'certificates'])
         ->middleware('permission:view certificates');
     Route::get('/{id}/feedback', [\App\Http\Controllers\Api\EventAddOnController::class, 'feedback'])
         ->middleware('permission:view event feedback');
+
+    // Sponsors CRUD
     Route::get('/{id}/sponsors', [\App\Http\Controllers\Api\EventAddOnController::class, 'sponsors'])
         ->middleware('permission:view event sponsors');
+    Route::post('/{id}/sponsors', [\App\Http\Controllers\Api\EventAddOnController::class, 'storeSponsor'])
+        ->middleware('permission:manage event sponsors');
+    Route::patch('/{id}/sponsors/{sponsorId}', [\App\Http\Controllers\Api\EventAddOnController::class, 'updateSponsor'])
+        ->middleware('permission:manage event sponsors');
+    Route::delete('/{id}/sponsors/{sponsorId}', [\App\Http\Controllers\Api\EventAddOnController::class, 'destroySponsor'])
+        ->middleware('permission:manage event sponsors');
+
+    // Speakers CRUD
     Route::get('/{id}/speakers', [\App\Http\Controllers\Api\EventAddOnController::class, 'speakers'])
         ->middleware('permission:view event speakers');
+    Route::post('/{id}/speakers', [\App\Http\Controllers\Api\EventAddOnController::class, 'storeSpeaker'])
+        ->middleware('permission:manage event speakers');
+    Route::patch('/{id}/speakers/{speakerId}', [\App\Http\Controllers\Api\EventAddOnController::class, 'updateSpeaker'])
+        ->middleware('permission:manage event speakers');
+    Route::delete('/{id}/speakers/{speakerId}', [\App\Http\Controllers\Api\EventAddOnController::class, 'destroySpeaker'])
+        ->middleware('permission:manage event speakers');
+
+    // Sessions CRUD
     Route::get('/{id}/sessions', [\App\Http\Controllers\Api\EventAddOnController::class, 'sessions'])
         ->middleware('permission:view event sessions');
+    Route::post('/{id}/sessions', [\App\Http\Controllers\Api\EventAddOnController::class, 'storeSession'])
+        ->middleware('permission:manage event sessions');
+    Route::patch('/{id}/sessions/{sessionId}', [\App\Http\Controllers\Api\EventAddOnController::class, 'updateSession'])
+        ->middleware('permission:manage event sessions');
+    Route::delete('/{id}/sessions/{sessionId}', [\App\Http\Controllers\Api\EventAddOnController::class, 'destroySession'])
+        ->middleware('permission:manage event sessions');
 
     Route::post('/{id}/gallery', [EventController::class, 'uploadGalleryImage'])->middleware('permission:edit events');
     Route::post('/{id}/gallery/reorder', [EventController::class, 'reorderGallery'])->middleware('permission:edit events');

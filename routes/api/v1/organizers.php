@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Route;
 | Organizers API Routes (Admin Panel oversight)
 |--------------------------------------------------------------------------
 |
-| Admins: view, suspend/reactivate, soft-delete/restore/force-delete.
-| No admin create/update of identity fields (Web App registration owns that).
+| Admins: view, edit identity, suspend/reactivate, soft-delete/restore/force-delete.
+| Password changes are not admin-editable (Web App / self-service).
 | Subscription oversight (history / assign / cancel) — not Web App self-serve.
 |
 */
@@ -40,5 +40,6 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
         ->middleware('permission:assign organizer subscriptions');
 
     Route::get('/{id}', [OrganizerController::class, 'show'])->middleware('permission:view organizers');
+    Route::patch('/{id}', [OrganizerController::class, 'update'])->middleware('permission:edit organizers');
     Route::delete('/{id}', [OrganizerController::class, 'destroy'])->middleware('permission:delete organizers');
 });

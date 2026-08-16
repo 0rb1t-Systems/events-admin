@@ -20,6 +20,7 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     // Standard CRUD operations
     Route::get('/', [UserController::class, 'index'])->middleware('permission:view users');
     Route::post('/', [UserController::class, 'store'])->middleware('permission:create users');
+    Route::get('/search', [UserController::class, 'search'])->middleware('permission:view users');
     Route::get('/{id}', [UserController::class, 'show'])->middleware('permission:view users');
     Route::patch('/{id}', [UserController::class, 'update'])->middleware('permission:edit users');
     Route::delete('/{id}', [UserController::class, 'destroy'])->middleware('permission:delete users');

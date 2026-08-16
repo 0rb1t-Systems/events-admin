@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\OrganizerStatus;
 use App\Models\Organizer;
+use Illuminate\Http\Request;
 
 /**
  * Admin Panel oversight of organizers.
- * Admins may view, suspend/reactivate, and soft-delete/restore.
- * Admins do NOT freely edit business name / contact / email / password
- * (Web App owns self-service identity; flag if product later needs admin corrections).
+ * Admins may view, edit identity fields, suspend/reactivate, and soft-delete/restore.
+ * Password changes remain Web App / organizer self-service (not admin PATCH).
  */
 class OrganizerController extends BaseController
 {
@@ -28,6 +28,16 @@ class OrganizerController extends BaseController
     ];
 
     protected $relationships = ['activeSubscription.package'];
+
+    protected $validationRules = [
+        'store' => [],
+        'update' => [
+            'business_name' => 'sometimes|required|string|max:255',
+            'contact_name' => 'sometimes|required|string|max:255',
+            'email' => 'sometimes|required|string|email|max:255|unique:organizers,email',
+            'phone' => 'nullable|string|max:20',
+        ],
+    ];
 
     public function index(\Illuminate\Http\Request $request)
     {
@@ -55,10 +65,45 @@ class OrganizerController extends BaseController
         return $this->successResponse($organizer);
     }
 
-    protected $validationRules = [
-        'store' => [],
-        'update' => [],
-    ];
+    /**
+     * Admin correction of organizer identity fields.
+     * Email uniqueness is re-validated excluding this organizer's row.
+     * Password is not writable here.
+     */
+    public function update(Request $request, $id)
+    {
+        $organizer = $this->model::find($id);
+        if (! $organizer) {
+            return $this->notFoundResponse();
+        }
+
+        $rules = $this->validationRules['update'];
+        if ($request->has('email')) {
+            $rules['email'] = 'sometimes|required|string|email|max:255|unique:organizers,email,'.$id;
+        }
+
+        $validated = $request->validate($rules);
+
+        // Never accept password / status via this endpoint (status uses suspend/reactivate)
+        unset($validated['password'], $validated['status']);
+
+        $old = $organizer->getOriginal();
+        $organizer->update($validated);
+
+        if (! empty($this->relationships)) {
+            $organizer->load($this->relationships);
+        }
+        $organizer->loadCount('events');
+
+        $this->logActivity(
+            'Organizer was updated',
+            $organizer,
+            ['old' => $old, 'attributes' => $organizer->getAttributes()],
+            'updated'
+        );
+
+        return $this->successResponse($organizer, 'Organizer updated successfully');
+    }
 
     /**
      * Suspend organizer — does not delete events (Phase 4: events remain visible to admins;

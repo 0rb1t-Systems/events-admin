@@ -36,8 +36,9 @@ class RolePermissionSeeder extends Seeder
             'view organizations',
             'edit organizations',
 
-            // organizers (Admin oversight — no free edit of identity fields)
+            // organizers (Admin oversight — identity edit + suspend + soft-delete)
             'view organizers',
+            'edit organizers',
             'suspend organizers',
             'delete organizers',
 
@@ -68,9 +69,11 @@ class RolePermissionSeeder extends Seeder
             'create ticket types',
             'moderate ticket types',
 
-            // discount codes (Admin read oversight)
+            // discount codes (Admin read oversight + edit/delete)
             'view discount codes',
             'create discount codes',
+            'edit discount codes',
+            'delete discount codes',
 
             // participations (Admin oversight)
             'view participations',
@@ -92,15 +95,19 @@ class RolePermissionSeeder extends Seeder
             'view payouts',
             'manage payouts',
 
-            // event add-ons (admin read-only oversight — Prompt 10)
+            // event add-ons (admin read-only oversight — Prompt 10; write ops — Prompt 12)
             'view event analytics',
             'view event announcements',
+            'manage event announcements',
             'view certificates',
             'view event feedback',
-            'view event sponsors',
-            'view event speakers',
-            'view event sessions',
             'manage event feedback',
+            'view event sponsors',
+            'manage event sponsors',
+            'view event speakers',
+            'manage event speakers',
+            'view event sessions',
+            'manage event sessions',
 
             // settings
             'manage settings',

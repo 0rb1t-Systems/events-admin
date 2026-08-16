@@ -15,6 +15,10 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
         ->middleware('permission:view event form fields');
     Route::post('/', [EventFormFieldController::class, 'store'])
         ->middleware('permission:manage event form fields');
+    Route::post('/reorder', [EventFormFieldController::class, 'reorder'])
+        ->middleware('permission:manage event form fields');
+    Route::patch('/{id}', [EventFormFieldController::class, 'update'])
+        ->middleware('permission:manage event form fields');
     Route::delete('/{id}', [EventFormFieldController::class, 'destroy'])
         ->middleware('permission:manage event form fields');
 });

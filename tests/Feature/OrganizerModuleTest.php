@@ -28,6 +28,7 @@ class OrganizerModuleTest extends TestCase
 
         foreach ([
             'view organizers',
+            'edit organizers',
             'suspend organizers',
             'delete organizers',
             'view trash items',
@@ -199,15 +200,88 @@ class OrganizerModuleTest extends TestCase
         ]);
     }
 
-    public function test_admin_cannot_patch_organizer_identity_via_missing_update_route(): void
+    public function test_admin_can_patch_organizer_identity_fields(): void
     {
-        $organizer = Organizer::factory()->create();
+        $organizer = Organizer::factory()->create([
+            'business_name' => 'Old Biz',
+            'contact_name' => 'Old Contact',
+            'email' => 'old@example.com',
+            'phone' => '111',
+        ]);
 
         $this->withToken($this->adminToken())
             ->patchJson("/api/v1/organizers/{$organizer->id}", [
-                'business_name' => 'Hacked Name',
+                'business_name' => 'New Biz',
+                'contact_name' => 'New Contact',
+                'email' => 'new@example.com',
+                'phone' => '222',
             ])
-            ->assertStatus(405);
+            ->assertOk()
+            ->assertJsonPath('data.business_name', 'New Biz')
+            ->assertJsonPath('data.contact_name', 'New Contact')
+            ->assertJsonPath('data.email', 'new@example.com')
+            ->assertJsonPath('data.phone', '222');
+
+        $this->assertDatabaseHas('organizers', [
+            'id' => $organizer->id,
+            'business_name' => 'New Biz',
+            'email' => 'new@example.com',
+        ]);
+
+        $this->assertDatabaseHas('activity_log', [
+            'description' => 'Organizer was updated',
+            'event' => 'updated',
+            'subject_type' => Organizer::class,
+            'subject_id' => $organizer->id,
+        ]);
+    }
+
+    public function test_admin_patch_email_unique_excludes_current_row(): void
+    {
+        $organizer = Organizer::factory()->create(['email' => 'keep@example.com']);
+        Organizer::factory()->create(['email' => 'taken@example.com']);
+
+        // Same email on self is allowed
+        $this->withToken($this->adminToken())
+            ->patchJson("/api/v1/organizers/{$organizer->id}", [
+                'email' => 'keep@example.com',
+                'business_name' => 'Still Unique Self',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.email', 'keep@example.com');
+
+        // Duplicate of another organizer is rejected
+        $this->withToken($this->adminToken())
+            ->patchJson("/api/v1/organizers/{$organizer->id}", [
+                'email' => 'taken@example.com',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_admin_patch_requires_edit_organizers_permission(): void
+    {
+        $viewer = User::factory()->admin()->create([
+            'email' => 'viewer-org@example.com',
+            'password' => 'password',
+            'status' => UserStatus::ACTIVE,
+        ]);
+        $role = Role::create(['name' => 'organizer-viewer']);
+        $role->givePermissionTo('view organizers');
+        $viewer->assignRole($role);
+
+        $token = $viewer->createToken(
+            'admin_auth_token',
+            [SanctumAbility::AdminPanel->value]
+        )->plainTextToken;
+
+        $organizer = Organizer::factory()->create();
+
+        $this->withToken($token)
+            ->patchJson("/api/v1/organizers/{$organizer->id}", [
+                'business_name' => 'Nope',
+            ])
+            ->assertForbidden();
     }
 
     public function test_soft_delete_keeps_row_for_future_fk_integrity(): void

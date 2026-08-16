@@ -1,15 +1,15 @@
 import React from "react";
 import GenericModal from "../../../components/GenericModal";
 import { IOrganizer } from "../../../types";
-import OrganizerForm from "./OrganizerForm";
+import OrganizerStatusForm from "./OrganizerStatusForm";
 
-interface OrganizerModalProps {
+interface OrganizerStatusModalProps {
     isOpen: boolean;
     setIsOpen: (isOpen: boolean) => void;
     organizer: IOrganizer | null;
 }
 
-const OrganizerModal: React.FC<OrganizerModalProps> = ({
+const OrganizerStatusModal: React.FC<OrganizerStatusModalProps> = ({
     isOpen,
     setIsOpen,
     organizer,
@@ -22,10 +22,10 @@ const OrganizerModal: React.FC<OrganizerModalProps> = ({
         <GenericModal
             isOpen={isOpen}
             setIsOpen={setIsOpen}
-            title="Edit Organizer"
-            maxWidth="xl"
+            title="Change organizer status"
+            maxWidth="md"
         >
-            <OrganizerForm
+            <OrganizerStatusForm
                 organizer={organizer}
                 onClose={() => setIsOpen(false)}
             />
@@ -33,4 +33,4 @@ const OrganizerModal: React.FC<OrganizerModalProps> = ({
     );
 };
 
-export default OrganizerModal;
+export default OrganizerStatusModal;

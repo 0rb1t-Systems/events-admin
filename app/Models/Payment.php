@@ -19,6 +19,7 @@ class Payment extends Model
         'currency',
         'status',
         'reference_id',
+        'gateway',
         'waafi_transaction_id',
         'waafi_issuer_transaction_id',
         'payer_phone',

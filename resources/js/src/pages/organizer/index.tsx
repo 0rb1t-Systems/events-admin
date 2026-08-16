@@ -13,6 +13,7 @@ import { IOrganizer } from "../../types";
 import { ColumnConfig } from "../../types/columns";
 import OrganizerDetail from "./components/OrganizerDetail";
 import OrganizerModal from "./components/OrganizerModal";
+import OrganizerStatusModal from "./components/OrganizerStatusModal";
 
 type StatusFilter = "" | "active" | "suspended";
 
@@ -22,7 +23,9 @@ const OrganizerList = () => {
     const [selectedRecords, setSelectedRecords] = useState<IOrganizer[]>([]);
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
     const [showFilter, setShowFilter] = useState(false);
+    const [editModalOpen, setEditModalOpen] = useState(false);
     const [statusModalOpen, setStatusModalOpen] = useState(false);
+    const [organizerToEdit, setOrganizerToEdit] = useState<IOrganizer | null>(null);
     const [organizerForStatus, setOrganizerForStatus] = useState<IOrganizer | null>(null);
     const filterRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +74,11 @@ const OrganizerList = () => {
         },
         onError: (error: Error) => toast.error(error.message || "Failed to delete"),
     });
+
+    const openEditModal = (organizer: IOrganizer) => {
+        setOrganizerToEdit(organizer);
+        setEditModalOpen(true);
+    };
 
     const openStatusModal = (organizer: IOrganizer) => {
         setOrganizerForStatus(organizer);
@@ -157,6 +165,10 @@ const OrganizerList = () => {
                 {
                     type: "view",
                     onClick: (record) => openSidebar(record.id),
+                },
+                {
+                    type: "edit",
+                    onClick: (record) => openEditModal(record),
                 },
                 {
                     type: "edit",
@@ -274,6 +286,12 @@ const OrganizerList = () => {
             />
 
             <OrganizerModal
+                isOpen={editModalOpen}
+                setIsOpen={setEditModalOpen}
+                organizer={organizerToEdit}
+            />
+
+            <OrganizerStatusModal
                 isOpen={statusModalOpen}
                 setIsOpen={setStatusModalOpen}
                 organizer={organizerForStatus}

@@ -232,6 +232,56 @@ class PaymentService
         });
     }
 
+    /**
+     * Record a manual/offline payment for a participation.
+     * Creates a COMPLETED payment with gateway=manual.
+     * Rejects if the participation already has a completed payment.
+     * Calls QrTokenService::ensureForConfirmed after marking paid.
+     */
+    public function recordManual(Participation $participation, ?float $amount = null, ?string $note = null): Payment
+    {
+        return DB::transaction(function () use ($participation, $amount, $note) {
+            $participation = Participation::query()
+                ->whereKey($participation->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($participation->status === ParticipationStatus::CANCELLED) {
+                throw new InvalidArgumentException('Cannot record payment for a cancelled participation.');
+            }
+
+            $existing = Payment::query()
+                ->where('participation_id', $participation->id)
+                ->where('status', PaymentStatus::COMPLETED)
+                ->exists();
+
+            if ($existing) {
+                throw new InvalidArgumentException('Participation already has a completed payment.');
+            }
+
+            $ticketType = $participation->ticket_type_id
+                ? TicketType::find($participation->ticket_type_id)
+                : null;
+
+            $resolvedAmount = $amount ?? ($ticketType?->price ?? 0);
+
+            $payment = Payment::create([
+                'participation_id' => $participation->id,
+                'ticket_type_id' => $ticketType?->id,
+                'amount' => $resolvedAmount,
+                'currency' => config('waafipay.currency', 'USD'),
+                'status' => PaymentStatus::COMPLETED,
+                'reference_id' => 'MANUAL-'.Str::uuid()->toString(),
+                'gateway' => 'manual',
+                'failure_reason' => $note,
+            ]);
+
+            $this->syncParticipationPaid($payment);
+
+            return $payment->fresh(['participation', 'ticketType']);
+        });
+    }
+
     private function syncParticipationPaid(Payment $payment): void
     {
         $participation = Participation::query()

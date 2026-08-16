@@ -3,18 +3,26 @@ import moment from "moment";
 import React, { useState } from "react";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
+import FormCombobox from "../../components/form/FormCombobox";
 import { useSidebarDetail } from "../../hooks";
+import {
+    formatEventOption,
+    useEventSearch,
+} from "../../hooks/useEntitySearch";
 import { qrScanLogApi } from "../../services/qrScanLog";
 import { ColumnConfig } from "../../types/columns";
+import { IEvent } from "../../types/event";
 import { IQrScanLog } from "../../types/qrScan";
 import QrScanLogDetail from "./components/QrScanLogDetail";
 
 const QrScanLogsPage = () => {
     const [resultFilter, setResultFilter] = useState<string>("");
-    const [eventIdFilter, setEventIdFilter] = useState<string>("");
+    const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
     const [showFilters, setShowFilters] = useState(false);
+    const eventSearch = useEventSearch();
 
-    const { selectedId, showSidebar, openSidebar, closeSidebar } = useSidebarDetail();
+    const { selectedId, showSidebar, openSidebar, closeSidebar } =
+        useSidebarDetail();
 
     const columns: ColumnConfig<IQrScanLog>[] = [
         {
@@ -24,7 +32,9 @@ const QrScanLogsPage = () => {
             sortable: true,
             width: 110,
             render: ({ result }) => (
-                <span className="text-xs capitalize">{String(result).replace(/_/g, " ")}</span>
+                <span className="text-xs capitalize">
+                    {String(result).replace(/_/g, " ")}
+                </span>
             ),
         },
         {
@@ -34,7 +44,8 @@ const QrScanLogsPage = () => {
             sortable: false,
             render: (row) => (
                 <span className="font-medium">
-                    {row.event?.title ?? (row.event_id ? `#${row.event_id}` : "—")}
+                    {row.event?.title ??
+                        (row.event_id ? `#${row.event_id}` : "—")}
                 </span>
             ),
         },
@@ -45,7 +56,9 @@ const QrScanLogsPage = () => {
             sortable: false,
             width: 140,
             render: (row) => (
-                <span className="text-xs">{row.participation?.user?.name ?? "—"}</span>
+                <span className="text-xs">
+                    {row.participation?.user?.name ?? "—"}
+                </span>
             ),
         },
         {
@@ -63,7 +76,9 @@ const QrScanLogsPage = () => {
             sortable: true,
             width: 130,
             render: ({ created_at }) =>
-                created_at ? moment(created_at).format("MMM DD, YYYY HH:mm") : "—",
+                created_at
+                    ? moment(created_at).format("MMM DD, YYYY HH:mm")
+                    : "—",
         },
         {
             accessor: "actions",
@@ -77,7 +92,7 @@ const QrScanLogsPage = () => {
 
     const tableQuery: Record<string, string> = {};
     if (resultFilter) tableQuery.result = resultFilter;
-    if (eventIdFilter.trim()) tableQuery.event_id = eventIdFilter.trim();
+    if (selectedEvent) tableQuery.event_id = String(selectedEvent.id);
 
     return (
         <div>
@@ -109,34 +124,46 @@ const QrScanLogsPage = () => {
                             Filters
                         </button>
                         {showFilters && (
-                            <div className="absolute right-0 z-20 mt-2 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow dark:border-[#1b2e4b] dark:bg-[#0e1726]">
+                            <div className="absolute right-0 z-20 mt-2 w-72 space-y-3 rounded border border-gray-200 bg-white p-3 shadow dark:border-[#1b2e4b] dark:bg-[#0e1726]">
                                 <div>
-                                    <label className="mb-1 block text-xs text-gray-500">
+                                    <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
                                         Result
                                     </label>
                                     <select
                                         className="form-select"
                                         value={resultFilter}
-                                        onChange={(e) => setResultFilter(e.target.value)}
+                                        onChange={(e) =>
+                                            setResultFilter(e.target.value)
+                                        }
                                     >
                                         <option value="">All</option>
                                         <option value="valid">Valid</option>
-                                        <option value="already_used">Already used</option>
+                                        <option value="already_used">
+                                            Already used
+                                        </option>
                                         <option value="invalid">Invalid</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="mb-1 block text-xs text-gray-500">
-                                        Event ID
-                                    </label>
-                                    <input
-                                        type="number"
-                                        className="form-input"
-                                        placeholder="e.g. 12"
-                                        value={eventIdFilter}
-                                        onChange={(e) => setEventIdFilter(e.target.value)}
-                                    />
-                                </div>
+                                <FormCombobox<IEvent>
+                                    id="qr_event_filter"
+                                    label="Event"
+                                    value={selectedEvent}
+                                    onChange={setSelectedEvent}
+                                    onSearch={eventSearch.setQuery}
+                                    options={eventSearch.options}
+                                    displayValue={formatEventOption}
+                                    loading={eventSearch.loading}
+                                    placeholder="Search events…"
+                                />
+                                {selectedEvent && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm w-full"
+                                        onClick={() => setSelectedEvent(null)}
+                                    >
+                                        Clear event
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

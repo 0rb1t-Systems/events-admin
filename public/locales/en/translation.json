@@ -206,5 +206,20 @@
     "qr_scan_history": "QR Scan History",
     "announcements": "Announcements",
     "certificates": "Certificates",
-    "feedback": "Feedback"
+    "feedback": "Feedback",
+    "add_participation": "Add Participation",
+    "send_announcement": "Send Announcement",
+    "record_payment": "Record Cash Payment",
+    "ticket_types": "Ticket Types",
+    "discount_codes": "Discount Codes",
+    "form_fields": "Form Fields",
+    "sponsors": "Sponsors",
+    "speakers": "Speakers",
+    "sessions": "Sessions",
+    "add_ticket_type": "Add Ticket Type",
+    "add_discount_code": "Add Discount Code",
+    "add_form_field": "Add Form Field",
+    "add_sponsor": "Add Sponsor",
+    "add_speaker": "Add Speaker",
+    "add_session": "Add Session"
 }

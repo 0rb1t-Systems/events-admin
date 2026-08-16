@@ -1,16 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import moment from "moment";
-import React from "react";
+import React, { useState } from "react";
 import { toast } from "sonner";
 import Loader from "../../../components/Loader";
 import { useConfirmDialog } from "../../../hooks";
 import { eventApi } from "../../../services/event";
+import { ITicketType, IDiscountCode } from "../../../types";
 import ParticipationOversight from "./ParticipationOversight";
 import FormFieldOversight from "./FormFieldOversight";
 import CheckInStatsPanel from "./CheckInStatsPanel";
 import EventFinancePanel from "./EventFinancePanel";
 import EventAnalyticsPanel from "./EventAnalyticsPanel";
 import EventAddOnOversight from "./EventAddOnOversight";
+import TicketTypeModal from "./TicketTypeModal";
+import DiscountCodeModal from "./DiscountCodeModal";
 
 interface Props {
     eventId: number | null;
@@ -40,6 +43,15 @@ const formatCapacity = (capacity: number | null | undefined, count: number) => {
 const EventDetail: React.FC<Props> = ({ eventId }) => {
     const queryClient = useQueryClient();
     const { confirmAction } = useConfirmDialog();
+
+    const [ttModal, setTtModal] = useState<{ open: boolean; item: ITicketType | null }>({
+        open: false,
+        item: null,
+    });
+    const [dcModal, setDcModal] = useState<{ open: boolean; item: IDiscountCode | null }>({
+        open: false,
+        item: null,
+    });
 
     const { data: event, isLoading, error } = useQuery({
         queryKey: ["event", eventId],
@@ -90,6 +102,36 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
         onError: (e: Error) => toast.error(e.message),
     });
 
+    const deleteTt = useMutation({
+        mutationFn: (id: number) => eventApi.deleteTicketType(id),
+        onSuccess: () => {
+            toast.success("Ticket type deleted");
+            queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+            queryClient.invalidateQueries({ queryKey: ["Event Table"] });
+        },
+        onError: (e: any) => toast.error(e?.message || "Delete failed"),
+    });
+
+    const deleteDc = useMutation({
+        mutationFn: (id: number) => eventApi.deleteDiscountCode(id),
+        onSuccess: () => {
+            toast.success("Discount code deleted");
+            queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+            queryClient.invalidateQueries({ queryKey: ["Event Table"] });
+        },
+        onError: (e: any) => toast.error(e?.message || "Delete failed"),
+    });
+
+    const toggleDcActive = useMutation({
+        mutationFn: ({ id, active }: { id: number; active: boolean }) =>
+            eventApi.updateDiscountCode(id, { active }),
+        onSuccess: () => {
+            toast.success("Code updated");
+            queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+        },
+        onError: (e: any) => toast.error(e?.message || "Update failed"),
+    });
+
     if (!eventId) {
         return (
             <div className="p-4 text-center text-sm text-gray-500">Select an event</div>
@@ -109,6 +151,7 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
     const gates = event.registration_gates;
 
     return (
+    <>
         <div className="space-y-4 p-1">
             <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -229,19 +272,24 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                 <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
                     Registration form
                 </h4>
-                <p className="mb-2 text-xs text-gray-500">
-                    Read-only — organizer-authored custom fields (not editable in Admin).
-                </p>
                 <FormFieldOversight eventId={event.id} />
             </div>
 
             <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
-                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
-                    Ticket types
-                </h4>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Ticket types
+                    </h4>
+                    <button
+                        type="button"
+                        className="btn btn-primary btn-sm gap-1"
+                        onClick={() => setTtModal({ open: true, item: null })}
+                    >
+                        + Add
+                    </button>
+                </div>
                 <p className="mb-2 text-xs text-gray-500">
-                    Monetized is derived from paid tiers (price &gt; 0). Admin can disable
-                    further sales only.
+                    Monetized is derived from paid tiers (price &gt; 0).
                 </p>
                 {(event.ticket_types?.length ?? 0) === 0 ? (
                     <p className="text-sm text-gray-500">No ticket types</p>
@@ -255,8 +303,8 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="font-medium">{tt.name}</span>
                                     <span>
-                                        {Number(tt.price).toFixed(2)}
-                                        {Number(tt.price) > 0 ? "" : " (free)"}
+                                        ${Number(tt.price).toFixed(2)}
+                                        {Number(tt.price) === 0 ? " (free)" : ""}
                                     </span>
                                 </div>
                                 <div className="text-gray-500">
@@ -267,7 +315,14 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                                     {" · "}
                                     {tt.sales_enabled ? "Sales on" : "Sales off"}
                                 </div>
-                                <div className="mt-1">
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={() => setTtModal({ open: true, item: tt })}
+                                    >
+                                        Edit
+                                    </button>
                                     {tt.sales_enabled ? (
                                         <button
                                             type="button"
@@ -275,7 +330,7 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                                             onClick={async () => {
                                                 const ok = await confirmAction({
                                                     title: "Disable further sales?",
-                                                    text: `Stop new sales for "${tt.name}". History and quantity_sold are kept.`,
+                                                    text: `Stop new sales for "${tt.name}".`,
                                                     confirmButtonText: "Disable",
                                                 });
                                                 if (ok) disableSales.mutate(tt.id);
@@ -286,12 +341,26 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                                     ) : (
                                         <button
                                             type="button"
-                                            className="btn btn-outline-primary btn-sm"
+                                            className="btn btn-outline-success btn-sm"
                                             onClick={() => enableSales.mutate(tt.id)}
                                         >
                                             Enable sales
                                         </button>
                                     )}
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-danger btn-sm"
+                                        onClick={async () => {
+                                            const ok = await confirmAction({
+                                                title: "Delete ticket type?",
+                                                text: `Soft-deletes "${tt.name}". Blocked if sales history exists.`,
+                                                confirmButtonText: "Delete",
+                                            });
+                                            if (ok) deleteTt.mutate(tt.id);
+                                        }}
+                                    >
+                                        Delete
+                                    </button>
                                 </div>
                             </li>
                         ))}
@@ -300,27 +369,75 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
             </div>
 
             <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
-                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
-                    Discount codes
-                </h4>
-                <p className="mb-2 text-xs text-gray-500">Read-only oversight</p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Discount codes
+                    </h4>
+                    <button
+                        type="button"
+                        className="btn btn-primary btn-sm gap-1"
+                        onClick={() => setDcModal({ open: true, item: null })}
+                    >
+                        + Add
+                    </button>
+                </div>
                 {(event.discount_codes?.length ?? 0) === 0 ? (
                     <p className="text-sm text-gray-500">No codes for this event</p>
                 ) : (
-                    <ul className="max-h-36 space-y-1 overflow-y-auto text-xs">
+                    <ul className="max-h-44 space-y-1.5 overflow-y-auto text-xs">
                         {event.discount_codes!.map((dc) => (
                             <li
                                 key={dc.id}
-                                className="rounded border border-gray-100 px-2 py-1 dark:border-[#1b2e4b]"
+                                className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]"
                             >
-                                <span className="font-medium">{dc.code}</span>
-                                {" · "}
-                                {dc.type === "percent"
-                                    ? `${dc.value}%`
-                                    : Number(dc.value).toFixed(2)}
-                                {" · "}
-                                {dc.active ? "active" : "inactive"}
-                                {dc.event_id ? " · event-scoped" : " · organizer-wide"}
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-medium">{dc.code}</span>
+                                    <span>
+                                        {dc.type === "percent"
+                                            ? `${dc.value}%`
+                                            : `$${Number(dc.value).toFixed(2)}`}
+                                    </span>
+                                </div>
+                                <div className="text-gray-500">
+                                    Used {dc.usage_count}
+                                    {dc.usage_limit ? ` / ${dc.usage_limit}` : ""}
+                                    {dc.expires_at
+                                        ? ` · exp ${moment(dc.expires_at).format("MMM DD, YYYY")}`
+                                        : ""}
+                                    {dc.event_id ? " · event" : " · org-wide"}
+                                </div>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={() => setDcModal({ open: true, item: dc })}
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`btn btn-sm ${dc.active ? "btn-outline-warning" : "btn-outline-success"}`}
+                                        onClick={() =>
+                                            toggleDcActive.mutate({ id: dc.id, active: !dc.active })
+                                        }
+                                    >
+                                        {dc.active ? "Deactivate" : "Activate"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-danger btn-sm"
+                                        onClick={async () => {
+                                            const ok = await confirmAction({
+                                                title: "Delete discount code?",
+                                                text: `Soft-deletes code "${dc.code}".`,
+                                                confirmButtonText: "Delete",
+                                            });
+                                            if (ok) deleteDc.mutate(dc.id);
+                                        }}
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
                             </li>
                         ))}
                     </ul>
@@ -331,10 +448,6 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                 <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
                     Content & engagement
                 </h4>
-                <p className="mb-2 text-xs text-gray-500">
-                    Read-only — announcements, certificates, feedback, sponsors, speakers,
-                    sessions (organizer-authored on Web App).
-                </p>
                 <EventAddOnOversight eventId={event.id} />
             </div>
 
@@ -372,6 +485,27 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                 )}
             </div>
         </div>
+
+        {/* Ticket type create/edit modal */}
+        {eventId && (
+            <TicketTypeModal
+                isOpen={ttModal.open}
+                onClose={() => setTtModal({ open: false, item: null })}
+                eventId={eventId}
+                ticketType={ttModal.item}
+            />
+        )}
+
+        {/* Discount code create/edit modal */}
+        {eventId && (
+            <DiscountCodeModal
+                isOpen={dcModal.open}
+                onClose={() => setDcModal({ open: false, item: null })}
+                eventId={eventId}
+                discountCode={dcModal.item}
+            />
+        )}
+    </>
     );
 };
 

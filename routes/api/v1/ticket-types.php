@@ -29,4 +29,6 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->prefix('discount-codes')->gr
     Route::get('/', [DiscountCodeController::class, 'index'])->middleware('permission:view discount codes');
     Route::post('/', [DiscountCodeController::class, 'store'])->middleware('permission:create discount codes');
     Route::get('/{id}', [DiscountCodeController::class, 'show'])->middleware('permission:view discount codes');
+    Route::patch('/{id}', [DiscountCodeController::class, 'update'])->middleware('permission:edit discount codes');
+    Route::delete('/{id}', [DiscountCodeController::class, 'destroy'])->middleware('permission:delete discount codes');
 });

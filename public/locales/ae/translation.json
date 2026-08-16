@@ -171,5 +171,20 @@
     "qr_scan_history": "سجل مسح QR",
     "announcements": "الإعلانات",
     "certificates": "الشهادات",
-    "feedback": "التعليقات"
+    "feedback": "التعليقات",
+    "add_participation": "إضافة مشاركة",
+    "send_announcement": "إرسال إعلان",
+    "record_payment": "تسجيل دفع نقدي",
+    "ticket_types": "أنواع التذاكر",
+    "discount_codes": "رموز الخصم",
+    "form_fields": "حقول النموذج",
+    "sponsors": "الرعاة",
+    "speakers": "المتحدثون",
+    "sessions": "الجلسات",
+    "add_ticket_type": "إضافة نوع تذكرة",
+    "add_discount_code": "إضافة رمز خصم",
+    "add_form_field": "إضافة حقل نموذج",
+    "add_sponsor": "إضافة راعٍ",
+    "add_speaker": "إضافة متحدث",
+    "add_session": "إضافة جلسة"
 }

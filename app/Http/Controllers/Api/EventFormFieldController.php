@@ -91,6 +91,75 @@ class EventFormFieldController extends BaseController
     }
 
     /**
+     * Update label, type, options, required, sort_order, active.
+     * Key change is disallowed (answers stored by key — changing key would orphan historical answers).
+     */
+    public function update(Request $request, $id)
+    {
+        $field = EventFormField::find($id);
+        if (! $field) {
+            return $this->notFoundResponse();
+        }
+
+        $validated = $request->validate([
+            'label' => 'sometimes|string|max:255',
+            'type' => ['sometimes', Rule::in(FormFieldType::values())],
+            'options' => 'nullable|array',
+            'required' => 'sometimes|boolean',
+            'sort_order' => 'sometimes|integer|min:0',
+            'active' => 'sometimes|boolean',
+        ]);
+
+        $old = $field->getOriginal();
+        $field->update($validated);
+
+        $this->logActivity(
+            'Event form field was updated',
+            $field,
+            ['old' => $old, 'attributes' => $field->getAttributes()],
+            'updated'
+        );
+
+        return $this->successResponse($field->fresh(), 'Form field updated');
+    }
+
+    /**
+     * Reorder fields for an event. Accepts ordered_ids array and event_id.
+     * Sets sort_order sequentially (0-based index).
+     */
+    public function reorder(Request $request)
+    {
+        $validated = $request->validate([
+            'event_id' => 'required|integer|exists:events,id',
+            'ordered_ids' => 'required|array|min:1',
+            'ordered_ids.*' => 'integer',
+        ]);
+
+        foreach ($validated['ordered_ids'] as $index => $fieldId) {
+            EventFormField::where('id', $fieldId)
+                ->where('event_id', $validated['event_id'])
+                ->update(['sort_order' => $index]);
+        }
+
+        $fields = EventFormField::query()
+            ->forEvent($validated['event_id'])
+            ->orderBy('sort_order')
+            ->get();
+
+        $this->logActivity(
+            'Event form fields reordered',
+            null,
+            ['event_id' => $validated['event_id'], 'ordered_ids' => $validated['ordered_ids']],
+            'updated'
+        );
+
+        return $this->successResponse([
+            'event_id' => (int) $validated['event_id'],
+            'form_fields' => $fields,
+        ], 'Form fields reordered');
+    }
+
+    /**
      * Soft-handle remove: deactivate if answers exist, else hard-delete.
      */
     public function destroy($id)
