@@ -11,6 +11,7 @@ import FormInput from "../../../components/form/FormInput";
 import FormSelect from "../../../components/form/FormSelect";
 import { useConfirmDialog } from "../../../hooks";
 import { eventApi } from "../../../services/event";
+import { certificateApi } from "../../../services/certificate";
 import { IEventSpeaker, IEventSponsor, IEventSession } from "../../../types/event";
 import axiosInstance from "../../../utils/axios";
 
@@ -303,6 +304,15 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
         onError: (e: any) => toast.error(e?.message || "Failed"),
     });
 
+    const reissueCertificate = useMutation({
+        mutationFn: (participationId: number) => certificateApi.reissue(participationId),
+        onSuccess: () => {
+            toast.success("Certificate re-issued");
+            invalidateKind("certificates");
+        },
+        onError: (e: any) => toast.error(e?.message || "Re-issue failed"),
+    });
+
     const loading =
         announcements.isLoading || certificates.isLoading || feedback.isLoading ||
         sponsors.isLoading || speakers.isLoading || sessions.isLoading;
@@ -340,29 +350,56 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
                         ))}
                 </Section>
 
-                {/* Certificates (read-only) */}
+                {/* Certificates */}
                 <Section title="Certificates">
                     {(certificates.data?.certificates?.length ?? 0) === 0
                         ? <Empty label="certificates" />
                         : certificates.data!.certificates.map((c: any) => (
                             <div key={c.id} className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]">
-                                <span className="font-medium">
-                                    {c.participation?.user?.name ?? `P#${c.participation_id}`}
-                                </span>
-                                {" · "}
-                                {c.issued_at ? moment(c.issued_at).format("MMM DD, YYYY") : "—"}
-                                {c.verified ? " · verified" : ""}
+                                <div className="flex items-center justify-between gap-2">
+                                    <div>
+                                        <span className="font-medium">
+                                            {c.participation?.user?.name ?? `P#${c.participation_id}`}
+                                        </span>
+                                        {" · "}
+                                        {c.issued_at ? moment(c.issued_at).format("MMM DD, YYYY") : "—"}
+                                        {c.verified ? " · verified" : ""}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-primary btn-sm"
+                                        disabled={reissueCertificate.isPending}
+                                        onClick={async () => {
+                                            const name =
+                                                c.participation?.user?.name ??
+                                                `participation #${c.participation_id}`;
+                                            const ok = await confirmAction({
+                                                title: "Re-issue certificate?",
+                                                text: `Re-issue certificate for ${name}? This will replace their existing certificate.`,
+                                                confirmButtonText: "Re-issue",
+                                            });
+                                            if (ok) reissueCertificate.mutate(c.participation_id);
+                                        }}
+                                    >
+                                        Re-issue
+                                    </button>
+                                </div>
                             </div>
                         ))}
                 </Section>
 
-                {/* Feedback (read-only) */}
-                <Section title={`Feedback (avg ${feedback.data?.average_rating ?? "—"})`}>
+                {/* Feedback aggregates (moderation on /feedback) */}
+                <Section
+                    title={`Feedback (avg ${feedback.data?.average_rating ?? "—"} · ${feedback.data?.feedback_count ?? 0} total · ${feedback.data?.hidden_count ?? 0} hidden)`}
+                >
                     {(feedback.data?.feedback?.length ?? 0) === 0
                         ? <Empty label="feedback" />
                         : feedback.data!.feedback.map((f: any) => (
                             <div key={f.id} className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]">
                                 <span className="font-medium">{f.rating}/5</span>
+                                {f.hidden ? (
+                                    <span className="ml-1 text-[10px] uppercase text-warning">hidden</span>
+                                ) : null}
                                 {f.comment ? ` — ${f.comment}` : ""}
                             </div>
                         ))}

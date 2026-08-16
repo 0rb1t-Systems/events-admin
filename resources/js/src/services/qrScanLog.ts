@@ -6,14 +6,6 @@ class QrScanLogApi extends BaseApi<IQrScanLog> {
     constructor() {
         super("/qr-scan-logs");
     }
-
-    async validate(token: string, gate?: string) {
-        const response = await axiosInstance.post(`${this.endpoint}/validate`, {
-            token,
-            gate,
-        });
-        return response.data.data || response.data;
-    }
 }
 
 export const qrScanLogApi = new QrScanLogApi();

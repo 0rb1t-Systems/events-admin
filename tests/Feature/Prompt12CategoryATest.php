@@ -392,19 +392,12 @@ class Prompt12CategoryATest extends TestCase
             'note' => 'Cash payment at venue',
         ]);
 
-        $response->assertCreated();
-        $response->assertJsonPath('data.gateway', 'manual');
-        $response->assertJsonPath('data.status', PaymentStatus::COMPLETED->value);
+        $response->assertForbidden();
+        $response->assertJsonPath('errors.error_code.0', 'action_requires_organizer_scope');
 
-        $this->assertDatabaseHas('payments', [
+        $this->assertDatabaseMissing('payments', [
             'participation_id' => $participation->id,
-            'status' => PaymentStatus::COMPLETED->value,
             'gateway' => 'manual',
-        ]);
-
-        $this->assertDatabaseHas('participations', [
-            'id' => $participation->id,
-            'payment_status' => ParticipationPaymentStatus::PAID->value,
         ]);
     }
 
@@ -427,7 +420,9 @@ class Prompt12CategoryATest extends TestCase
             'participation_id' => $participation->id,
         ]);
 
-        $response->assertStatus(400);
+        // Admin Panel tokens are scope-blocked before business validation (Prompt 13).
+        $response->assertForbidden();
+        $response->assertJsonPath('errors.error_code.0', 'action_requires_organizer_scope');
     }
 
     public function test_manual_payment_service_directly(): void

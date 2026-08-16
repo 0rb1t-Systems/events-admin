@@ -97,11 +97,13 @@ class EventAddOnController extends BaseController
             ->get();
 
         $avg = $rows->avg('rating');
+        $hiddenCount = $rows->where('hidden', true)->count();
 
         return $this->successResponse([
             'event_id' => (int) $eventId,
             'average_rating' => $avg !== null ? round((float) $avg, 2) : null,
             'feedback_count' => $rows->count(),
+            'hidden_count' => $hiddenCount,
             'feedback' => $rows,
         ]);
     }

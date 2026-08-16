@@ -14,13 +14,14 @@ class EventFeedback extends Model
     protected $table = 'event_feedback';
 
     protected $fillable = [
-        'participation_id', 'rating', 'comment', 'submitted_at',
+        'participation_id', 'rating', 'comment', 'hidden', 'submitted_at',
     ];
 
     protected function casts(): array
     {
         return [
             'rating' => 'integer',
+            'hidden' => 'boolean',
             'submitted_at' => 'datetime',
         ];
     }

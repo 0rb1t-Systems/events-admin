@@ -92,6 +92,7 @@ class RolePermissionSeeder extends Seeder
             // payments + payouts (Admin System — Section 5.9)
             'view payments',
             'manage payments',
+            'refund payments',
             'view payouts',
             'manage payouts',
 
@@ -100,8 +101,10 @@ class RolePermissionSeeder extends Seeder
             'view event announcements',
             'manage event announcements',
             'view certificates',
+            'reissue certificates',
             'view event feedback',
             'manage event feedback',
+            'moderate feedback',
             'view event sponsors',
             'manage event sponsors',
             'view event speakers',

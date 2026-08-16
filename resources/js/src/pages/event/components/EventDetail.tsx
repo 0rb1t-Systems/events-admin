@@ -3,7 +3,7 @@ import moment from "moment";
 import React, { useState } from "react";
 import { toast } from "sonner";
 import Loader from "../../../components/Loader";
-import { useConfirmDialog } from "../../../hooks";
+import { useConfirmDialog, usePermission } from "../../../hooks";
 import { eventApi } from "../../../services/event";
 import { ITicketType, IDiscountCode } from "../../../types";
 import ParticipationOversight from "./ParticipationOversight";
@@ -12,8 +12,12 @@ import CheckInStatsPanel from "./CheckInStatsPanel";
 import EventFinancePanel from "./EventFinancePanel";
 import EventAnalyticsPanel from "./EventAnalyticsPanel";
 import EventAddOnOversight from "./EventAddOnOversight";
+import EventPaymentsPanel from "./EventPaymentsPanel";
+import InvitationTemplatePreview from "./InvitationTemplatePreview";
 import TicketTypeModal from "./TicketTypeModal";
 import DiscountCodeModal from "./DiscountCodeModal";
+import GenericModal from "../../../components/GenericModal";
+import FileUpload from "../../../components/form/FileUpload";
 
 interface Props {
     eventId: number | null;
@@ -43,6 +47,8 @@ const formatCapacity = (capacity: number | null | undefined, count: number) => {
 const EventDetail: React.FC<Props> = ({ eventId }) => {
     const queryClient = useQueryClient();
     const { confirmAction } = useConfirmDialog();
+    const { hasPermission } = usePermission();
+    const canEditEvent = hasPermission("edit events");
 
     const [ttModal, setTtModal] = useState<{ open: boolean; item: ITicketType | null }>({
         open: false,
@@ -52,6 +58,9 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
         open: false,
         item: null,
     });
+    const [galleryOpen, setGalleryOpen] = useState(false);
+    const [galleryFile, setGalleryFile] = useState<File | null>(null);
+    const [galleryError, setGalleryError] = useState<string | null>(null);
 
     const { data: event, isLoading, error } = useQuery({
         queryKey: ["event", eventId],
@@ -80,6 +89,18 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
             queryClient.invalidateQueries({ queryKey: ["event", eventId] });
         },
         onError: (e: Error) => toast.error(e.message),
+    });
+
+    const uploadImage = useMutation({
+        mutationFn: (file: File) => eventApi.uploadGalleryImage(eventId!, file),
+        onSuccess: () => {
+            toast.success("Image uploaded");
+            queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+            setGalleryOpen(false);
+            setGalleryFile(null);
+            setGalleryError(null);
+        },
+        onError: (e: any) => toast.error(e?.message || "Upload failed"),
     });
 
     const disableSales = useMutation({
@@ -249,6 +270,16 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                     Collected vs paid out / outstanding (USD).
                 </p>
                 <EventFinancePanel eventId={event.id} />
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Payments
+                </h4>
+                <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                    Individual transactions for this event. Refunds available on completed payments.
+                </p>
+                <EventPaymentsPanel eventId={event.id} />
             </div>
 
             <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
@@ -453,8 +484,30 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
 
             <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
                 <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
-                    Gallery
+                    Invitation template
                 </h4>
+                <InvitationTemplatePreview eventId={event.id} />
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Gallery
+                    </h4>
+                    {canEditEvent && (
+                        <button
+                            type="button"
+                            className="btn btn-primary btn-sm gap-1"
+                            onClick={() => {
+                                setGalleryFile(null);
+                                setGalleryError(null);
+                                setGalleryOpen(true);
+                            }}
+                        >
+                            Upload Image
+                        </button>
+                    )}
+                </div>
                 {(event.images?.length ?? 0) === 0 ? (
                     <p className="text-sm text-gray-500">No images</p>
                 ) : (
@@ -465,20 +518,22 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                                 className="flex items-center justify-between gap-2 rounded border border-gray-100 px-2 py-1 dark:border-[#1b2e4b]"
                             >
                                 <span className="truncate">{img.path}</span>
-                                <button
-                                    type="button"
-                                    className="text-danger"
-                                    onClick={async () => {
-                                        const ok = await confirmAction({
-                                            title: "Delete gallery image?",
-                                            text: "Removes the DB row and deletes the file from disk.",
-                                            confirmButtonText: "Delete",
-                                        });
-                                        if (ok) deleteImage.mutate(img.id);
-                                    }}
-                                >
-                                    Remove
-                                </button>
+                                {canEditEvent && (
+                                    <button
+                                        type="button"
+                                        className="text-danger"
+                                        onClick={async () => {
+                                            const ok = await confirmAction({
+                                                title: "Delete gallery image?",
+                                                text: "Removes the DB row and deletes the file from disk.",
+                                                confirmButtonText: "Delete",
+                                            });
+                                            if (ok) deleteImage.mutate(img.id);
+                                        }}
+                                    >
+                                        Remove
+                                    </button>
+                                )}
                             </li>
                         ))}
                     </ul>
@@ -505,6 +560,66 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                 discountCode={dcModal.item}
             />
         )}
+
+        <GenericModal
+            isOpen={galleryOpen}
+            setIsOpen={setGalleryOpen}
+            title="Upload gallery image"
+            maxWidth="md"
+        >
+            <div className="space-y-4">
+                <FileUpload
+                    id="event-gallery-upload"
+                    label="Image"
+                    accept="image/jpeg,image/png,image/jpg,image/gif,image/webp"
+                    value={galleryFile}
+                    onChange={(file) => {
+                        setGalleryError(null);
+                        if (!file) {
+                            setGalleryFile(null);
+                            return;
+                        }
+                        const okType = /image\/(jpeg|png|jpg|gif|webp)/i.test(file.type)
+                            || /\.(jpe?g|png|gif|webp)$/i.test(file.name);
+                        if (!okType) {
+                            setGalleryError("Please select a JPG, PNG, GIF, or WebP image.");
+                            setGalleryFile(null);
+                            return;
+                        }
+                        // Backend max: 4096 KB
+                        if (file.size > 4096 * 1024) {
+                            setGalleryError("Image must be 4 MB or smaller.");
+                            setGalleryFile(null);
+                            return;
+                        }
+                        setGalleryFile(file);
+                    }}
+                    error={galleryError}
+                    maxSize={4096}
+                    helpText="JPG, PNG, GIF, or WebP — max 4 MB"
+                />
+                <div className="flex justify-end gap-2">
+                    <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setGalleryOpen(false)}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={!galleryFile || uploadImage.isPending}
+                        onClick={() => {
+                            if (!galleryFile) return;
+                            uploadImage.mutate(galleryFile);
+                        }}
+                    >
+                        {uploadImage.isPending ? "Uploading…" : "Upload"}
+                    </button>
+                </div>
+            </div>
+        </GenericModal>
     </>
     );
 };

@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (FormCombobox / useEntitySearch: null-safe displayValue + ASCII separators)
+Last updated: 2026-08-16 (Prompt 14: missing/partial Admin screens — payments, refunds, gallery upload, certificates, subscriptions; Feedback unchanged)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -36,14 +36,17 @@ Every meaningful change to the codebase must also update this file.
   - Do not commit `.env` or secrets
   - Organization is effectively **single-tenant profile** (not a full CRUD list page like Users)
   - After permission changes: reseed `RolePermissionSeeder` (or sync admin role) so gates match routes
-  - Full suite: **132 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
-  - Run `php artisan migrate` for `payments.gateway` column (Prompt 12)
+  - Full suite: **144 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
+  - Run `php artisan migrate` for `payments.gateway` (Prompt 12) and `event_feedback.hidden` (Prompt 13)
+  - After Prompt 13/14 permissions: reseed `RolePermissionSeeder` (adds `reissue certificates`, `moderate feedback`, **`refund payments`**)
   - **FormCombobox / pickers:** Headless UI calls `displayValue(null)` when nothing is selected — formatters and `FormCombobox` must treat null as `""`. Avoid Unicode middle-dot (`·`) in template literals on Windows/Vite Babel (use ASCII ` - ` instead).
+  - **Ownership (Prompt 13):** Admin = platform owner; Organizer = event owner. Event-operation actions (manual pay, QR check-in, Waafi charge) reject `admin-panel` tokens with `403` + `error_code: action_requires_organizer_scope` via `RejectsAdminPanelOrganizerActions`.
+  - **Event Detail is the hub** for all event-scoped sub-resources (tickets, participants, payments+refunds, gallery upload, invitation preview, add-ons, analytics, finance).
 
 ## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
 These were decided during Admin Prompts 1–12. Confirm or correct before Web App work:
 
-1. **Refund after payout recorded** — Block refund when it would leave collected funds &lt; reserved/paid-out payouts. API: `errors.error_code: ["refund_blocked_payout_recorded"]`. No automatic clawback; **refund admin UI still not built** (API only).
+1. **Refund after payout recorded** — Block refund when it would leave collected funds &lt; reserved/paid-out payouts. API: `errors.error_code: ["refund_blocked_payout_recorded"]`. No automatic clawback. **Admin refund UI built (Prompt 14)** on Event Detail Payments panel (`refund payments`).
 2. **Payout scope** — **Per-event** payout requests only (not multi-event / organizer-wide batches).
 3. **Admin edit rights on organizer identity** — **Confirmed / implemented:** Admins PATCH `business_name`, `contact_name`, `email`, `phone` (`edit organizers`). Password remains Web App / self-service. Status via suspend/reactivate.
 4. **Share Event (spec 12.3 MUST)** — **Explicitly deferred to Web App pack** (share-link generation is front-end). Not implemented in Admin.
@@ -63,10 +66,14 @@ These were decided during Admin Prompts 1–12. Confirm or correct before Web Ap
 18. **Cancelled events** — Cannot be force-deleted.
 19. **Admin Users `user_type`** — Read-only in Admin UI; creates force `admin`; updates ignore `user_type`.
 20. **Orphaned permission cleanup (Prompt 11)** — Removed unused seeder permission `view reports`. Dashboard uses `view dashboard`. Logs routes re-gated with `view logs`.
-21. **Prompt 12 Admin write expansion** — Platform admins now have full write/override on ticket types, discount codes, form fields, announcements (email all non-cancelled), sponsors/speakers/sessions, manual cash payments, and participation add/cancel-with-reason. Organizer Web App authoring still planned; Admin is **not** oversight-only for these anymore.
-22. **Manual payments** — `gateway=manual`, `status=completed`, bypasses WaafiPay; reference `MANUAL-{uuid}`. Issues QR token when participation becomes paid.
+21. **Prompt 12 Admin write expansion** — Platform admins have write/override on ticket types, discount codes, form fields, announcements, sponsors/speakers/sessions, and participation add/cancel-with-reason. **Manual cash payment was removed from Admin in Prompt 13** (organizer-scoped).
+22. **Manual payments** — Service `PaymentService::recordManual` kept for Web App. `POST /payments/manual` **rejects admin-panel tokens** (`action_requires_organizer_scope`). Historical activity logs retained.
 23. **Full Event create UI** — Still moderation-focused in Admin (no full organizer-style create form). API `POST /events` exists; gallery upload API exists but FE remains delete-focused. **BY DESIGN** unless product asks for admin create.
-24. **Invitation template designer / QR scanner / Waafi charge UI / feedback submit / certificate re-issue** — Still Web App / ops-API; not Prompt 12 Admin UI.
+24. **Ownership boundary (Prompt 13)** — Admin = platform owner; Organizer = event owner. QR scanner UI was **never built** in Admin (only QR Scan History). Waafi charge UI was **never built** in Admin. Both `POST /qr-scan-logs/validate` and `POST /payments/charge` are scope-blocked for admin-panel tokens. Invitation designer / feedback submit / live charge / door scanning remain Web App.
+25. **Certificate re-issue (Prompt 13)** — Admin can force re-issue via `POST /certificates/{participation_id}/reissue` (`reissue certificates`). Requires `checked_in`; fails safely without deleting old row on generation error.
+26. **Feedback moderation (Prompt 13)** — Platform-wide `/feedback` list + hide/show (`event_feedback.hidden`). Soft-hide only. **Web App MUST filter `where hidden = false`** on any public/organizer feedback query.
+27. **Invitation preview (Prompt 13/14)** — Read-only `InvitationTemplatePreview` on Event Detail; uses `GET /events/{id}/invitation-template` + `eventApi.getInvitationTemplate`.
+28. **Prompt 14 UI completeness** — Platform `/payments`, `/certificates`, `/subscriptions`; Event Detail payments+refunds + gallery upload. **Item 7 (rebuild Feedback) skipped** — Feedback already complete from Prompt 13; do not regress.
 ## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
 These were decided during Admin Prompts 1–11. Confirm or correct before Web App work:
 
@@ -203,12 +210,15 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Events Admin Form** — **moderation** only (featured / capacity / status transition / title). **`monetized` is derived from paid ticket types**. Status changes **must** use `POST /events/{id}/transition`. Full event create UI remains Web App (API create exists).
 - **Ticket types Admin (Prompt 12)** — Full create/edit/soft-delete + disable/enable sales from Event Detail (`TicketTypeModal`). Force-delete blocked if `quantity_sold > 0`.
 - **Discount codes Admin (Prompt 12)** — Full create/edit/soft-delete/activate from Event Detail (`DiscountCodeModal`).
-- **Participations Admin (Prompt 12)** — Add (user combobox), promote waitlist, cancel with optional reason, record manual cash payment. Nested in Event Detail.
+- **Participations Admin (Prompt 12/13)** — Add (user combobox), promote waitlist, cancel with optional reason. **Manual cash payment UI removed** (organizer-scoped; API still exists but rejects admin-panel tokens).
 - **Event form fields Admin (Prompt 12)** — Add/edit/reorder/deactivate-or-delete in Event Detail (`FormFieldOversight`). Key immutable on update; deactivate-if-answers rule still applies.
-- **Invitation templates Admin** — read API + ops store/update; **no designer UI** in Admin (Web App).
-- **QR Scan History Admin** — list + Event Detail check-in stats. Event filter uses searchable combobox. Scanner UI is Web App; `POST /qr-scan-logs/validate` is ops stand-in.
-- **Payments / Payouts Admin** — Payout workflow UI + Event finance panel + Settings commission. **Manual payment** `POST /payments/manual` (`gateway=manual`). Charge/refund APIs exist; charge UI & refund UI still not built.
-- **Event add-ons Admin (Prompt 12)** — Announcements compose+send (queues email); Sponsors/Speakers/Sessions full CRUD; Certificates/Feedback still read-only lists.
+- **Invitation templates Admin (Prompt 13)** — Read-only preview on Event Detail (`InvitationTemplatePreview`). Ops store/update API remains; **no designer/edit UI** in Admin (Web App).
+- **QR Scan History Admin** — list + Event Detail check-in stats (keep). **No scanner UI was ever built** in Admin. `POST /qr-scan-logs/validate` rejects admin-panel tokens (`action_requires_organizer_scope`).
+- **Payments / Payouts Admin** — Platform `/payments` list ✅; Event Detail payments+refunds ✅; Payout workflow UI + finance panel + Settings commission. Charge UI **never built**; charge/manual reject admin-panel tokens.
+- **Event add-ons Admin** — Announcements compose+send; Sponsors/Speakers/Sessions CRUD; Certificates re-issue (Event Detail + platform `/certificates`); Event Detail feedback aggregates.
+- **Feedback Admin (Prompt 13)** — Top-level `pages/feedback/` ✅ (not rebuilt in Prompt 14). Soft-hide via `hidden`.
+- **Gallery Admin (Prompt 14)** — List + upload + delete on Event Detail ✅.
+- **Subscriptions Admin (Prompt 14)** — Platform `/subscriptions` overview ✅; assign/cancel remain on Organizer Detail.
 - **Share Event (spec 12.3 MUST):** **explicitly deferred to Web App pack**.
 - **Dashboard** — stats aggregates (`view dashboard`).
 - **Organization** — profile/settings style under Settings.
@@ -270,31 +280,44 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 | Organizers | `/organizers` | `view organizers` |
 | Events | `/events` | `view events` |
 | Payouts | `/payouts` | `view payouts` |
+| Payments | `/payments` | `view payments` |
+| Subscriptions | `/subscriptions` | `view organizer subscriptions` |
+| Feedback | `/feedback` | `view event feedback` |
 | Settings → Mail / Roles / Commission | `/settings/...` | `manage settings` |
 | Settings → Packages | `/settings/packages` | `view packages` |
 | Settings → Event Categories | `/settings/event-categories` | `view event categories` |
 | Settings → Organization | `/settings/organization` | `view organizations` |
 | Logs | `/logs` | `view logs` |
+| Certificates | `/certificates` | `view certificates` |
 | QR Scan History | `/qr-scan-logs` | `view qr scan logs` |
 | Trash | `/trash/*` | `view trash items` |
 
-Event Detail nested panels (not separate top-level nav): ticket types, discounts, participations, form fields, invitation template, check-in stats, finance, analytics, announcements, certificates, feedback, sponsors, speakers, sessions.
+**Event Detail is the hub** for event-scoped sub-resources (sections, not separate top-level routes): overview/moderation, analytics, financial summary, **payments list + refunds**, check-in stats, participations, form fields, ticket types, discount codes, content & engagement (announcements/certificates/feedback aggregates/sponsors/speakers/sessions), **invitation template preview**, **gallery (list + upload + delete)**.
 
 ### Domain services (non-controller)
-`MailService`, `LocationService`, `CommonServices`, `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`, `EventQuota`, `ParticipationService`, `FormFieldValidationService`, `EventFormFieldService`, `QrTokenService`, `QrValidationService`, `WaafiPayService`, `PaymentService`, `PayoutService`, `EventFinanceService`, `CommissionSettings`, `EventAnalyticsService`, `CertificateIssuanceService`, `EventFeedbackService`, `SomaliPhoneNormalizer`.
+`MailService`, `LocationService`, `CommonServices`, `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`, `EventQuota`, `ParticipationService`, `FormFieldValidationService`, `EventFormFieldService`, `QrTokenService`, `QrValidationService`, `WaafiPayService`, `PaymentService`, `PayoutService`, `EventFinanceService`, `CommissionSettings`, `EventAnalyticsService`, `CertificateIssuanceService` (issue + **reissue**), `EventFeedbackService`, `SomaliPhoneNormalizer`.
 
 ### Domain ownership
+**Admin = platform owner** (system config, data integrity, platform oversight). **Organizer = event owner** (their events, who gets in, registrations, door scanning). See Prompt 13 boundary.
 **Users** (admin staff / participants) ≠ **Organizers** ≠ **Events** (belong to organizers). Packages gate how many events an organizer may create via `EventQuota`. **Payments** table is financial source of truth; participation `payment_status` is a denormalized mirror.
 
-### Permission audit (Prompt 11 — final)
-- Seeder ↔ route `permission:` lists are **1:1** (55 permissions). Removed orphan `view reports`.
+Organizer-scoped endpoints (logic kept for Web App; **admin-panel tokens rejected** with `action_requires_organizer_scope`):
+- `POST /payments/manual` — offline/cash mark paid
+- `POST /payments/charge` — WaafiPay charge
+- `POST /qr-scan-logs/validate` — door check-in
+
+Trait: `App\Traits\RejectsAdminPanelOrganizerActions`.
+
+### Permission audit (Prompt 13)
+- Seeder includes Prompt 13 adds: `reissue certificates`, `moderate feedback` (plus existing `view invitation templates`, `view event feedback`, `view certificates`).
+- No separate “manual mark payment” permission existed — used `manage payments` (still used for refunds/oversight; manual/charge routes remain permission-gated but scope-blocked for admin tokens).
 - Logs: `permission:view logs` **enabled** on all log routes.
 - Dashboard stats API: `GET /api/v1/dashboard/stats` → `permission:view dashboard`.
-- Auth / organizer-auth login routes intentionally ungated beyond Sanctum (by design).
 
-### Activity log audit (Prompt 11 — final)
+### Activity log audit
 - BaseController CRUD writes log automatically.
-- Custom writes that log: Event transition/gallery, Organizer update/suspend/reactivate, Package archive, TicketType disable/enable sales, Participation promote/cancel, FormField store/destroy, Invitation template store/update, Payment charge/refund, Payout request/approve/reject/recordPayment, QR validateScan, Event feedback submit, Settings mail/commission (via `activity()`).
+- Custom writes that log: Event transition/gallery, Organizer update/suspend/reactivate, Package archive, TicketType disable/enable sales, Participation promote/cancel, FormField store/destroy, Invitation template store/update, Payment charge/refund/manual (when allowed), Payout request/approve/reject/recordPayment, QR validateScan (when allowed), Event feedback submit, **certificate re-issue**, **feedback visibility**, Settings mail/commission (via `activity()`).
+- Historical manual-payment / QR activity logs are retained; Admin can no longer create new ones for those organizer actions.
 - Read-only oversight endpoints do not log.
 ## Auth + User Types (Phase 1 — EventHub multi-tenant foundation)
 
@@ -657,15 +680,15 @@ Re-scan of a checked-in token → `already_used` + **separate** `qr_scan_logs` r
 |----------|---------|
 | `GET /qr-scan-logs` | History list (filter `event_id`, `result`) |
 | `GET /qr-scan-logs/{id}` | Detail |
-| `POST /qr-scan-logs/validate` | Ops/admin validate stand-in (`token`, optional `gate`) |
+| `POST /qr-scan-logs/validate` | Organizer Web App scanner (**admin-panel tokens rejected** — Prompt 13) |
 | `GET /events/{id}/qr-scan-logs` | Recent scans + stats |
 | `GET /events/{id}/check-in-stats` | Dashboard numbers |
-| `GET /events/{id}/invitation-template` | Read-only template |
+| `GET /events/{id}/invitation-template` | Read-only template (Admin preview UI on Event Detail) |
 | `POST/PATCH /event-invitation-templates` | Ops store/update |
 
 Permissions: `view qr scan logs`, `manage qr scans`, `view invitation templates`, `manage invitation templates`.
 
-FE: `pages/qr-scan-log/` (sidebar nav), `CheckInStatsPanel` in Event Detail.
+FE: `pages/qr-scan-log/` (sidebar nav — **history only**), `CheckInStatsPanel` + `InvitationTemplatePreview` in Event Detail. **No Admin scanner UI was ever built.**
 
 ### Tests
 - `tests/Feature/QrInvitationModuleTest.php` — unique index, crypto token on free join, pending skips token, **valid / already_used / invalid**, cancelled→invalid (not already_used), refunded before already_used, re-scan dual logs, stats + API.
@@ -723,20 +746,25 @@ FE: `EventAnalyticsPanel` on Event Detail.
 - Table `certificates` with **`$table->unique('participation_id')`**
 - `ParticipationCheckedIn` domain event dispatched from `QrValidationService` valid path only
 - Listener `IssueAttendanceCertificate` → `CertificateIssuanceService::issueForParticipation` (exists check + lock + unique race catch) — **idempotent**
-- Not inline in QR service
+- **Admin re-issue (Prompt 13):** `CertificateIssuanceService::reissueForParticipation` + `POST /api/v1/certificates/{participation_id}/reissue` (`reissue certificates`). Requires `checked_in` (`certificate_requires_checked_in_status`). On generation failure, old row/file kept (`certificate_reissue_failed`). FE: Re-issue button on Event Detail certificates list (`EventAddOnOversight`).
 
-### Feedback (12.6 HIGH)
-`EventFeedbackService::submit` requires `status === checked_in`. Unique per participation. Ops: `POST /event-feedback`. Tests cover joined/waitlisted rejection.
+### Feedback (12.6 HIGH + Prompt 13 moderation)
+`EventFeedbackService::submit` requires `status === checked_in`. Unique per participation. Ops: `POST /event-feedback`.
+- Column `event_feedback.hidden` (default false) — soft-hide; never hard-delete for moderation.
+- Platform list: `GET /api/v1/feedback`, `PATCH /api/v1/feedback/{id}/visibility` (`moderate feedback`).
+- Event nested: `GET /events/{id}/feedback` returns `average_rating`, `feedback_count`, **`hidden_count`**, and all rows (including hidden) for admin.
+- **CRITICAL for Web App:** any public/organizer-facing feedback query **MUST** filter `where('hidden', false)`. Hidden feedback must not surface to participants or organizers.
+- FE: `pages/feedback/` (sidebar) + Event Detail aggregates.
 
 ### Announcements / Sponsors / Speakers / Sessions
-Read-only nested GETs under `/events/{id}/…`. Models: `EventAnnouncement`, `EventSponsor` (tier enum), `EventSpeaker`, `EventSession`. FE: `EventAddOnOversight`.
+Nested under `/events/{id}/…`. Models: `EventAnnouncement`, `EventSponsor` (tier enum), `EventSpeaker`, `EventSession`. FE: `EventAddOnOversight` (CRUD for sponsors/speakers/sessions; announcements send).
 
 ### Tests
 `EventAddOnModuleTest` (10) — unique certificate, idempotent issue, listener on check-in, feedback gates, analytics aggregates, admin endpoints.
 
 ## Current Module Inventory
 
-Final Admin System inventory (Prompts 1–12). Prompt 12 expanded Admin write overrides for many former “oversight-only” modules; Web App authoring still planned in parallel.
+Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; Organizer = event owner**.
 
 | Domain | Model(s) | Controller | API v1 | FE surface | FE service | FE types |
 |--------|----------|------------|--------|------------|------------|----------|
@@ -748,23 +776,26 @@ Final Admin System inventory (Prompts 1–12). Prompt 12 expanded Admin write ov
 | Organizers | `Organizer` | `OrganizerController` | `organizers.php` | `pages/organizer/` + trash | `organizer.ts` | `organizer.ts` |
 | Organizer auth | `Organizer` | `OrganizerAuthController` | `organizer-auth.php` | API only (Web App later) | — | — |
 | Packages | `Package` | `PackageController` | `packages.php` | `pages/settings/packages/` | `package.ts` | `package.ts` |
-| Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested in `organizers.php` | Organizer Detail | `organizerSubscription.ts` | `package.ts` |
 | Events | `Event`, `EventImage` | `EventController` | `events.php` | `pages/event/` + trash | `event.ts` | `event.ts` |
 | Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` | Settings + trash | `eventCategory.ts` | `event.ts` |
 | Ticket types | `TicketType` | `TicketTypeController` | `ticket-types.php` + nested | Event Detail + `TicketTypeModal` | `event.ts` | `event.ts` |
 | Discount codes | `DiscountCode` | `DiscountCodeController` | `ticket-types.php` + nested | Event Detail + `DiscountCodeModal` | `event.ts` | `event.ts` |
-| Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event Detail (add/promote/cancel/manual pay) | `event.ts` | `event.ts` |
+| Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event Detail (add/promote/cancel; **no manual pay**) | `event.ts` | `event.ts` |
 | Event form fields | `EventFormField` | `EventFormFieldController` | `event-form-fields.php` + nested | Event Detail (CRUD + reorder) | `event.ts` | `event.ts` |
-| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | `event-invitation-templates.php` + nested | API (no designer UI) | — | `qrScan.ts` |
-| QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` (event combobox filter) | `qrScanLog.ts` | `qrScan.ts` |
-| Payments | `Payment` (+ `gateway`) | `PaymentController` | `payments.php` | Event finance + manual record on participations | `event.ts` / `payout.ts` | `payment.ts` |
-| Payout requests | `PayoutRequest` | `PayoutRequestController` | `payout-requests.php` | `pages/payout/` (event combobox on create) | `payout.ts` | `payment.ts` |
-| Event add-ons | Announcement, Certificate, Feedback, Sponsor, Speaker, Session | `EventAddOnController` | nested `events.php` + feedback POST | Event Detail (announcements send + sponsors/speakers/sessions CRUD; certs/feedback read) | `event.ts` | `event.ts` |
+| Payments | `Payment` (+ `gateway`) | `PaymentController` | `payments.php` | **`pages/payment/`** + Event Detail `EventPaymentsPanel` (refunds) | `payment.ts` | `payment.ts` |
+| Payout requests | `PayoutRequest` | `PayoutRequestController` | `payout-requests.php` | `pages/payout/` | `payout.ts` | `payment.ts` |
+| Certificates | `Certificate` | `CertificateController` + EventAddOn | `certificates.php` + nested | **`pages/certificate/`** + Event Detail re-issue | `certificate.ts` | `certificate.ts` |
+| Feedback | `EventFeedback` (+ `hidden`) | `FeedbackController` + EventAddOn | `feedback.php` + nested + POST event-feedback | `pages/feedback/` + Event Detail aggregates | `feedback.ts` | `feedback.ts` |
+| Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested `organizers.php` | **`pages/subscription/`** + Organizer Detail assign/cancel | `subscription.ts` / `organizerSubscription.ts` | `package.ts` |
+| Event add-ons | Announcement, Sponsor, Speaker, Session | `EventAddOnController` | nested `events.php` | Event Detail CRUD/send | `event.ts` | `event.ts` |
+| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | nested + resource | Event Detail **read-only preview** ✅ | `event.ts` (`getInvitationTemplate`) | — |
+| QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` history only | `qrScanLog.ts` | `qrScan.ts` |
 | Settings | `Settings` | `SettingsController` | `settings.php` | mail + commission | `mail.ts` / `payout.ts` | `mail.ts` / `payment.ts` |
 | Logs | Activity log | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
 | Trash | soft-deleted rows | per-resource trash endpoints | users/roles/organizers/events/event-categories | `pages/trash/` | BaseApi trash methods | — |
 
-**Explicitly deferred:** Share Event → Web App pack.
+**Explicitly deferred:** Share Event → Web App pack. Organizer door scanner / Waafi charge UI / invitation designer / feedback submit UX → Web App.
+**Removed from Admin (Prompt 13):** manual mark-as-paid UI; admin use of QR validate & payment charge (scope-blocked). QR scanner screen and payment charging screen were **never built** in Admin FE.
 
 ## Backend Structure Notes
 - Controllers live in `app/Http/Controllers/Api/` and extend `BaseController` except `SettingsController` (uses `activity()` directly).
@@ -895,6 +926,37 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Prompt 14: Missing & partial Admin screens (skip Feedback rebuild)
+- **Skipped item 7:** Platform Feedback already completed in Prompt 13 — not touched.
+- **Completed:**
+  1. Event Payments list — `EventPaymentsPanel` on Event Detail (status filter, pagination, detail modal)
+  2. Refunds — Refund on completed rows; `refund payments` permission; surfaces `refund_blocked_payout_recorded` human message; backend activity log confirmed
+  3. Gallery upload — Upload Image modal (`FileUpload`, max 4MB jpg/png/gif/webp) via `edit events`
+  4. Invitation template preview — already from Prompt 13; wired `eventApi.getInvitationTemplate` + empty-state copy
+  5. Platform Payments — `pages/payment/` + sidebar `/payments` (`view payments`); filters event/organizer/status/date
+  6. Platform Certificates — `pages/certificate/` + sidebar `/certificates`; re-issue in detail; `GET /certificates` index
+  8. Platform Subscriptions — `pages/subscription/` + sidebar `/subscriptions`; `GET /organizers/subscriptions/{id}` show
+- Backend: Payment index `organizer_id`/`date_from`/`date_to`; Certificate index/show; subscription package filter + show; `refund payments` in seeder
+- FE services: `payment.ts`, extended `certificate.ts`, `subscription.ts`; `useOrganizerSearch`
+- Tests: `Prompt14AdminScreensTest` (4) — suite **144 passed / 3 ExceptionHandlerTest failed**
+- New permission: **`refund payments`** only
+- Note: Event Detail remains the hub for all event-scoped sub-resources
+
+### 2026-08-16 - Prompt 13: Ownership correction & remaining admin screens
+- **Ownership principle:** Admin = platform owner; Organizer = event owner.
+- **Part 1 — Removed / scope-blocked:**
+  1. **Manual mark-as-paid** — UI removed from `ParticipationOversight.tsx`; `eventApi.recordManualPayment` removed from `event.ts`. Backend `PaymentController::recordManual` + `PaymentService::recordManual` **kept**; rejects admin-panel tokens via `RejectsAdminPanelOrganizerActions` → `403` + `action_requires_organizer_scope`. Historical activity logs kept. No separate seeder permission existed for this action.
+  2. **QR scanner** — **Never built** as Admin FE screen (only QR Scan History existed — kept). `QrScanLogController::validateScan` scope-blocked for admin-panel tokens. Removed unused `qrScanLogApi.validate` client helper.
+  3. **Payment charging screen** — **Never built** as Admin FE. `PaymentController::charge` scope-blocked for admin-panel tokens.
+- **Part 2 — Built:**
+  1. Certificate re-issue — `CertificateIssuanceService::reissueForParticipation`, `CertificateController`, `POST /certificates/{participation_id}/reissue`, FE Re-issue on `EventAddOnOversight` (+ confirm dialog).
+  2. Feedback management — migration `event_feedback.hidden`, `FeedbackController`, `routes/api/v1/feedback.php`, `pages/feedback/` + Detail hide/show, sidebar nav, Event Detail aggregates (`hidden_count`). **Web App must filter `hidden=false`.**
+  3. Invitation preview — `InvitationTemplatePreview` on Event Detail (read-only structured config; empty state when none).
+- Files (representative): `RejectsAdminPanelOrganizerActions.php`, PaymentController, QrScanLogController, CertificateIssuanceService, CertificateController, FeedbackController, RolePermissionSeeder, routes `certificates.php`/`feedback.php`/`api.php`; FE feedback pages, InvitationTemplatePreview, EventDetail, EventAddOnOversight, ParticipationOversight, sidebar, routes; tests `Prompt13OwnershipAndAdminScreensTest`.
+- Permissions added: `reissue certificates`, `moderate feedback`.
+- Migration: `2026_08_16_211300_add_hidden_to_event_feedback_table.php`
+- Verification: `composer test` → **140 passed / 3 ExceptionHandlerTest failed** (acceptable)
 
 ### 2026-08-16 - Fix FormCombobox / useEntitySearch crash and Babel parse
 - Files touched:

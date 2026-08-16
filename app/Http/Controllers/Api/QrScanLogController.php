@@ -3,17 +3,20 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Event;
-use App\Models\EventInvitationTemplate;
 use App\Models\Organizer;
 use App\Models\QrScanLog;
 use App\Services\QrValidationService;
+use App\Traits\RejectsAdminPanelOrganizerActions;
 use Illuminate\Http\Request;
 
 /**
- * Admin QR Scan History (read-only) + validate endpoint for ops / future Web App scanner.
+ * Admin QR Scan History (read-only) + validate endpoint for future Web App scanner.
+ * Validate is organizer-scoped — Admin Panel tokens are rejected.
  */
 class QrScanLogController extends BaseController
 {
+    use RejectsAdminPanelOrganizerActions;
+
     protected $model = QrScanLog::class;
 
     protected $searchableFields = ['scanned_token', 'gate', 'result'];
@@ -66,10 +69,15 @@ class QrScanLogController extends BaseController
     }
 
     /**
-     * Validate a scanned token (admin/ops stand-in for organizer Web App scanner).
+     * Validate a scanned token (organizer Web App scanner).
+     * Admin Panel tokens are rejected — check-in is an event-operation action.
      */
     public function validateScan(Request $request)
     {
+        if ($denied = $this->rejectIfAdminPanelToken()) {
+            return $denied;
+        }
+
         $validated = $request->validate([
             'token' => 'required|string|max:128',
             'gate' => 'nullable|string|max:100',

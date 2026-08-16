@@ -8,6 +8,10 @@ import {
     CalendarDays,
     QrCode,
     Wallet,
+    MessageSquare,
+    CreditCard,
+    Award,
+    Package,
 } from "lucide-react";
 
 import { MenuItem } from "../types/sidebar";
@@ -26,8 +30,11 @@ export const sidebarMenu: MenuItem[] = [
         permissions: [
             "view users",
             "view organizers",
+            "view organizer subscriptions",
             "view events",
+            "view payments",
             "view payouts",
+            "view event feedback",
             "manage settings",
             "view packages",
             "view event categories",
@@ -47,16 +54,34 @@ export const sidebarMenu: MenuItem[] = [
         permissions: ["view organizers"],
     },
     {
+        title: "subscriptions",
+        icon: Package,
+        path: "/subscriptions",
+        permissions: ["view organizer subscriptions"],
+    },
+    {
         title: "events",
         icon: CalendarDays,
         path: "/events",
         permissions: ["view events"],
     },
     {
+        title: "payments",
+        icon: CreditCard,
+        path: "/payments",
+        permissions: ["view payments"],
+    },
+    {
         title: "payouts",
         icon: Wallet,
         path: "/payouts",
         permissions: ["view payouts"],
+    },
+    {
+        title: "feedback",
+        icon: MessageSquare,
+        path: "/feedback",
+        permissions: ["view event feedback"],
     },
     {
         title: "settings",
@@ -88,13 +113,24 @@ export const sidebarMenu: MenuItem[] = [
     {
         title: "system_monitoring",
         isSection: true,
-        permissions: ["view logs", "view trash items", "view qr scan logs"],
+        permissions: [
+            "view logs",
+            "view trash items",
+            "view qr scan logs",
+            "view certificates",
+        ],
     },
     {
         title: "logs",
         icon: ClipboardList,
         path: "/logs",
         permissions: ["view logs"],
+    },
+    {
+        title: "certificates",
+        icon: Award,
+        path: "/certificates",
+        permissions: ["view certificates"],
     },
     {
         title: "qr_scan_history",

@@ -85,16 +85,6 @@ const ParticipationOversight: React.FC<Props> = ({ eventId }) => {
         onError: (e: Error) => toast.error(e.message),
     });
 
-    const manualPayment = useMutation({
-        mutationFn: (participationId: number) =>
-            eventApi.recordManualPayment({ participation_id: participationId }),
-        onSuccess: () => {
-            toast.success("Cash payment recorded");
-            invalidate();
-        },
-        onError: (e: any) => toast.error(e?.message || "Failed to record payment"),
-    });
-
     if (isLoading) return <Loader />;
     if (error || !data)
         return <p className="text-sm text-red-500">Failed to load participations</p>;
@@ -191,23 +181,6 @@ const ParticipationOversight: React.FC<Props> = ({ eventId }) => {
                                             Cancel
                                         </button>
                                     )}
-                                    {(p.status === "joined" || p.status === "waitlisted") &&
-                                        p.payment_status === "pending" && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-outline-success btn-sm"
-                                                onClick={async () => {
-                                                    const ok = await confirmAction({
-                                                        title: "Record cash payment?",
-                                                        text: "Creates a completed manual payment. This marks the participant as paid.",
-                                                        confirmButtonText: "Record",
-                                                    });
-                                                    if (ok) manualPayment.mutate(p.id);
-                                                }}
-                                            >
-                                                Record cash
-                                            </button>
-                                        )}
                                 </div>
                             </li>
                         ))}

@@ -9,3 +9,5 @@ export * from './package';
 export * from './event';
 export * from './qrScan';
 export * from './payment';
+export * from './feedback';
+export * from './certificate';

@@ -22,6 +22,8 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     // Static subscription paths BEFORE /{id} so "subscriptions" is not captured as an id
     Route::get('/subscriptions', [OrganizerSubscriptionController::class, 'index'])
         ->middleware('permission:view organizer subscriptions');
+    Route::get('/subscriptions/{id}', [OrganizerSubscriptionController::class, 'show'])
+        ->middleware('permission:view organizer subscriptions');
     Route::post('/subscriptions/{id}/cancel', [OrganizerSubscriptionController::class, 'cancel'])
         ->middleware('permission:assign organizer subscriptions');
 

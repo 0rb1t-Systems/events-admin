@@ -58,6 +58,12 @@ Route::prefix('v1')->group(function () {
     Route::prefix('event-invitation-templates')->group(base_path('routes/api/v1/event-invitation-templates.php'));
     Route::prefix('qr-scan-logs')->group(base_path('routes/api/v1/qr-scan-logs.php'));
 
+    // Certificates (admin re-issue — Prompt 13)
+    Route::prefix('certificates')->group(base_path('routes/api/v1/certificates.php'));
+
+    // Platform feedback oversight (Prompt 13)
+    Route::prefix('feedback')->group(base_path('routes/api/v1/feedback.php'));
+
     // Payments + payouts (Phase 6)
     Route::prefix('payments')->group(base_path('routes/api/v1/payments.php'));
     Route::prefix('payout-requests')->group(base_path('routes/api/v1/payout-requests.php'));

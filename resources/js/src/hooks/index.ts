@@ -5,6 +5,8 @@ export {
     EntitySearchCombobox,
     useEventSearch,
     useUserSearch,
+    useOrganizerSearch,
     formatEventOption,
     formatUserOption,
+    formatOrganizerOption,
 } from "./useEntitySearch";

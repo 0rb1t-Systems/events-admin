@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\Participation;
 use App\Services\EventFinanceService;
 use App\Services\PaymentService;
+use App\Traits\RejectsAdminPanelOrganizerActions;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
 use RuntimeException;
@@ -14,13 +15,15 @@ use Throwable;
 
 class PaymentController extends BaseController
 {
+    use RejectsAdminPanelOrganizerActions;
+
     protected $model = Payment::class;
 
     protected $searchableFields = ['reference_id', 'payer_phone', 'status', 'failure_reason'];
 
     protected $sortableFields = ['id', 'amount', 'status', 'created_at'];
 
-    protected $relationships = ['participation.user', 'participation.event', 'ticketType'];
+    protected $relationships = ['participation.user', 'participation.event.organizer', 'ticketType'];
 
     protected $validationRules = [
         'store' => [],
@@ -39,8 +42,20 @@ class PaymentController extends BaseController
         if ($request->filled('event_id')) {
             $query->whereHas('participation', fn ($q) => $q->where('event_id', $request->integer('event_id')));
         }
+        if ($request->filled('organizer_id')) {
+            $query->whereHas(
+                'participation.event',
+                fn ($q) => $q->where('organizer_id', $request->integer('organizer_id'))
+            );
+        }
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
+        }
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->string('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->string('date_to'));
         }
 
         $query = $this->applyApiFilters(
@@ -56,10 +71,15 @@ class PaymentController extends BaseController
     }
 
     /**
-     * Initiate WaafiPay charge (Web App / admin stand-in).
+     * Initiate WaafiPay charge (organizer / participant Web App).
+     * Admin Panel tokens are rejected — charging is not a platform-admin action.
      */
     public function charge(Request $request)
     {
+        if ($denied = $this->rejectIfAdminPanelToken()) {
+            return $denied;
+        }
+
         $validated = $request->validate([
             'participation_id' => 'required|integer|exists:participations,id',
             'payer_phone' => 'required|string|max:20',
@@ -129,10 +149,15 @@ class PaymentController extends BaseController
     }
 
     /**
-     * Record a manual/offline payment for a participation (admin op).
+     * Record a manual/offline payment for a participation (organizer Web App).
+     * Admin Panel tokens are rejected — offline/free entry is an organizer decision.
      */
     public function recordManual(Request $request)
     {
+        if ($denied = $this->rejectIfAdminPanelToken()) {
+            return $denied;
+        }
+
         $validated = $request->validate([
             'participation_id' => 'required|integer|exists:participations,id',
             'amount' => 'nullable|numeric|min:0',
@@ -157,7 +182,6 @@ class PaymentController extends BaseController
             [
                 'reference_id' => $payment->reference_id,
                 'amount' => $payment->amount,
-                'admin_id' => auth()->id(),
             ],
             'created'
         );

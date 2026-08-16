@@ -11,9 +11,27 @@ export interface IPayment extends ITimestamped {
     currency: string;
     status: PaymentStatus | string;
     reference_id: string;
+    gateway?: string | null;
     waafi_transaction_id?: string | null;
+    waafi_issuer_transaction_id?: string | null;
     payer_phone?: string | null;
     failure_reason?: string | null;
+    failure_code?: string | null;
+    expires_at?: string | null;
+    participation?: {
+        id: number;
+        status?: string;
+        payment_status?: string;
+        event_id?: number;
+        user?: { id: number; name?: string; email?: string } | null;
+        event?: {
+            id: number;
+            title?: string;
+            organizer_id?: number;
+            organizer?: { id: number; business_name?: string } | null;
+        } | null;
+    } | null;
+    ticket_type?: { id: number; name?: string; price?: number | string } | null;
 }
 
 export interface IPayoutRequest extends ITimestamped {

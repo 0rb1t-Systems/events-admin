@@ -36,6 +36,9 @@ class OrganizerSubscriptionController extends BaseController
         if ($request->filled('organizer_id')) {
             $query->where('organizer_id', $request->integer('organizer_id'));
         }
+        if ($request->filled('package_id')) {
+            $query->where('package_id', $request->integer('package_id'));
+        }
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }
@@ -49,7 +52,53 @@ class OrganizerSubscriptionController extends BaseController
             'desc'
         );
 
-        return $this->paginateResponse($query, $request);
+        $perPage = min((int) $request->input('per_page', 15), 100);
+        $paginator = $query->paginate($perPage);
+
+        $items = collect($paginator->items())->map(function (OrganizerSubscription $sub) {
+            $eventsCreated = Organizer::find($sub->organizer_id)?->events()->count() ?? 0;
+
+            return $this->subscriptionPayload($sub, $eventsCreated);
+        });
+
+        // Match paginatedResponse shape used by BaseController / DataTable
+        return response()->json([
+            'success' => true,
+            'message' => 'Data retrieved successfully',
+            'data' => $items->values()->all(),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+                'has_more_pages' => $paginator->hasMorePages(),
+            ],
+            'status_code' => 200,
+        ]);
+    }
+
+    public function show($id)
+    {
+        $subscription = OrganizerSubscription::with($this->relationships)->find($id);
+        if (! $subscription) {
+            return $this->notFoundResponse();
+        }
+
+        $organizer = Organizer::find($subscription->organizer_id);
+        $eventsCreated = $organizer?->events()->count() ?? 0;
+
+        $history = OrganizerSubscription::with('package')
+            ->where('organizer_id', $subscription->organizer_id)
+            ->orderByDesc('started_at')
+            ->get()
+            ->map(fn (OrganizerSubscription $sub) => $this->subscriptionPayload($sub, $eventsCreated));
+
+        return $this->successResponse([
+            'subscription' => $this->subscriptionPayload($subscription, $eventsCreated),
+            'history' => $history,
+        ]);
     }
 
     /**
@@ -180,6 +229,14 @@ class OrganizerSubscriptionController extends BaseController
             'status' => $sub->status,
             'started_at' => $sub->started_at,
             'expires_at' => $sub->expires_at,
+            'organizer' => $sub->relationLoaded('organizer') && $sub->organizer
+                ? [
+                    'id' => $sub->organizer->id,
+                    'business_name' => $sub->organizer->business_name,
+                    'contact_name' => $sub->organizer->contact_name,
+                    'email' => $sub->organizer->email,
+                ]
+                : null,
             'package' => $package ? [
                 'id' => $package->id,
                 'name' => $package->name,

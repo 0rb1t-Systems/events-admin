@@ -40,6 +40,7 @@ class PaymentPayoutModuleTest extends TestCase
             'view events',
             'view payments',
             'manage payments',
+            'refund payments',
             'view payouts',
             'manage payouts',
             'manage settings',

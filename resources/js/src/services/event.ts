@@ -327,17 +327,6 @@ class EventApi extends BaseApi<IEvent> {
         await axiosInstance.delete(`${this.endpoint}/${eventId}/sessions/${sessionId}`);
     }
 
-    // ── Manual payment ────────────────────────────────────────────────────────
-
-    async recordManualPayment(payload: {
-        participation_id: number;
-        amount?: number | null;
-        note?: string | null;
-    }): Promise<any> {
-        const response = await axiosInstance.post("/payments/manual", payload);
-        return response.data.data || response.data;
-    }
-
     // ── Gallery ───────────────────────────────────────────────────────────────
 
     async deleteGalleryImage(eventId: number | string, imageId: number | string): Promise<void> {
@@ -355,6 +344,20 @@ class EventApi extends BaseApi<IEvent> {
         const response = await axiosInstance.post(`${this.endpoint}/${eventId}/gallery`, form, {
             headers: { "Content-Type": "multipart/form-data" },
         });
+        return response.data.data || response.data;
+    }
+
+    async getInvitationTemplate(eventId: number | string): Promise<{
+        event_id: number;
+        template: {
+            id: number;
+            event_id: number;
+            config?: Record<string, unknown> | null;
+        } | null;
+    }> {
+        const response = await axiosInstance.get(
+            `${this.endpoint}/${eventId}/invitation-template`
+        );
         return response.data.data || response.data;
     }
 }

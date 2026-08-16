@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import FormCombobox from "../components/form/FormCombobox";
 import { eventApi } from "../services/event";
+import { organizerApi } from "../services/organizer";
 import { userApi } from "../services/user";
 import { IEvent } from "../types/event";
-import { IUser } from "../types";
+import { IOrganizer, IUser } from "../types";
 
 /**
  * Standard searchable entity picker (Prompt 12).
@@ -65,6 +66,25 @@ export function useUserSearch(minChars = 1) {
     };
 }
 
+export function useOrganizerSearch(minChars = 1) {
+    const [query, setQuery] = useState("");
+    const { data, isFetching } = useQuery({
+        queryKey: ["organizer-search-picker", query],
+        queryFn: () =>
+            organizerApi.getAll({
+                q: query,
+                per_page: 20,
+            } as any),
+        enabled: query.trim().length >= minChars,
+    });
+    return {
+        query,
+        setQuery,
+        options: (data?.data || []) as IOrganizer[],
+        loading: isFetching,
+    };
+}
+
 export const formatEventOption = (e: IEvent | null | undefined) => {
     if (!e) return "";
     const date = e.starts_at
@@ -78,3 +98,6 @@ export const formatEventOption = (e: IEvent | null | undefined) => {
 
 export const formatUserOption = (u: IUser | null | undefined) =>
     u ? `${u.name} - ${u.email}` : "";
+
+export const formatOrganizerOption = (o: IOrganizer | null | undefined) =>
+    o ? `${o.business_name}${o.email ? ` - ${o.email}` : ""}` : "";

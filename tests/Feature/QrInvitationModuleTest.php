@@ -281,8 +281,8 @@ class QrInvitationModuleTest extends TestCase
                 'gate' => 'East',
             ]);
 
-        $response->assertOk();
-        $response->assertJsonPath('data.result', 'valid');
-        $response->assertJsonPath('data.checked_in', true);
+        // Admin Panel tokens cannot check-in — organizer Web App owns scanning (Prompt 13).
+        $response->assertForbidden();
+        $response->assertJsonPath('errors.error_code.0', 'action_requires_organizer_scope');
     }
 }

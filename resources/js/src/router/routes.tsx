@@ -55,6 +55,18 @@ const Event = lazy(() => import("../pages/event"));
 // Payouts (Admin System — Phase 6)
 const Payout = lazy(() => import("../pages/payout"));
 
+// Payments (platform-wide — Prompt 14)
+const Payment = lazy(() => import("../pages/payment"));
+
+// Certificates (platform-wide — Prompt 14)
+const Certificate = lazy(() => import("../pages/certificate"));
+
+// Subscriptions (platform-wide — Prompt 14)
+const Subscription = lazy(() => import("../pages/subscription"));
+
+// Feedback (platform content oversight — Prompt 13)
+const Feedback = lazy(() => import("../pages/feedback"));
+
 // Redirect component - now redirects from root (/) to /dashboard
 const RedirectToDashboard = () => <Navigate to="/dashboard" replace />;
 
@@ -135,6 +147,38 @@ export const protectedRoutes: RouteConfig[] = [
         element: <Payout />,
         layout: "default",
         permissions: ["view payouts"],
+    },
+
+    // Payments (platform-wide overview)
+    {
+        path: "/payments",
+        element: <Payment />,
+        layout: "default",
+        permissions: ["view payments"],
+    },
+
+    // Certificates (platform-wide)
+    {
+        path: "/certificates",
+        element: <Certificate />,
+        layout: "default",
+        permissions: ["view certificates"],
+    },
+
+    // Subscriptions (platform-wide overview)
+    {
+        path: "/subscriptions",
+        element: <Subscription />,
+        layout: "default",
+        permissions: ["view organizer subscriptions"],
+    },
+
+    // Feedback (platform content oversight)
+    {
+        path: "/feedback",
+        element: <Feedback />,
+        layout: "default",
+        permissions: ["view event feedback"],
     },
 
     // Settings (with nested tabs)

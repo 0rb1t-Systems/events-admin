@@ -11,7 +11,7 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     Route::post('/manual', [PaymentController::class, 'recordManual'])
         ->middleware('permission:manage payments');
     Route::post('/{id}/refund', [PaymentController::class, 'refund'])
-        ->middleware('permission:manage payments');
+        ->middleware('permission:refund payments');
     Route::get('/{id}', [PaymentController::class, 'show'])
         ->middleware('permission:view payments');
 });

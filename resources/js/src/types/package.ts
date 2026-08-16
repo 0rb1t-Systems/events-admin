@@ -28,6 +28,12 @@ export interface IOrganizerSubscription {
     status: "active" | "expired" | "cancelled" | string;
     started_at: string;
     expires_at?: string | null;
+    organizer?: {
+        id: number;
+        business_name?: string;
+        contact_name?: string;
+        email?: string;
+    } | null;
     package?: IPackage | null;
     quota_usage?: IQuotaUsage;
 }

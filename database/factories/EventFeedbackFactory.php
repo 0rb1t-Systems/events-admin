@@ -17,6 +17,7 @@ class EventFeedbackFactory extends Factory
             'participation_id' => Participation::factory(),
             'rating' => fake()->numberBetween(1, 5),
             'comment' => fake()->optional()->sentence(),
+            'hidden' => false,
             'submitted_at' => now(),
         ];
     }
