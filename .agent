@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (Phase 4a: Events module — state machine + Admin oversight)
+Last updated: 2026-08-16 (Phase 4b: Ticket types + discount codes oversight)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -139,7 +139,9 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Organizer auth** — `OrganizerAuthController` + `organizer-auth.php` (API only; no Web UI yet)
 - **Organizer Admin Form** — status suspend/reactivate only (not full identity edit)
 - **Organizer subscriptions** — Admin **oversight** only (`OrganizerSubscriptionController`): history list, assign, cancel — **not** full CRUD and not Web App self-serve
-- **Events Admin Form** — **moderation** only (featured / monetized / capacity / status transition). Full organizer event-creation UI is Web App scope. Status changes **must** use `POST /events/{id}/transition` (PATCH status is rejected).
+- **Events Admin Form** — **moderation** only (featured / capacity / status transition). **`monetized` is derived from paid ticket types** — cannot be forced contrary to tiers. Status changes **must** use `POST /events/{id}/transition` (PATCH status rejected).
+- **Ticket types Admin** — oversight in Event Detail (list + disable/enable sales). Not top-level nav. Soft-delete OK; force-delete blocked if `quantity_sold > 0`. Full tier CRUD is Web App later.
+- **Discount codes Admin** — read-only in Event Detail (+ ops create/validate APIs). Scope enforced in queries.
 - **Organization** — profile/settings style (`getProfile` / logo uploads); page at `pages/organization/index.tsx` under Settings; service still extends `BaseApi`
 - **Logs** — mostly read-only list + `LogDetail` (no Form/Modal create flow)
 - **Settings mail** — form + test modal, not full BaseController CRUD entity
@@ -155,7 +157,7 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 ```
 - Middleware: `EnsureJsonResponse` on API; Sanctum auth; Spatie permission aliases; **`admin.panel`** (`EnsureAdminPanelAccess`) on Admin Panel resource routes; **`organizer.web`** for organizer-auth me routes
 - Traits on BaseController: `ApiResponseTrait`, `ApiFilterTrait`
-- Domain services (non-controller): `MailService`, `LocationService`, `CommonServices`, **`EventStatusMachine`**, **`EventRegistrationGate`**, **`EventQuota`**
+- Domain services (non-controller): `MailService`, `LocationService`, `CommonServices`, **`EventStatusMachine`**, **`EventRegistrationGate`**, **`EventMonetization`**, **`EventQuota`**
 - Domain ownership: **Users** (admin staff / participants) ≠ **Organizers** ≠ **Events** (belong to organizers). Packages gate how many events an organizer may create via `EventQuota`.
 
 ## Auth + User Types (Phase 1 — EventHub multi-tenant foundation)
@@ -293,33 +295,89 @@ Enum order: `draft → published → registration_open → sold_out → registra
 ### Tests
 - `tests/Feature/EventModuleTest.php` — transition table, invalid transition 400, dual gates, lat/lng pair, quota block, cancelled force-delete block, gallery file unlink, category CRUD.
 
+## Ticket Types & Discount Codes (Phase 4b)
+
+Core monetization: multiple named tiers per event. Admin oversight only in this phase.
+
+### Tables
+
+| Table | Notes |
+|-------|--------|
+| `ticket_types` | `event_id` (restrictOnDelete), `name`, `price`, `quantity_limit` (null=unlimited), **`quantity_sold` (stored counter)**, `sort_order`, `sales_enabled`, soft deletes |
+| `discount_codes` | `code`, `event_id` nullable, `organizer_id` nullable, `type` (`percent`\|`fixed`), `value`, `usage_limit`, `usage_count`, `expires_at`, `active`, soft deletes. Unique `(event_id, code)`. |
+
+### quantity_sold — stored counter + Phase 6 atomic locking (REQUIRED)
+
+**Decision: stored counter column**, not computed from participations (keeps claim O(1); refund/cancel use explicit atomic release so we do not double-count).
+
+**Phase 6 Participation MUST claim inventory with an atomic conditional UPDATE** — never application read-then-write:
+
+```sql
+UPDATE ticket_types
+SET quantity_sold = quantity_sold + :qty
+WHERE id = :id
+  AND deleted_at IS NULL
+  AND sales_enabled = 1
+  AND (quantity_limit IS NULL OR quantity_sold + :qty <= quantity_limit)
+```
+
+- Affected rows `= 1` → success; `= 0` → sold out / disabled / lost race.
+- Helpers ready now: `TicketType::claimQuantityAtomically($id, $qty)` / `releaseQuantityAtomically($id, $qty)`.
+- Wrap claim + participation insert in one DB transaction. On refund/cancel: atomic decrement with `WHERE quantity_sold >= :qty`; never double-release.
+- Optional later: `SELECT … FOR UPDATE` in the same transaction for multi-line baskets.
+
+### monetized consistency
+
+`events.monetized` is **derived**: true iff any non-deleted ticket type has `price > 0`.
+- `EventMonetization::syncMonetized()` after ticket-type create/delete.
+- Admin PATCH cannot force `monetized` contrary to ticket types (400).
+
+### Discount code scope (DB/query, not UI-only)
+
+`DiscountCode::scopeUsableForEvent($event)`:
+- Event-scoped (`event_id` set): only that event matches.
+- Organizer-wide (`event_id` null + `organizer_id`): only that organizer’s events.
+- `POST /events/{id}/discount-codes/validate` — event A’s code → 404 on event B.
+
+### Admin surface
+
+| Concern | Detail |
+|--------|--------|
+| Ticket types | Event Detail sidebar; `GET /events/{id}/ticket-types`; `POST /ticket-types/{id}/disable-sales` / `enable-sales`. Soft delete; force-delete blocked if sales. |
+| Discount codes | Read-only on Event Detail; `GET /events/{id}/discount-codes`. |
+
+### Tests
+- `tests/Feature/TicketTypeModuleTest.php` — monetized sync, atomic claim, soft/force delete, discount scope.
+
 ## Current Module Inventory
 
 | Domain | Model | Controller | API v1 file | FE page | FE service | FE types |
 |--------|-------|------------|-------------|---------|------------|----------|
-| Users | `User` (+ `user_type`) | `UserController` | `users.php` | `pages/user/` | `user.ts` | `user.ts` |
+| Users | `User` | `UserController` | `users.php` | `pages/user/` | `user.ts` | `user.ts` |
 | Organizers | `Organizer` | `OrganizerController` + `OrganizerAuthController` | `organizers.php` + `organizer-auth.php` | `pages/organizer/` + trash | `organizer.ts` | `organizer.ts` |
 | Packages | `Package` | `PackageController` | `packages.php` | `pages/settings/packages/` | `package.ts` | `package.ts` |
 | Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested in `organizers.php` | Organizer detail | `organizerSubscription.ts` | `package.ts` |
 | Events | `Event` (+ `EventImage`) | `EventController` | `events.php` | `pages/event/` + trash | `event.ts` | `event.ts` |
 | Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` | `pages/settings/event-categories/` | `eventCategory.ts` | `event.ts` |
+| Ticket types | `TicketType` | `TicketTypeController` | nested + `ticket-types.php` | Event Detail | `event.ts` | `event.ts` |
+| Discount codes | `DiscountCode` | `DiscountCodeController` | nested + `ticket-types.php` | Event Detail | `event.ts` | `event.ts` |
 | Roles | `Role` | `RoleController` | `roles.php` | `pages/settings/roles/` | `role.ts` | `role.ts` |
 | Organizations | `Organization` | `OrganizationController` | `organizations.php` | `pages/organization/` | `organization.ts` | (in service) |
 | Settings | `Settings` | `SettingsController` | `settings.php` | `pages/settings/` + mail | `mail.ts` | `mail.ts` |
-| Logs | Activity (Spatie) | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
-| Auth | `User` | `AuthController` | `auth.php` | login/profile/lock-screen | `auth.ts` | `auth.ts` |
+| Logs | Activity | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
+| Auth | `User` | `AuthController` | `auth.php` | login/profile/lock | `auth.ts` | `auth.ts` |
 
 Also: trash (users, roles, organizers, events); dashboard; global search.
 
 ## Backend Structure Notes
-- Controllers: `Base`, `Auth`, `User`, `Role`, `Organization`, `Settings`, `Log`, `Organizer`, `OrganizerAuth`, `Package`, `OrganizerSubscription`, `Event`, `EventCategory`
-- Models: `User`, `Role`, `Organization`, `Settings`, `Organizer`, `Package`, `OrganizerSubscription`, `Event`, `EventCategory`, `EventImage`
-- Services: `EventStatusMachine`, `EventRegistrationGate`; Support: `EventQuota`
-- Enums: `UserType`, `UserStatus`, `SanctumAbility`, `OrganizerStatus`, `PackageStatus`, `SubscriptionStatus`, `EventStatus`
+- Controllers: `Base`, `Auth`, `User`, `Role`, `Organization`, `Settings`, `Log`, `Organizer`, `OrganizerAuth`, `Package`, `OrganizerSubscription`, `Event`, `EventCategory`, `TicketType`, `DiscountCode`
+- Models: `User`, `Role`, `Organization`, `Settings`, `Organizer`, `Package`, `OrganizerSubscription`, `Event`, `EventCategory`, `EventImage`, `TicketType`, `DiscountCode`
+- Services: `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`; Support: `EventQuota`
+- Enums: `UserType`, `UserStatus`, `SanctumAbility`, `OrganizerStatus`, `PackageStatus`, `SubscriptionStatus`, `EventStatus`, `DiscountCodeType`
 - Middleware: `EnsureJsonResponse`, `EnsureAdminPanelAccess` (`admin.panel`), `EnsureOrganizerWebAccess` (`organizer.web`)
 - Auth: `users`/`web`; `organizers`/`organizer`
 - Seeders: `DatabaseSeeder`, `RolePermissionSeeder`, `SettingsSeeder`, `EventCategorySeeder`
-- Factories: `UserFactory`, `OrganizerFactory`, `PackageFactory`, `OrganizerSubscriptionFactory`, `EventFactory`, `EventCategoryFactory`, `EventImageFactory`
+- Factories: `UserFactory`, `OrganizerFactory`, `PackageFactory`, `OrganizerSubscriptionFactory`, `EventFactory`, `EventCategoryFactory`, `EventImageFactory`, `TicketTypeFactory`, `DiscountCodeFactory`
 
 ## Frontend Structure Notes
 - Entry: `main.tsx`, `App.tsx`
@@ -342,7 +400,8 @@ Also: trash (users, roles, organizers, events); dashboard; global search.
 - Activity log on BaseController write paths
 
 ## Known Risks / Watchouts
-- Feature tests: `UserTypeAuthTest`, `OrganizerModuleTest`, `PackageSubscriptionTest`, `EventModuleTest`; overall coverage still thin
+- Feature tests: `UserTypeAuthTest`, `OrganizerModuleTest`, `PackageSubscriptionTest`, `EventModuleTest`, `TicketTypeModuleTest`
+- **Phase 6 must use `TicketType::claimQuantityAtomically` / conditional UPDATE** — do not invent a parallel inventory path
 - Legacy Sanctum tokens with ability `*` still `tokenCan('admin-panel')` until admin re-login
 - Organization type lives in service file (not `types/`) — prefer `types/` for new entities
 - Large `public/assets/` tree — avoid unrelated churn
@@ -410,6 +469,20 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Phase 4b: Ticket types + discount codes (Admin oversight)
+- Files touched:
+  - Migrations: `2026_08_16_150000_create_ticket_types_table.php`, `150100_create_discount_codes_table.php`
+  - Models: `TicketType` (atomic claim/release helpers), `DiscountCode` (`usableForEvent` scope); `Event` relations
+  - Services: `EventMonetization`; Enum: `DiscountCodeType`
+  - Controllers: `TicketTypeController`, `DiscountCodeController`; Event update rejects contradictory `monetized`
+  - Routes: nested under `events.php` + `routes/api/v1/ticket-types.php`
+  - FE: Event Detail ticket types + discount codes oversight; types/services updated
+  - Tests: `tests/Feature/TicketTypeModuleTest.php` (10)
+  - `.agent` — Phase 6 atomic locking strategy documented
+- Behavior: stored `quantity_sold`; monetized derived from paid tiers; soft-delete only with sales history; event-scoped discounts rejected on other events at query level
+- Migration: `php artisan migrate`; reseed permissions
+- Verification: `TicketTypeModuleTest` 10 passed
 
 ### 2026-08-16 - Phase 4a: Events module (state machine + Admin oversight)
 - Files touched:

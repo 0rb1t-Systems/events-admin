@@ -70,6 +70,16 @@ class Event extends Model
         return $this->hasMany(EventImage::class)->orderBy('sort_order');
     }
 
+    public function ticketTypes(): HasMany
+    {
+        return $this->hasMany(TicketType::class)->orderBy('sort_order');
+    }
+
+    public function discountCodes(): HasMany
+    {
+        return $this->hasMany(DiscountCode::class);
+    }
+
     public function getRegistrationGatesAttribute(): array
     {
         return EventRegistrationGate::evaluate($this);

@@ -63,6 +63,15 @@ class RolePermissionSeeder extends Seeder
             'edit event categories',
             'delete event categories',
 
+            // ticket types (Admin oversight — disable sales / soft-delete)
+            'view ticket types',
+            'create ticket types',
+            'moderate ticket types',
+
+            // discount codes (Admin read oversight)
+            'view discount codes',
+            'create discount codes',
+
             // settings
             'manage settings',
 

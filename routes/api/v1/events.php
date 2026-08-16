@@ -23,6 +23,14 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     Route::post('/{id}/sync-capacity', [EventController::class, 'syncCapacity'])->middleware('permission:edit events');
     Route::get('/{id}/registration-gates', [EventController::class, 'registrationGates'])->middleware('permission:view events');
 
+    // Ticket types + discount codes (nested oversight — before generic /{id})
+    Route::get('/{id}/ticket-types', [\App\Http\Controllers\Api\TicketTypeController::class, 'forEvent'])
+        ->middleware('permission:view ticket types');
+    Route::get('/{id}/discount-codes', [\App\Http\Controllers\Api\DiscountCodeController::class, 'forEvent'])
+        ->middleware('permission:view discount codes');
+    Route::post('/{id}/discount-codes/validate', [\App\Http\Controllers\Api\DiscountCodeController::class, 'validateForEvent'])
+        ->middleware('permission:view discount codes');
+
     Route::post('/{id}/gallery', [EventController::class, 'uploadGalleryImage'])->middleware('permission:edit events');
     Route::post('/{id}/gallery/reorder', [EventController::class, 'reorderGallery'])->middleware('permission:edit events');
     Route::delete('/{id}/gallery/{imageId}', [EventController::class, 'deleteGalleryImage'])->middleware('permission:edit events');

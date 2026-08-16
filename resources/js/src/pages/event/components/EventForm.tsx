@@ -15,7 +15,6 @@ import { EventStatus, IEvent } from "../../../types";
 /** Admin moderation form — not full organizer event creation. */
 const schema = z.object({
     featured: z.boolean(),
-    monetized: z.boolean(),
     title: z.string().min(1).max(255).optional(),
     capacity: z.union([z.coerce.number().int().min(0), z.literal(""), z.null()]).optional(),
     unlimited_capacity: z.boolean(),
@@ -55,7 +54,6 @@ const EventForm: React.FC<Props> = ({ eventToEdit, onClose }) => {
         resolver: zodResolver(schema),
         defaultValues: {
             featured: eventToEdit.featured,
-            monetized: eventToEdit.monetized,
             title: eventToEdit.title,
             unlimited_capacity: eventToEdit.capacity === null,
             capacity: eventToEdit.capacity,
@@ -67,7 +65,6 @@ const EventForm: React.FC<Props> = ({ eventToEdit, onClose }) => {
     useEffect(() => {
         reset({
             featured: eventToEdit.featured,
-            monetized: eventToEdit.monetized,
             title: eventToEdit.title,
             unlimited_capacity: eventToEdit.capacity === null,
             capacity: eventToEdit.capacity,
@@ -83,7 +80,6 @@ const EventForm: React.FC<Props> = ({ eventToEdit, onClose }) => {
         mutationFn: (data: FormData) =>
             eventApi.update(eventToEdit.id, {
                 featured: data.featured,
-                monetized: data.monetized,
                 title: data.title,
                 capacity: data.unlimited_capacity ? null : Number(data.capacity ?? 0),
             }),
@@ -146,18 +142,13 @@ const EventForm: React.FC<Props> = ({ eventToEdit, onClose }) => {
                 )}
             />
 
-            <Controller
-                name="monetized"
-                control={control}
-                render={({ field }) => (
-                    <FormSwitch
-                        label="Monetized"
-                        checked={field.value}
-                        onChange={field.onChange}
-                        onBlur={field.onBlur}
-                    />
-                )}
-            />
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+                Monetized:{" "}
+                <strong>{eventToEdit.monetized ? "Yes" : "No"}</strong>
+                <span className="block text-xs text-gray-500">
+                    Derived from paid ticket types (price &gt; 0) — not editable here.
+                </span>
+            </p>
 
             <Controller
                 name="unlimited_capacity"

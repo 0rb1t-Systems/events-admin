@@ -30,6 +30,32 @@ export interface IRegistrationGates {
     deadline_passed: boolean;
 }
 
+export interface ITicketType extends ITimestamped {
+    id: number;
+    event_id: number;
+    name: string;
+    price: number | string;
+    /** null = unlimited */
+    quantity_limit: number | null;
+    quantity_sold: number;
+    sort_order: number;
+    sales_enabled: boolean;
+    deleted_at?: string | null;
+}
+
+export interface IDiscountCode extends ITimestamped {
+    id: number;
+    code: string;
+    event_id?: number | null;
+    organizer_id?: number | null;
+    type: "percent" | "fixed" | string;
+    value: number | string;
+    usage_limit?: number | null;
+    usage_count: number;
+    expires_at?: string | null;
+    active: boolean;
+}
+
 export interface IEvent extends ITimestamped {
     id: number;
     organizer_id: number;
@@ -54,5 +80,7 @@ export interface IEvent extends ITimestamped {
     organizer?: { id: number; business_name: string; email?: string } | null;
     category?: IEventCategory | null;
     images?: IEventImage[];
+    ticket_types?: ITicketType[];
+    discount_codes?: IDiscountCode[];
     registration_gates?: IRegistrationGates;
 }

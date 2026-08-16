@@ -8,6 +8,7 @@ use App\Models\EventImage;
 use App\Models\Organizer;
 use App\Services\EventRegistrationGate;
 use App\Services\EventStatusMachine;
+use App\Services\EventMonetization;
 use App\Support\EventQuota;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -38,7 +39,7 @@ class EventController extends BaseController
         'updated_at',
     ];
 
-    protected $relationships = ['organizer', 'category', 'images'];
+    protected $relationships = ['organizer', 'category', 'images', 'ticketTypes', 'discountCodes'];
 
     protected $validationRules = [
         'store' => [],
@@ -189,11 +190,24 @@ class EventController extends BaseController
             return $this->badRequestResponse($pairError);
         }
 
+        // monetized is derived from paid ticket types — reject contradictory writes
+        if (array_key_exists('monetized', $validated)) {
+            $derived = EventMonetization::hasPaidTicketTypes($event);
+            if ((bool) $validated['monetized'] !== $derived) {
+                return $this->badRequestResponse(
+                    'monetized is derived from ticket types (true iff any non-deleted type has price > 0). '
+                    .'Add/remove paid ticket types instead of forcing this flag.'
+                );
+            }
+            unset($validated['monetized']);
+        }
+
         $old = $event->getOriginal();
         $event->update($validated);
 
         // Capacity sync after count/capacity changes (Gate A → sold_out)
         $this->statusMachine->syncSoldOutFromCapacity($event->fresh());
+        EventMonetization::syncMonetized($event->fresh());
 
         $event = $event->fresh($this->relationships);
 

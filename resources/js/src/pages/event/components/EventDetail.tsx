@@ -64,6 +64,26 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
         onError: (e: Error) => toast.error(e.message),
     });
 
+    const disableSales = useMutation({
+        mutationFn: (ticketTypeId: number) => eventApi.disableTicketSales(ticketTypeId),
+        onSuccess: () => {
+            toast.success("Further sales disabled");
+            queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+            queryClient.invalidateQueries({ queryKey: ["Event Table"] });
+        },
+        onError: (e: Error) => toast.error(e.message),
+    });
+
+    const enableSales = useMutation({
+        mutationFn: (ticketTypeId: number) => eventApi.enableTicketSales(ticketTypeId),
+        onSuccess: () => {
+            toast.success("Sales re-enabled");
+            queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+            queryClient.invalidateQueries({ queryKey: ["Event Table"] });
+        },
+        onError: (e: Error) => toast.error(e.message),
+    });
+
     if (!eventId) {
         return (
             <div className="p-4 text-center text-sm text-gray-500">Select an event</div>
@@ -157,6 +177,98 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                 >
                     Sync sold_out from capacity
                 </button>
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Ticket types
+                </h4>
+                <p className="mb-2 text-xs text-gray-500">
+                    Monetized is derived from paid tiers (price &gt; 0). Admin can disable
+                    further sales only.
+                </p>
+                {(event.ticket_types?.length ?? 0) === 0 ? (
+                    <p className="text-sm text-gray-500">No ticket types</p>
+                ) : (
+                    <ul className="max-h-48 space-y-1.5 overflow-y-auto text-xs">
+                        {event.ticket_types!.map((tt) => (
+                            <li
+                                key={tt.id}
+                                className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]"
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-medium">{tt.name}</span>
+                                    <span>
+                                        {Number(tt.price).toFixed(2)}
+                                        {Number(tt.price) > 0 ? "" : " (free)"}
+                                    </span>
+                                </div>
+                                <div className="text-gray-500">
+                                    Sold{" "}
+                                    {tt.quantity_limit === null
+                                        ? `${tt.quantity_sold} / Unlimited`
+                                        : `${tt.quantity_sold} / ${tt.quantity_limit}`}
+                                    {" · "}
+                                    {tt.sales_enabled ? "Sales on" : "Sales off"}
+                                </div>
+                                <div className="mt-1">
+                                    {tt.sales_enabled ? (
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-danger btn-sm"
+                                            onClick={async () => {
+                                                const ok = await confirmAction({
+                                                    title: "Disable further sales?",
+                                                    text: `Stop new sales for "${tt.name}". History and quantity_sold are kept.`,
+                                                    confirmButtonText: "Disable",
+                                                });
+                                                if (ok) disableSales.mutate(tt.id);
+                                            }}
+                                        >
+                                            Disable sales
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-primary btn-sm"
+                                            onClick={() => enableSales.mutate(tt.id)}
+                                        >
+                                            Enable sales
+                                        </button>
+                                    )}
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Discount codes
+                </h4>
+                <p className="mb-2 text-xs text-gray-500">Read-only oversight</p>
+                {(event.discount_codes?.length ?? 0) === 0 ? (
+                    <p className="text-sm text-gray-500">No codes for this event</p>
+                ) : (
+                    <ul className="max-h-36 space-y-1 overflow-y-auto text-xs">
+                        {event.discount_codes!.map((dc) => (
+                            <li
+                                key={dc.id}
+                                className="rounded border border-gray-100 px-2 py-1 dark:border-[#1b2e4b]"
+                            >
+                                <span className="font-medium">{dc.code}</span>
+                                {" · "}
+                                {dc.type === "percent"
+                                    ? `${dc.value}%`
+                                    : Number(dc.value).toFixed(2)}
+                                {" · "}
+                                {dc.active ? "active" : "inactive"}
+                                {dc.event_id ? " · event-scoped" : " · organizer-wide"}
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </div>
 
             <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">

@@ -1,5 +1,11 @@
 import { BaseApi } from "./baseApi";
-import { IEvent, IEventImage, IRegistrationGates } from "../types/event";
+import {
+    IDiscountCode,
+    IEvent,
+    IEventImage,
+    IRegistrationGates,
+    ITicketType,
+} from "../types/event";
 import axiosInstance from "../utils/axios";
 
 class EventApi extends BaseApi<IEvent> {
@@ -21,6 +27,34 @@ class EventApi extends BaseApi<IEvent> {
 
     async registrationGates(id: number | string): Promise<IRegistrationGates> {
         const response = await axiosInstance.get(`${this.endpoint}/${id}/registration-gates`);
+        return response.data.data || response.data;
+    }
+
+    async ticketTypes(eventId: number | string): Promise<{
+        event_id: number;
+        monetized: boolean;
+        derived_monetized: boolean;
+        ticket_types: ITicketType[];
+    }> {
+        const response = await axiosInstance.get(`${this.endpoint}/${eventId}/ticket-types`);
+        return response.data.data || response.data;
+    }
+
+    async discountCodes(eventId: number | string): Promise<{
+        event_id: number;
+        discount_codes: IDiscountCode[];
+    }> {
+        const response = await axiosInstance.get(`${this.endpoint}/${eventId}/discount-codes`);
+        return response.data.data || response.data;
+    }
+
+    async disableTicketSales(ticketTypeId: number | string): Promise<ITicketType> {
+        const response = await axiosInstance.post(`/ticket-types/${ticketTypeId}/disable-sales`);
+        return response.data.data || response.data;
+    }
+
+    async enableTicketSales(ticketTypeId: number | string): Promise<ITicketType> {
+        const response = await axiosInstance.post(`/ticket-types/${ticketTypeId}/enable-sales`);
         return response.data.data || response.data;
     }
 
