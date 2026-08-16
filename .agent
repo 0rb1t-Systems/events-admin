@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-09 (documented mandatory feature scaffold patterns)
+Last updated: 2026-08-16 (added mandatory UI consistency + compact data rules)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -29,6 +29,7 @@ Every meaningful change to the codebase must also update this file.
   - Windows `dev:windows` uses port **8002**, not 8000
   - Lockfile is **pnpm** (`pnpm-lock.yaml`); npm also works
   - Queue/cache/session default to **database** — migrate before first run
+  - Organizations logo columns: create migration includes `logo_dark_url`/`icon_url`; alter is `2025_08_24_090000_...` (never `2025_01_27_...` before create)
   - Do not commit `.env` or secrets
   - Organization is effectively **single-tenant profile** (not a full CRUD list page like Users)
 
@@ -203,8 +204,19 @@ Also: trash pages for users/roles; dashboard; global search (`services/globalSea
 3. Controllers extend `BaseController`; FE services extend `BaseApi`; pages use `index` + `components/{Detail,Form,Modal}` unless the domain is an documented exception.
 4. New API routes go in `routes/api/v1/<name>.php` and are imported from `routes/api.php`.
 5. Add/update TypeScript types and re-export from `types/index.ts`.
-6. Update this `.agent` in the same session (Last updated + Change Log + inventory/sections if architecture changed).
-7. Work is incomplete until code **and** `.agent` match.
+6. **UI must stay consistent, modern, and compact** — follow `.cursor/rules/ui-consistency-compact-data.mdc`:
+   - Reuse theme components (`panel`, `btn`, forms, `DataTableWithSidebar`, `GenericModal`, etc.)
+   - Tables = important scannable fields only
+   - Details = complete useful fields, dense layout, light+dark
+7. Update this `.agent` in the same session (Last updated + Change Log + inventory/sections if architecture changed).
+8. Work is incomplete until code **and** `.agent` match.
+
+## UI / UX Conventions (Mandatory)
+- Visual language comes from existing admin theme (`theme.config.tsx`, Tailwind primary/secondary, `panel`, shared components) — do not invent a parallel look.
+- List pages: compact tables with high-signal columns; detail sidebars carry the full useful dataset.
+- Forms/modals: shared `components/form/*` + `GenericModal`; CTAs use `btn btn-primary` patterns.
+- Dense spacing in admin surfaces; avoid sparse “marketing” whitespace in sidebars/tables.
+- New UI must include `dark:` variants consistent with neighboring screens.
 
 ## Update Protocol (Mandatory)
 
@@ -233,6 +245,26 @@ When any future chat changes code, this `.agent` file must be updated in the sam
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Mandatory UI consistency + compact data rules
+- Files touched:
+  - `.cursor/rules/ui-consistency-compact-data.mdc` (new, alwaysApply)
+  - `.cursor/rules/project-agent-workflow.mdc`
+  - `.agent`
+- Behavior change: agents must reuse theme components, keep tables compact with important columns, and show complete useful data in dense detail UIs
+- Migration/config/env impact: none
+- Verification: rules present and cross-linked from workflow + `.agent`
+
+### 2026-08-16 - Fix organizations migration order (MySQL)
+- Files touched:
+  - deleted `database/migrations/2025_01_27_000000_add_logo_dark_and_icon_to_organizations_table.php`
+  - added `database/migrations/2025_08_24_090000_add_logo_dark_and_icon_to_organizations_table.php` (idempotent guards)
+  - `database/migrations/2025_08_24_071218_create_organizations_table.php` (includes `logo_dark_url`, `icon_url`)
+  - `database/migrations/2025_08_24_081614_add_missing_fields_to_organizations_table.php` (hasTable guard)
+  - `.agent`
+- Behavior change: `migrate:fresh` no longer fails when alter ran before `organizations` existed
+- Migration/config/env impact: rename/reorder only; safe on MySQL `eventdb` and sqlite
+- Verification: `php artisan migrate:fresh --seed --force` completed successfully
 
 ### 2026-08-09 - Documented mandatory feature scaffold patterns
 - Files touched:

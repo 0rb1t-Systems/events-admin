@@ -44,6 +44,17 @@ Only Auth, Organization profile, Logs (read-only), Settings mail, and Trash may 
 - Keep UI text/style aligned with existing screens unless asked to redesign.
 - Preserve existing behavior unless user explicitly requests behavior changes.
 
+## UI Consistency & Compact Data (Mandatory)
+
+Also follow `.cursor/rules/ui-consistency-compact-data.mdc` on every UI task:
+
+- Reuse theme components (`panel`, `btn btn-primary`, `DataTableWithSidebar`, `GenericModal`, `components/form/*`, `Loader`, breadcrumbs).
+- Make UI modern and polished **within** this theme — do not invent a new design system.
+- **Tables:** only important scannable columns (identity, status/key relation, one date, actions); keep cells compact.
+- **Details:** show complete useful fields in a dense sidebar/panel (not just name + timestamps).
+- Always include sensible light + `dark:` styles matching nearby screens.
+- Prefer dense admin layout over sparse/wide empty whitespace.
+
 ## Completion Rules
 
 - Run lints on edited files after substantive changes.

@@ -1,0 +1,89 @@
+---
+description: Enforce consistent, modern, compact UI using project theme components
+alwaysApply: true
+---
+
+# UI Consistency, Beauty & Compact Data Display (Mandatory)
+
+Every UI change must look like it belongs in this admin theme: modern, polished, compact, and useful. Do not invent a parallel design system.
+
+## Source of Truth
+
+1. Read `.agent` first.
+2. Match the closest existing screen (prefer **Users** / **Roles** / **Organization** settings panels).
+3. Reuse shared theme building blocks before writing custom markup.
+
+## Required Theme Building Blocks
+
+Prefer these existing pieces over one-off UI:
+
+- Layout / chrome: `Breadcrumb`, `DefaultLayout` patterns, `panel`, sidebar nav
+- Lists: `DataTableWithSidebar`, `CustomDataTable` / datatable helpers, column configs
+- Detail: sidebar via `DataTableWithSidebar` + `*Detail.tsx` (dense sections, not sparse pages)
+- Forms / dialogs: `GenericModal`, `components/form/*` (`FormInput`, `FormSelect`, `FormCombobox`, `FormTextarea`, `FormDatePicker`, `FormSwitch`, `FileUpload` / `ImageUpload`)
+- Feedback: `Loader`, `sonner` toasts, `useConfirmDialog`, existing `btn btn-primary` / `btn` variants
+- Theme tokens: `theme.config.tsx`, Tailwind `primary` / `secondary`, light + **dark:** variants
+
+Buttons and actions must use project button classes (e.g. `btn btn-primary gap-2`), not random unstyled or third-party-only button skins unless the twin screen already does.
+
+## Compact Data Table Rules (Important Data Only)
+
+Tables are for **scanning**. Keep them dense and high-signal.
+
+- Show only columns that help identify / decide: identity (name/title), key status, primary relation, one date, actions.
+- Do **not** dump every model field into the table.
+- Prefer short labels, tight widths, and compact cell renders (`font-medium` for the primary label).
+- Format dates compactly (e.g. `MM/DD/YYYY` or `MMM DD, YYYY`) — avoid noisy timestamps in table cells unless time is critical.
+- Status / type fields should use clear badges or concise text consistent with nearby screens.
+- Keep action columns icon-based via existing datatable action types (`view` / `edit` / `delete`).
+- Avoid huge empty columns, multi-line essay cells, and decorative-only columns.
+
+## Detail Sidebar / Detail Panel Rules (Complete Useful Data)
+
+Detail views are for **full understanding**. Show complete useful data in a compact layout.
+
+- Fetch the full record (`getById`) and display **all user-relevant fields** (identity, contact, status, relations, permissions/roles, audit timestamps, IDs as secondary meta).
+- Do **not** leave details as only name + created/updated — that is incomplete.
+- Group fields into tight sections with small uppercase/muted labels and compact value text (mirror Roles detail density; improve on sparse Users detail when touching it).
+- Use `space-y-3` / small gaps; avoid large empty whitespace and oversized headings.
+- Support light and dark (`text-gray-900 dark:text-white`, muted `text-gray-500 dark:text-gray-400`).
+- Loading / empty / error states must use `Loader` or concise centered messages — never a blank dead panel.
+- Relations should be readable (role names, permission chips/lists), not raw opaque JSON.
+
+## Modern Look Without Breaking Consistency
+
+- Keep visual language aligned with existing panels, tables, modals, and forms.
+- Use subtle hover/transition only where twins already do; no flashy unrelated motion.
+- Prefer clear hierarchy: page title/breadcrumb → compact toolbar actions → dense table → rich detail sidebar.
+- Forms inside modals should be structured, labeled, and responsive; reuse form components.
+- Do not introduce a new card grid, purple gradient theme, emoji-heavy UI, or unrelated component library patterns when theme components already fit.
+- Do not redesign the whole product unless the user explicitly asks.
+
+## Page Composition Checklist (CRUD list screens)
+
+For each list resource page:
+
+1. `Breadcrumb`
+2. `DataTableWithSidebar` with compact **important** columns
+3. Sidebar `*Detail` with **complete** useful fields, dense layout
+4. `*Modal` + `*Form` using shared form components and theme buttons
+5. Bulk actions / primary CTA styled like Users (`btn btn-primary`)
+
+## Anti-Patterns (Forbidden)
+
+- Custom page layouts that bypass `DataTableWithSidebar` for standard CRUD lists
+- Tables with every DB column or details with almost no fields
+- Inconsistent spacing, one-off color palettes, or mixed button styles on the same page
+- Huge padding / sparse “marketing” whitespace inside admin detail sidebars
+- Ignoring dark mode classes on new UI text/surfaces
+- Building parallel form controls when `components/form/*` already covers the need
+
+## Completion Bar
+
+UI work is incomplete unless:
+
+- It matches theme components and twin-screen patterns
+- Table columns are compact and decision-useful
+- Detail shows complete useful data in a dense modern layout
+- Light/dark styling is respected
+- `.agent` is updated when UI conventions or shared components change

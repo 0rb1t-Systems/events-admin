@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('name');
             $table->date('founded_date')->nullable();
             $table->string('logo_url')->nullable();
+            $table->string('logo_dark_url')->nullable();
+            $table->string('icon_url')->nullable();
             $table->string('website_url')->nullable();
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
