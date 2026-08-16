@@ -6,6 +6,11 @@ import Loader from "../../../components/Loader";
 import { useConfirmDialog } from "../../../hooks";
 import { eventApi } from "../../../services/event";
 import ParticipationOversight from "./ParticipationOversight";
+import FormFieldOversight from "./FormFieldOversight";
+import CheckInStatsPanel from "./CheckInStatsPanel";
+import EventFinancePanel from "./EventFinancePanel";
+import EventAnalyticsPanel from "./EventAnalyticsPanel";
+import EventAddOnOversight from "./EventAddOnOversight";
 
 interface Props {
     eventId: number | null;
@@ -188,9 +193,46 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
 
             <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
                 <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Analytics
+                </h4>
+                <EventAnalyticsPanel eventId={event.id} />
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Financial summary
+                </h4>
+                <p className="mb-2 text-xs text-gray-500">
+                    Collected vs paid out / outstanding (USD).
+                </p>
+                <EventFinancePanel eventId={event.id} />
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Check-in dashboard
+                </h4>
+                <p className="mb-2 text-xs text-gray-500">
+                    Registered vs arrived vs absent (scanning UI is Web App).
+                </p>
+                <CheckInStatsPanel eventId={event.id} />
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
                     Participations
                 </h4>
                 <ParticipationOversight eventId={eventId} />
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Registration form
+                </h4>
+                <p className="mb-2 text-xs text-gray-500">
+                    Read-only — organizer-authored custom fields (not editable in Admin).
+                </p>
+                <FormFieldOversight eventId={event.id} />
             </div>
 
             <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
@@ -283,6 +325,17 @@ const EventDetail: React.FC<Props> = ({ eventId }) => {
                         ))}
                     </ul>
                 )}
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
+                <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Content & engagement
+                </h4>
+                <p className="mb-2 text-xs text-gray-500">
+                    Read-only — announcements, certificates, feedback, sponsors, speakers,
+                    sessions (organizer-authored on Web App).
+                </p>
+                <EventAddOnOversight eventId={event.id} />
             </div>
 
             <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">

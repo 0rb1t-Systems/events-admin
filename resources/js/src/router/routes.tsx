@@ -26,12 +26,14 @@ const SettingsPackages = lazy(() => import("../pages/settings/packages"));
 const SettingsEventCategories = lazy(
     () => import("../pages/settings/event-categories")
 );
+const SettingsCommission = lazy(() => import("../pages/settings/commission"));
 
 // Organization (Configuration)
 const Organization = lazy(() => import("../pages/organization"));
 
 // Logs (System Monitoring)
 const Logs = lazy(() => import("../pages/logs"));
+const QrScanLog = lazy(() => import("../pages/qr-scan-log"));
 const LockScreen = lazy(() => import("../pages/lock-screen"));
 
 // Trash Management (System Monitoring)
@@ -46,6 +48,9 @@ const Organizer = lazy(() => import("../pages/organizer"));
 
 // Events (oversight)
 const Event = lazy(() => import("../pages/event"));
+
+// Payouts (Admin System — Phase 6)
+const Payout = lazy(() => import("../pages/payout"));
 
 // Redirect component - now redirects from root (/) to /dashboard
 const RedirectToDashboard = () => <Navigate to="/dashboard" replace />;
@@ -121,6 +126,14 @@ export const protectedRoutes: RouteConfig[] = [
         permissions: ["view events"],
     },
 
+    // Payouts (Admin System)
+    {
+        path: "/payouts",
+        element: <Payout />,
+        layout: "default",
+        permissions: ["view payouts"],
+    },
+
     // Settings (with nested tabs)
     {
         path: "/settings",
@@ -153,6 +166,12 @@ export const protectedRoutes: RouteConfig[] = [
                 permissions: ["view event categories"],
             },
             {
+                path: "commission",
+                element: <SettingsCommission />,
+                layout: "default",
+                permissions: ["manage settings"],
+            },
+            {
                 path: "organization",
                 element: <Organization />,
                 layout: "default",
@@ -168,6 +187,14 @@ export const protectedRoutes: RouteConfig[] = [
         element: <Logs />,
         layout: "default",
         permissions: ["view logs"],
+    },
+
+    // QR Scan History
+    {
+        path: "/qr-scan-logs",
+        element: <QrScanLog />,
+        layout: "default",
+        permissions: ["view qr scan logs"],
     },
 
     // Trash Items (with nested tabs)

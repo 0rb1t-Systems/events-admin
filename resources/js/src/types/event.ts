@@ -71,6 +71,20 @@ export interface IParticipation {
     ticket_type?: ITicketType | null;
 }
 
+export type FormFieldType = "text" | "number" | "select" | "checkbox" | "date";
+
+export interface IEventFormField extends ITimestamped {
+    id: number;
+    event_id: number;
+    key: string;
+    label: string;
+    type: FormFieldType | string;
+    options?: Array<string | { value?: string; label?: string }> | null;
+    required: boolean;
+    sort_order: number;
+    active: boolean;
+}
+
 export interface IEvent extends ITimestamped {
     id: number;
     organizer_id: number;

@@ -1,4 +1,4 @@
-import { Mail, Shield, Building2, Package, Tags } from "lucide-react";
+import { Mail, Shield, Building2, Package, Tags, Percent } from "lucide-react";
 import React, { Suspense } from "react";
 import { useLocation, NavLink, Outlet, useNavigate } from "react-router-dom";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -24,6 +24,12 @@ const settingsItems = [
         title: "Event Categories",
         icon: <Tags className="w-5 h-5" />,
         path: "/settings/event-categories",
+    },
+    {
+        id: "commission",
+        title: "Commission",
+        icon: <Percent className="w-5 h-5" />,
+        path: "/settings/commission",
     },
     {
         id: "mail",

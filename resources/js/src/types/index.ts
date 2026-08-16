@@ -7,3 +7,5 @@ export * from './mail';
 export * from './organizer';
 export * from './package';
 export * from './event';
+export * from './qrScan';
+export * from './payment';

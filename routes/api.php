@@ -48,6 +48,23 @@ Route::prefix('v1')->group(function () {
     // Participations (admin oversight)
     require base_path('routes/api/v1/participations.php');
 
+    // Event form fields (admin read-only + ops store/remove)
+    Route::prefix('event-form-fields')->group(base_path('routes/api/v1/event-form-fields.php'));
+
+    // Invitation templates + QR scan logs (Phase 5b)
+    Route::prefix('event-invitation-templates')->group(base_path('routes/api/v1/event-invitation-templates.php'));
+    Route::prefix('qr-scan-logs')->group(base_path('routes/api/v1/qr-scan-logs.php'));
+
+    // Payments + payouts (Phase 6)
+    Route::prefix('payments')->group(base_path('routes/api/v1/payments.php'));
+    Route::prefix('payout-requests')->group(base_path('routes/api/v1/payout-requests.php'));
+
+    // Event feedback submit (ops/tests; Web App owns participant UX)
+    Route::middleware(['auth:sanctum', 'admin.panel'])->post(
+        '/event-feedback',
+        [\App\Http\Controllers\Api\EventAddOnController::class, 'submitFeedback']
+    )->middleware('permission:manage event feedback');
+
     // Organizer Web App auth scaffolding (separate from User auth)
     Route::prefix('organizer-auth')->group(base_path('routes/api/v1/organizer-auth.php'));
 

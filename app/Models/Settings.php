@@ -15,6 +15,7 @@ class Settings extends Model
         'setting_type',
         'name',
         'slug',
+        'details',
         'credential',
         'status',
         'is_global',

@@ -24,4 +24,8 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
         Route::post('/test', [SettingsController::class, 'testMailConfig'])->middleware('permission:manage settings');
     });
 
+    Route::get('/commission-rate', [SettingsController::class, 'getCommissionRate'])
+        ->middleware('permission:manage settings');
+    Route::put('/commission-rate', [SettingsController::class, 'updateCommissionRate'])
+        ->middleware('permission:manage settings');
 });

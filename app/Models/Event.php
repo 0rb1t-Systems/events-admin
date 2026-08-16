@@ -31,6 +31,7 @@ class Event extends Model
         'status',
         'capacity',
         'registrations_count',
+        'views_count',
         'registration_deadline',
         'starts_at',
         'ends_at',
@@ -51,6 +52,7 @@ class Event extends Model
             'monetized' => 'boolean',
             'capacity' => 'integer',
             'registrations_count' => 'integer',
+            'views_count' => 'integer',
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'registration_deadline' => 'datetime',
@@ -87,6 +89,46 @@ class Event extends Model
     public function participations(): HasMany
     {
         return $this->hasMany(Participation::class);
+    }
+
+    public function formFields(): HasMany
+    {
+        return $this->hasMany(EventFormField::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function invitationTemplate(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(EventInvitationTemplate::class);
+    }
+
+    public function qrScanLogs(): HasMany
+    {
+        return $this->hasMany(QrScanLog::class);
+    }
+
+    public function payoutRequests(): HasMany
+    {
+        return $this->hasMany(PayoutRequest::class);
+    }
+
+    public function announcements(): HasMany
+    {
+        return $this->hasMany(EventAnnouncement::class);
+    }
+
+    public function sponsors(): HasMany
+    {
+        return $this->hasMany(EventSponsor::class)->orderBy('sort_order');
+    }
+
+    public function speakers(): HasMany
+    {
+        return $this->hasMany(EventSpeaker::class)->orderBy('sort_order');
+    }
+
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(EventSession::class)->orderBy('starts_at');
     }
 
     public function getRegistrationGatesAttribute(): array

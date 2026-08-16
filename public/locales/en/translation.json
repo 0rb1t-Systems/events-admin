@@ -13,6 +13,7 @@
     "users": "Users",
     "organizers": "Organizers",
     "events": "Events",
+    "payouts": "Payouts",
     "trashed_organizers": "Trashed Organizers",
     "trashed_events": "Trashed Events",
     "pages": "Pages",
@@ -192,5 +193,6 @@
 
     "upload_items": "Upload Items",
     "system_monitoring": "System Monitoring",
-    "logs": "Logs"
+    "logs": "Logs",
+    "qr_scan_history": "QR Scan History"
 }

@@ -6,6 +6,8 @@ import {
     ClipboardList,
     Briefcase,
     CalendarDays,
+    QrCode,
+    Wallet,
 } from "lucide-react";
 
 import { MenuItem } from "../types/sidebar";
@@ -25,6 +27,7 @@ export const sidebarMenu: MenuItem[] = [
             "view users",
             "view organizers",
             "view events",
+            "view payouts",
             "manage settings",
             "view organizations",
         ],
@@ -48,6 +51,12 @@ export const sidebarMenu: MenuItem[] = [
         permissions: ["view events"],
     },
     {
+        title: "payouts",
+        icon: Wallet,
+        path: "/payouts",
+        permissions: ["view payouts"],
+    },
+    {
         title: "settings",
         icon: Settings,
         path: "/settings",
@@ -57,13 +66,19 @@ export const sidebarMenu: MenuItem[] = [
     {
         title: "system_monitoring",
         isSection: true,
-        permissions: ["view logs", "view trash items"],
+        permissions: ["view logs", "view trash items", "view qr scan logs"],
     },
     {
         title: "logs",
         icon: ClipboardList,
         path: "/logs",
         permissions: ["view logs"],
+    },
+    {
+        title: "qr_scan_history",
+        icon: QrCode,
+        path: "/qr-scan-logs",
+        permissions: ["view qr scan logs"],
     },
     {
         title: "trash_items",

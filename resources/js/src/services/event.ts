@@ -62,6 +62,14 @@ class EventApi extends BaseApi<IEvent> {
         return response.data.data || response.data;
     }
 
+    async formFields(eventId: number | string): Promise<{
+        event_id: number;
+        form_fields: import("../types/event").IEventFormField[];
+    }> {
+        const response = await axiosInstance.get(`${this.endpoint}/${eventId}/form-fields`);
+        return response.data.data || response.data;
+    }
+
     async promoteParticipation(id: number | string) {
         const response = await axiosInstance.post(`/participations/${id}/promote`);
         return response.data.data || response.data;

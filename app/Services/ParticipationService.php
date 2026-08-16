@@ -35,6 +35,10 @@ class ParticipationService
         ?array $customFieldAnswers = null,
         bool $allowWaitlist = true
     ): Participation {
+        // Validate against current active schema at submission time only
+        // (schema changes never retroactively invalidate stored answers).
+        app(FormFieldValidationService::class)->validateOrFail($event, $customFieldAnswers);
+
         return DB::transaction(function () use ($event, $user, $ticketTypeId, $customFieldAnswers, $allowWaitlist) {
             /** @var Event $event */
             $event = Event::query()->whereKey($event->id)->lockForUpdate()->firstOrFail();
@@ -129,6 +133,7 @@ class ParticipationService
 
             $this->syncEventRegistrationCount($event);
             app(EventStatusMachine::class)->syncSoldOutFromCapacity($event->fresh());
+            app(QrTokenService::class)->ensureForConfirmed($participation);
 
             return $participation->fresh(['user', 'ticketType']);
         });
@@ -181,6 +186,7 @@ class ParticipationService
 
             $this->syncEventRegistrationCount($event);
             app(EventStatusMachine::class)->syncSoldOutFromCapacity($event->fresh());
+            app(QrTokenService::class)->ensureForConfirmed($participation);
 
             return $participation->fresh(['user', 'ticketType']);
         });

@@ -7,6 +7,7 @@ use App\Models\Participation;
 use App\Models\User;
 use App\Services\ParticipationService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -104,6 +105,8 @@ class ParticipationController extends BaseController
                 $validated['custom_field_answers'] ?? null,
                 allowWaitlist: true
             );
+        } catch (ValidationException $e) {
+            return $this->validationErrorResponse($e->errors());
         } catch (InvalidArgumentException $e) {
             return $this->badRequestResponse($e->getMessage());
         } catch (RuntimeException $e) {

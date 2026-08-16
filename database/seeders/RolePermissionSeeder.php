@@ -76,6 +76,32 @@ class RolePermissionSeeder extends Seeder
             'view participations',
             'manage participations',
 
+            // event form fields (Admin read-only; manage for ops until Web App owns authoring)
+            'view event form fields',
+            'manage event form fields',
+
+            // invitation templates + QR scans (Admin oversight; Web App owns designer/scanner UI)
+            'view invitation templates',
+            'manage invitation templates',
+            'view qr scan logs',
+            'manage qr scans',
+
+            // payments + payouts (Admin System — Section 5.9)
+            'view payments',
+            'manage payments',
+            'view payouts',
+            'manage payouts',
+
+            // event add-ons (admin read-only oversight — Prompt 10)
+            'view event analytics',
+            'view event announcements',
+            'view certificates',
+            'view event feedback',
+            'view event sponsors',
+            'view event speakers',
+            'view event sessions',
+            'manage event feedback',
+
             // settings
             'manage settings',
 

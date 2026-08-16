@@ -130,4 +130,37 @@ class SettingsController extends Controller
             ]);
         }
     }
+
+    /**
+     * Get platform commission rate (%).
+     */
+    public function getCommissionRate(Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'rate' => \App\Services\CommissionSettings::currentRate(),
+            ],
+        ]);
+    }
+
+    /**
+     * Update platform commission rate. Affects NEW payout requests only (snapshots).
+     */
+    public function updateCommissionRate(Request $request)
+    {
+        $request->validate([
+            'rate' => 'required|numeric|min:0|max:100',
+        ]);
+
+        \App\Services\CommissionSettings::setRate((float) $request->rate);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'rate' => \App\Services\CommissionSettings::currentRate(),
+            ],
+            'message' => 'Commission rate updated. Existing payout requests keep their snapshotted rate.',
+        ]);
+    }
 }

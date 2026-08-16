@@ -34,6 +34,37 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     Route::get('/{id}/participations', [\App\Http\Controllers\Api\ParticipationController::class, 'forEvent'])
         ->middleware('permission:view participations');
 
+    Route::get('/{id}/form-fields', [\App\Http\Controllers\Api\EventFormFieldController::class, 'forEvent'])
+        ->middleware('permission:view event form fields');
+
+    Route::get('/{id}/check-in-stats', [\App\Http\Controllers\Api\QrScanLogController::class, 'checkInStats'])
+        ->middleware('permission:view qr scan logs');
+    Route::get('/{id}/qr-scan-logs', [\App\Http\Controllers\Api\QrScanLogController::class, 'forEvent'])
+        ->middleware('permission:view qr scan logs');
+    Route::get('/{id}/invitation-template', [\App\Http\Controllers\Api\EventInvitationTemplateController::class, 'forEvent'])
+        ->middleware('permission:view invitation templates');
+
+    Route::get('/{id}/finance', [\App\Http\Controllers\Api\PaymentController::class, 'eventFinance'])
+        ->middleware('permission:view payments');
+
+    // Prompt 10 add-ons (admin read-only oversight)
+    Route::get('/{id}/analytics', [\App\Http\Controllers\Api\EventAddOnController::class, 'analytics'])
+        ->middleware('permission:view event analytics');
+    Route::post('/{id}/views', [\App\Http\Controllers\Api\EventAddOnController::class, 'recordView'])
+        ->middleware('permission:view event analytics');
+    Route::get('/{id}/announcements', [\App\Http\Controllers\Api\EventAddOnController::class, 'announcements'])
+        ->middleware('permission:view event announcements');
+    Route::get('/{id}/certificates', [\App\Http\Controllers\Api\EventAddOnController::class, 'certificates'])
+        ->middleware('permission:view certificates');
+    Route::get('/{id}/feedback', [\App\Http\Controllers\Api\EventAddOnController::class, 'feedback'])
+        ->middleware('permission:view event feedback');
+    Route::get('/{id}/sponsors', [\App\Http\Controllers\Api\EventAddOnController::class, 'sponsors'])
+        ->middleware('permission:view event sponsors');
+    Route::get('/{id}/speakers', [\App\Http\Controllers\Api\EventAddOnController::class, 'speakers'])
+        ->middleware('permission:view event speakers');
+    Route::get('/{id}/sessions', [\App\Http\Controllers\Api\EventAddOnController::class, 'sessions'])
+        ->middleware('permission:view event sessions');
+
     Route::post('/{id}/gallery', [EventController::class, 'uploadGalleryImage'])->middleware('permission:edit events');
     Route::post('/{id}/gallery/reorder', [EventController::class, 'reorderGallery'])->middleware('permission:edit events');
     Route::delete('/{id}/gallery/{imageId}', [EventController::class, 'deleteGalleryImage'])->middleware('permission:edit events');

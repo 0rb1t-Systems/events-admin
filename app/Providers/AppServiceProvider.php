@@ -22,6 +22,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\ParticipationCheckedIn::class,
+            \App\Listeners\IssueAttendanceCertificate::class,
+        );
     }
 }

@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (Phase 4c: Participation module — waitlist + atomic claims)
+Last updated: 2026-08-16 (Prompt 10: Analytics, announcements, certificates, feedback, sponsors/speakers/sessions)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -40,7 +40,8 @@ Every meaningful change to the codebase must also update this file.
 - RBAC: spatie/laravel-permission (`permission:` / `role:` middleware aliases in `bootstrap/app.php`)
 - Audit: spatie/laravel-activitylog (via `BaseController::logActivity`)
 - Location: stevebauman/location
-- Queue: `SendEmailJob` + `MailService`
+- Queue: `SendEmailJob`, `MailService`, **`ExpirePendingPayments`** (scheduled every 5 min)
+- **Payments (Phase 6):** WaafiPay Hormuud EVC via `WaafiPayService` → `POST {WAAFI_BASE_URL}` (default `https://api.waafipay.net/asm`), credentials in `config/waafipay.php` / `.env` (`WAAFI_MERCHANT_UID`, `WAAFI_API_USER_ID`, `WAAFI_API_KEY`). **HTTP timeout 180s** (customer phone approval). Currency **USD** (platform assumption). Never log `apiKey`. Tests mock HTTP — never hit production.
 
 ### Frontend
 - React 18 + TypeScript, Vite 5, `laravel-vite-plugin`
@@ -143,6 +144,12 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Ticket types Admin** — oversight in Event Detail (list + disable/enable sales). Not top-level nav. Soft-delete OK; force-delete blocked if `quantity_sold > 0`. Full tier CRUD is Web App later.
 - **Discount codes Admin** — read-only in Event Detail (+ ops create/validate APIs). Scope enforced in queries.
 - **Participations Admin** — oversight nested in Event Detail (list, promote waitlist, cancel). Join API is admin stand-in; Web App owns participant join UX. Not a mandatory full CRUD scaffold page.
+- **Event form fields Admin** — **read-only** schema oversight in Event Detail (`FormFieldOversight`). Organizers author fields on Web App (later). Ops store/remove APIs exist for tests; remove soft-handles answered fields (`active=false`).
+- **Invitation templates Admin** — read-only `GET /events/{id}/invitation-template`; ops store/update. Web App owns designer UI.
+- **QR Scan History Admin** — list page `/qr-scan-logs` (filter event/result) + Event Detail **Check-in dashboard** stats. Scanner UI is Web App; `POST /qr-scan-logs/validate` is admin/ops stand-in.
+- **Payments / Payouts Admin (Phase 6 — full Admin System, not oversight-only):** `pages/payout/` workflow (request → approve/reject → record payment). Event Detail **Financial summary**. Settings → Commission rate. Charge endpoint for Web App later.
+- **Event add-ons Admin (Prompt 10):** read-only Analytics + announcements/certificates/feedback/sponsors/speakers/sessions on Event Detail. Organizer authoring is Web App.
+- **Share Event (spec 12.3 MUST):** **explicitly deferred to Web App pack** — front-end share-link generation only; not forgotten.
 - **Organization** — profile/settings style (`getProfile` / logo uploads); page at `pages/organization/index.tsx` under Settings; service still extends `BaseApi`
 - **Logs** — mostly read-only list + `LogDetail` (no Form/Modal create flow)
 - **Settings mail** — form + test modal, not full BaseController CRUD entity
@@ -158,7 +165,7 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 ```
 - Middleware: `EnsureJsonResponse` on API; Sanctum auth; Spatie permission aliases; **`admin.panel`** (`EnsureAdminPanelAccess`) on Admin Panel resource routes; **`organizer.web`** for organizer-auth me routes
 - Traits on BaseController: `ApiResponseTrait`, `ApiFilterTrait`
-- Domain services (non-controller): `MailService`, `LocationService`, `CommonServices`, **`EventStatusMachine`**, **`EventRegistrationGate`**, **`EventMonetization`**, **`ParticipationService`**, **`EventQuota`**
+- Domain services (non-controller): `MailService`, `LocationService`, `CommonServices`, **`EventStatusMachine`**, **`EventRegistrationGate`**, **`EventMonetization`**, **`ParticipationService`**, **`FormFieldValidationService`**, **`EventFormFieldService`**, **`QrTokenService`**, **`QrValidationService`**, **`EventQuota`**
 - Domain ownership: **Users** (admin staff / participants) ≠ **Organizers** ≠ **Events** (belong to organizers). Packages gate how many events an organizer may create via `EventQuota`.
 
 ## Auth + User Types (Phase 1 — EventHub multi-tenant foundation)
@@ -352,7 +359,7 @@ WHERE id = :id
 
 ## Participations (Phase 4c)
 
-Links a **User** (participant) to an **Event**, optional **TicketType**, JSON `custom_field_answers` (schema later in Phase 5 Form Builder), nullable `qr_token` (Phase 5 invitations).
+Links a **User** (participant) to an **Event**, optional **TicketType**, JSON `custom_field_answers` (validated at submit by **Phase 5a** `FormFieldValidationService`), nullable unique `qr_token` (**Phase 5b** invitation/QR).
 
 ### Status enum (final — Phase 6 + Phase 9 depend on this)
 
@@ -418,6 +425,187 @@ FE: `ParticipationOversight` inside Event Detail sidebar.
 ### Tests
 - `tests/Feature/ParticipationModuleTest.php` — unique index scope, txn claim+insert, rollback, waitlist, promote, quantity race simulation, admin API.
 
+## Event Form Fields (Phase 5a — Dynamic Form Builder backend)
+
+Organizers will design custom registration fields per event on the Web App. This phase stores the **schema** and validates `participations.custom_field_answers` at **submission time only**. Admin gets read-only visibility.
+
+### Table `event_form_fields`
+
+Migration: `2026_08_16_170000_create_event_form_fields_table.php`
+
+| Column | Notes |
+|--------|-------|
+| `event_id` | FK → events, `restrictOnDelete` |
+| `key` | Slug-like field id |
+| `label` | Display label |
+| `type` | `FormFieldType`: `text` \| `number` \| `select` \| `checkbox` \| `date` |
+| `options` | JSON (select / multi-checkbox choices); null for boolean checkbox / text / number / date |
+| `required` | boolean |
+| `sort_order` | unsigned int |
+| `active` | Soft-handle flag — `false` = deactivated (kept for historical display) |
+
+**Compound unique:** `$table->unique(['event_id', 'key']);` — key unique **within an event**, not globally.
+
+### No FK from answers → schema (critical)
+
+Answers are a JSON snapshot on `participations.custom_field_answers`. There is **no** foreign key tying answer keys to `event_form_fields`. Schema edits after join **must not** invalidate old rows. Validation runs only in `FormFieldValidationService` at join/submit.
+
+### Soft-handle delete
+
+`EventFormFieldService::remove()`:
+- If any participation for that event has `custom_field_answers` containing the field `key` → set `active=false` (keep row).
+- Else → hard-delete.
+
+Inactive fields are **not** required by validation (only `active` schema applies to new submits).
+
+### Validation service (standalone + wired)
+
+`FormFieldValidationService::validate($event, $answers)` / `validateOrFail()`:
+- Required active fields must be present (typed emptiness rules; boolean checkbox `false` counts as present).
+- Type checks: text, number, date, select ∈ options, checkbox bool or multi-option list ∈ options.
+- Extra keys in answers are allowed (forward/historical compatible).
+
+`ParticipationService::join` calls `validateOrFail` **before** the DB transaction.
+
+### Admin / API surface
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /events/{id}/form-fields` | Read-only schema (includes inactive unless `?active_only=1`) |
+| `GET /event-form-fields` | Index (permission-gated) |
+| `POST /event-form-fields` | Ops/test create (Web App will own authoring) |
+| `DELETE /event-form-fields/{id}` | Soft-handle remove |
+
+Permissions: `view event form fields`, `manage event form fields`.
+
+FE: `FormFieldOversight` in Event Detail — **read-only** (no edit UI).
+
+### Tests
+- `tests/Unit/FormFieldValidationServiceTest.php` — standalone required/type/inactive/historical extras (14)
+- `tests/Feature/EventFormFieldModuleTest.php` — compound unique, deactivate vs delete, join validation wire, admin list/store/destroy (8)
+
+## Invitation + QR (Phase 5b)
+
+Digital invitation templates + cryptographically random `participations.qr_token` + scan validation state machine + scan audit log. Scanner UI is Web App; Admin gets scan history + check-in stats.
+
+### Tables
+
+**`event_invitation_templates`** (`2026_08_16_180000_...`): `event_id` (unique), `config` JSON (flexible branding/layout), timestamps.
+
+**`qr_scan_logs`** (`2026_08_16_180100_...`): `scanned_token`, nullable `participation_id` / `event_id`, `result` (`valid|already_used|invalid`), nullable `gate`, `scanner_user_id`, `scanner_organizer_id`, `meta` JSON. **Every attempt is logged** (success and failure).
+
+**Token uniqueness (DB):** already on participations from Phase 4c:
+`$table->string('qr_token')->nullable()->unique();` — generation retries on rare collision (`QrTokenService::assignToken`).
+
+### When tokens are issued
+
+`QrTokenService::ensureForConfirmed()` — cryptographically random `bin2hex(random_bytes(32))`, **not** sequential IDs or hashes of predictable fields.
+
+Confirmed = `status=paid` OR free-and-joined (`joined` + `payment_status=not_required`) OR joined+payment paid. **Not** waitlisted / pending payment.
+
+Wired from `ParticipationService::join` and `promoteFromWaitlist` after confirmed create/update. Phase 6 should call `ensureForConfirmed` when payment flips to paid.
+
+### QR validation state machine (`QrValidationService`) — THREE distinct outcomes
+
+Branch order (locked + transactional):
+
+1. **invalid** — empty / token not found  
+2. **invalid** — `status=cancelled` (BEFORE already_used)  
+3. **invalid** — `payment_status=refunded` (BEFORE already_used)  
+4. **already_used** — `status=checked_in` → log only, **no** check-in side effects  
+5. **invalid** — not claimable (waitlisted, pending payment, etc.)  
+6. **valid** — claimable → set `checked_in=true`, log; dispatch `ParticipationCheckedIn` (certificate listener — not inline)
+
+Re-scan of a checked-in token → `already_used` + **separate** `qr_scan_logs` row; participation untouched.
+
+### Check-in dashboard stats
+
+`registered` (seat-occupying) / `arrived` (`checked_in`) / `absent` (= registered − arrived) + scan attempt counters.  
+`GET /events/{id}/check-in-stats` · FE `CheckInStatsPanel` on Event Detail.
+
+### Admin / API
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /qr-scan-logs` | History list (filter `event_id`, `result`) |
+| `GET /qr-scan-logs/{id}` | Detail |
+| `POST /qr-scan-logs/validate` | Ops/admin validate stand-in (`token`, optional `gate`) |
+| `GET /events/{id}/qr-scan-logs` | Recent scans + stats |
+| `GET /events/{id}/check-in-stats` | Dashboard numbers |
+| `GET /events/{id}/invitation-template` | Read-only template |
+| `POST/PATCH /event-invitation-templates` | Ops store/update |
+
+Permissions: `view qr scan logs`, `manage qr scans`, `view invitation templates`, `manage invitation templates`.
+
+FE: `pages/qr-scan-log/` (sidebar nav), `CheckInStatsPanel` in Event Detail.
+
+### Tests
+- `tests/Feature/QrInvitationModuleTest.php` — unique index, crypto token on free join, pending skips token, **valid / already_used / invalid**, cancelled→invalid (not already_used), refunded before already_used, re-scan dual logs, stats + API.
+
+## Payments & Commission (Phase 6)
+
+Financial core: WaafiPay charge → per-event payout requests → admin approve/record with snapshotted commission.
+
+### Currency / WaafiPay
+- Currency **USD** (`config/waafipay.php` / `WAAFI_CURRENCY`).
+- Endpoint: `POST {WAAFI_BASE_URL}` (default `https://api.waafipay.net/asm`), `serviceName: API_PURCHASE`, `paymentMethod: MWALLET_ACCOUNT`.
+- Credentials: `WAAFI_MERCHANT_UID`, `WAAFI_API_USER_ID`, `WAAFI_API_KEY` — never hardcoded, never logged, never sent to FE.
+- **HTTP timeout: 180 seconds** (phone approval before response).
+- Success ONLY when **both**: `responseCode === "2001"` AND `strtolower(params.state) === "approved"` (`WaafiPayService::isApprovedPayload`).
+- Phone: `SomaliPhoneNormalizer` → `252XXXXXXXXX`.
+- Errors: lookup table `WaafiPayService::ERROR_MAP` (not if/else chains).
+- `reference_id` UNIQUE (`INV-{uuid}`); fresh UUID `requestId` per Waafi call.
+
+### Pending cleanup
+`ExpirePendingPayments` every 5 min. After `expires_at` (default **15 min**): payment→failed, participation→cancelled + payment_status failed, ticket quantity released.
+
+### Payouts (per-event)
+`payout_requests.commission_rate` snapshotted at **request create** from `CommissionSettings`. Display/approve/record use snapshot via `computeAmountsFromSnapshot()` — never live rate.
+
+### Refund-after-payout (CLIENT REVIEW)
+**Block** refund when `collected - amount < reserved/paid-out`. No automatic clawback — admin must handle outside this path.
+API: HTTP 400 with human `message` **and** `errors.error_code: ["refund_blocked_payout_recorded"]` (same pattern as `participant_admin_login_forbidden` / `invalid_status_transition`). No admin refund UI yet — endpoint only.
+
+### Double-payout
+`PayoutService` request/approve/recordPayment: same `DB::transaction` + `lockForUpdate` on event and reducing payouts; re-validate outstanding inside txn.
+
+### Admin FE
+`/payouts`, Settings→Commission, Event Detail financial summary (`GET /events/{id}/finance`).
+
+### Tests
+`PaymentPayoutModuleTest` (13+) — Waafi both-conditions, mock HTTP, expire, snapshot, double-payout, refund block + `refund_blocked_payout_recorded` error_code, unique reference.
+
+## Event Add-Ons (Prompt 10 — Spec §12)
+
+Admin read-only oversight + backend models. Organizer authoring / participant submit UX = Web App.
+
+### Share Event (12.3 MUST) — DEFERRED
+**Explicitly deferred to the Web App pack** (front-end share-link generation only). Not implemented in Admin/backend. Do not treat as forgotten.
+
+### Analytics (12.6 MUST)
+`EventAnalyticsService::forEvent` — **efficient fixed query set (no N+1)**:
+1. `events.views_count` column read
+2. ONE `participations` `GROUP BY status` count query
+3. ONE `payments` SUM (completed) via whereHas participation
+4. ONE feedback AVG/COUNT query  
+Also `event_views` log table + `POST /events/{id}/views` for Web App increments.  
+FE: `EventAnalyticsPanel` on Event Detail.
+
+### Certificates (12.5 HIGH)
+- Table `certificates` with **`$table->unique('participation_id')`**
+- `ParticipationCheckedIn` domain event dispatched from `QrValidationService` valid path only
+- Listener `IssueAttendanceCertificate` → `CertificateIssuanceService::issueForParticipation` (exists check + lock + unique race catch) — **idempotent**
+- Not inline in QR service
+
+### Feedback (12.6 HIGH)
+`EventFeedbackService::submit` requires `status === checked_in`. Unique per participation. Ops: `POST /event-feedback`. Tests cover joined/waitlisted rejection.
+
+### Announcements / Sponsors / Speakers / Sessions
+Read-only nested GETs under `/events/{id}/…`. Models: `EventAnnouncement`, `EventSponsor` (tier enum), `EventSpeaker`, `EventSession`. FE: `EventAddOnOversight`.
+
+### Tests
+`EventAddOnModuleTest` (10) — unique certificate, idempotent issue, listener on check-in, feedback gates, analytics aggregates, admin endpoints.
+
 ## Current Module Inventory
 
 | Domain | Model | Controller | API v1 file | FE page | FE service | FE types |
@@ -431,20 +619,27 @@ FE: `ParticipationOversight` inside Event Detail sidebar.
 | Ticket types | `TicketType` | `TicketTypeController` | nested + `ticket-types.php` | Event Detail | `event.ts` | `event.ts` |
 | Discount codes | `DiscountCode` | `DiscountCodeController` | nested + `ticket-types.php` | Event Detail | `event.ts` | `event.ts` |
 | Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event Detail | `event.ts` | `event.ts` |
+| Event form fields | `EventFormField` | `EventFormFieldController` | `event-form-fields.php` + nested | Event Detail (read-only) | `event.ts` | `event.ts` |
+| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | `event-invitation-templates.php` + nested | Event Detail (read API) | — | `qrScan.ts` |
+| QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` + Event Detail stats | `qrScanLog.ts` | `qrScan.ts` |
+| Payments | `Payment` | `PaymentController` | `payments.php` | Event finance panel | `payout.ts` | `payment.ts` |
+| Payout requests | `PayoutRequest` | `PayoutRequestController` | `payout-requests.php` | `pages/payout/` | `payout.ts` | `payment.ts` |
+| Event add-ons | Announcement, Certificate, Feedback, Sponsor, Speaker, Session | `EventAddOnController` | nested under `events.php` | Event Detail panels | axios in panels | — |
 | Roles | `Role` | `RoleController` | `roles.php` | `pages/settings/roles/` | `role.ts` | `role.ts` |
 | Organizations | `Organization` | `OrganizationController` | `organizations.php` | `pages/organization/` | `organization.ts` | (in service) |
-| Settings | `Settings` | `SettingsController` | `settings.php` | `pages/settings/` + mail | `mail.ts` | `mail.ts` |
+| Settings | `Settings` | `SettingsController` | `settings.php` | settings + mail + commission | `mail.ts` / `payout.ts` | `mail.ts` / `payment.ts` |
 | Logs | Activity | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
 | Auth | `User` | `AuthController` | `auth.php` | login/profile/lock | `auth.ts` | `auth.ts` |
 
-Also: trash (users, roles, organizers, events); dashboard; global search.
+Also: trash (users, roles, organizers, events); dashboard; global search. **Share Event → Web App pack (deferred).**
 
 ## Backend Structure Notes
-- Controllers: … `TicketType`, `DiscountCode`, `Participation`
-- Models: … `TicketType`, `DiscountCode`, `Participation`
-- Services: `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`, `ParticipationService`; Support: `EventQuota`
-- Enums: … `EventStatus`, `DiscountCodeType`, `ParticipationStatus`, `ParticipationPaymentStatus`
-- Factories: … `TicketTypeFactory`, `DiscountCodeFactory`, `ParticipationFactory`
+- Controllers: … `Payment`, `PayoutRequest`, `EventAddOn`
+- Models: … `Certificate`, `EventFeedback`, `EventAnnouncement`, `EventSponsor`, `EventSpeaker`, `EventSession`
+- Services: … `EventAnalyticsService`, `CertificateIssuanceService`, `EventFeedbackService`
+- Events/Listeners: `ParticipationCheckedIn` → `IssueAttendanceCertificate`
+- Enums: … `SponsorTier`
+- Factories: … `CertificateFactory`, `EventFeedbackFactory`
 
 ## Frontend Structure Notes
 - Entry: `main.tsx`, `App.tsx`
@@ -467,16 +662,13 @@ Also: trash (users, roles, organizers, events); dashboard; global search.
 - Activity log on BaseController write paths
 
 ## Known Risks / Watchouts
-- Feature tests: `UserTypeAuthTest`, `OrganizerModuleTest`, `PackageSubscriptionTest`, `EventModuleTest`, `TicketTypeModuleTest`, `ParticipationModuleTest`
-- **Phase 6 must use `TicketType::claimQuantityAtomically` / conditional UPDATE** — do not invent a parallel inventory path
-- **Phase 6 Payments** is SoT; sync `participations.payment_status` / `status=paid` from Payment records only
-- Legacy Sanctum tokens with ability `*` still `tokenCan('admin-panel')` until admin re-login
-- Organization type lives in service file (not `types/`) — prefer `types/` for new entities
-- Large `public/assets/` tree — avoid unrelated churn
-- Path-gate: critical path commits must stage updated `.agent`
-- `ExceptionHandlerTest` 3 failures are pre-existing (SPA catch-all) — unrelated to Phases 1–4a
-- **`registrations_count`** is a stand-in until a real registrations module; keep Gate A/B separate when wiring signups
-- Suspended organizers: events remain admin-visible; block organizer-web mutations
+- Feature tests: … `QrInvitationModuleTest`, `PaymentPayoutModuleTest`
+- **Refund-after-payout:** blocked when outstanding would go negative — product owner may want clawback workflow later
+- **WaafiPay:** never call production from CI; mock HTTP; never log apiKey; timeout 180s requires long-running PHP/web limits in production
+- Run `php artisan schedule:work` (or cron) so `ExpirePendingPayments` runs
+- **Phase 6 Payments** is SoT; sync participation mirror + `QrTokenService::ensureForConfirmed` on completed charge only
+- Reseed permissions after migrate (`view/manage payments|payouts`)
+- `ExceptionHandlerTest` 3 failures pre-existing — unrelated
 - After migrate: reseed permissions + `EventCategorySeeder`
 
 ## Agent Behavior Rules (for every chat)
@@ -537,6 +729,67 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Prompt 10: Event add-ons (analytics, certificates, feedback, content oversight)
+- Files touched:
+  - Migrations: views_count + event_views, announcements, certificates (unique participation_id), feedback, sponsors/speakers/sessions
+  - Event `ParticipationCheckedIn` + listener `IssueAttendanceCertificate` + `CertificateIssuanceService` (idempotent)
+  - `EventAnalyticsService` (fixed ≤4 aggregate queries — no N+1), `EventFeedbackService` (checked_in only)
+  - `EventAddOnController` nested routes; FE `EventAnalyticsPanel` + `EventAddOnOversight`
+  - Tests: `EventAddOnModuleTest` (10)
+- **Share Event:** explicitly deferred to Web App pack (documented here + Module Inventory).
+- Verification: 10 add-on + 11 QR tests passed.
+
+### 2026-08-16 - Phase 6: Payments, WaafiPay, payouts & commission
+- Files touched:
+  - Migrations: `payments`, `payout_requests`, seed `platform_commission_rate`
+  - Config: `config/waafipay.php`; `.env.example` Waafi vars
+  - Services: `WaafiPayService`, `PaymentService`, `PayoutService`, `EventFinanceService`, `CommissionSettings`; `SomaliPhoneNormalizer`
+  - Job: `ExpirePendingPayments` (schedule every 5 min)
+  - Controllers/routes: `PaymentController`, `PayoutRequestController`, settings commission endpoints
+  - FE: `pages/payout/`, Settings → Commission, `EventFinancePanel`
+  - Tests: `PaymentPayoutModuleTest` (13)
+- **Refund-after-payout decision (CLIENT REVIEW):** Block refund when it would leave collected &lt; reserved/paid-out payouts (no silent clawback). Admin must handle clawback outside this path. API returns `errors.error_code: ["refund_blocked_payout_recorded"]` plus descriptive `message`. No refund admin UI yet (spec 5.9 focuses on recording payouts).
+- **Pending stuck path:** Expire after 15 min → payment failed, participation cancelled, ticket released.
+- **WaafiPay:** timeout **180s**; success = `responseCode === "2001"` AND `state === "approved"` (case-insensitive); credentials from env only.
+- **Commission:** snapshotted on `payout_requests.commission_rate` at request create.
+- **Double-payout:** balance check + approve/record in same `DB::transaction` + `lockForUpdate`.
+- Verification: 13 PaymentPayoutModuleTest passed (mocked HTTP).
+
+### 2026-08-16 - Phase 5b: Invitation templates + QR token generation/validation
+- Files touched:
+  - Migrations: `2026_08_16_180000_create_event_invitation_templates_table.php`, `2026_08_16_180100_create_qr_scan_logs_table.php`
+  - Models/enums/factories: `EventInvitationTemplate`, `QrScanLog`, `QrScanResult`, factories
+  - Services: `QrTokenService` (crypto + unique retry), `QrValidationService` (3-outcome state machine + stats)
+  - Wired: `ParticipationService::join` / `promoteFromWaitlist` → `ensureForConfirmed`
+  - Controllers/routes: `QrScanLogController`, `EventInvitationTemplateController`, nested event endpoints
+  - FE: `pages/qr-scan-log/` (history), `CheckInStatsPanel` on Event Detail; sidebar + i18n
+  - Permissions: `view/manage qr scan logs/scans`, `view/manage invitation templates`
+  - Tests: `QrInvitationModuleTest.php` (11)
+- Behavior:
+  - Confirmed participations get unique non-guessable `qr_token` (DB unique already on column).
+  - Scan returns **valid | already_used | invalid**; cancelled/refunded → invalid before already_used.
+  - Re-scan logs `already_used` separately and does **not** re-check-in.
+  - Admin QR Scan History + check-in registered/arrived/absent stats.
+- Migration/config: migrate + reseed permissions.
+- Verification: 11 QR tests + 8 ParticipationModuleTest passed.
+
+### 2026-08-16 - Phase 5a: Dynamic Form Builder (backend schema + validation)
+- Files touched:
+  - Migration: `2026_08_16_170000_create_event_form_fields_table.php` — **`$table->unique(['event_id', 'key'])`**
+  - Model/enum/factory: `EventFormField`, `FormFieldType`, `EventFormFieldFactory`; `Event::formFields()`
+  - Services: `FormFieldValidationService` (standalone), `EventFormFieldService` (deactivate-vs-delete)
+  - Wired: `ParticipationService::join` → `validateOrFail` before txn; `ParticipationController` catches `ValidationException`
+  - Controller/routes: `EventFormFieldController`, `event-form-fields.php`, nested `GET /events/{id}/form-fields`
+  - Permissions: `view event form fields`, `manage event form fields` in `RolePermissionSeeder`
+  - FE: `FormFieldOversight` (read-only) in Event Detail; `eventApi.formFields`; types `IEventFormField`
+  - Tests: `FormFieldValidationServiceTest` (14 unit), `EventFormFieldModuleTest` (8 feature)
+- Behavior:
+  - Schema stored per event; Admin sees fields read-only (incl. inactive).
+  - Answers validated only at submit; historical JSON never retroactively invalidated.
+  - Delete with recorded answers → `active=false`; without → hard delete.
+- Migration/config: run `php artisan migrate`; reseed permissions for new gates.
+- Verification: 22 form-field tests + 8 ParticipationModuleTest passed.
 
 ### 2026-08-16 - Phase 4c: Participation module (waitlist + atomic ticket claims)
 - Files touched:
