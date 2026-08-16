@@ -73,7 +73,9 @@ const FormCombobox = <T extends { id: number }>({
                             } ${
                                 disabled ? "cursor-not-allowed" : ""
                             } placeholder:text-gray-400 dark:placeholder:text-gray-500`}
-                            displayValue={displayValue}
+                            displayValue={(item) =>
+                                item ? displayValue(item) : ""
+                            }
                             onChange={(event) =>
                                 handleInputChange(event.target.value)
                             }

@@ -65,7 +65,8 @@ export function useUserSearch(minChars = 1) {
     };
 }
 
-export const formatEventOption = (e: IEvent) => {
+export const formatEventOption = (e: IEvent | null | undefined) => {
+    if (!e) return "";
     const date = e.starts_at
         ? new Date(e.starts_at).toLocaleDateString()
         : "";
@@ -75,4 +76,5 @@ export const formatEventOption = (e: IEvent) => {
     return `${e.title}${date ? ` (${date})` : ""}${org}`;
 };
 
-export const formatUserOption = (u: IUser) => `${u.name} - ${u.email}`;
+export const formatUserOption = (u: IUser | null | undefined) =>
+    u ? `${u.name} - ${u.email}` : "";

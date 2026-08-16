@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (Prompt 12: Admin UX & completeness — write actions + searchable pickers)
+Last updated: 2026-08-16 (FormCombobox / useEntitySearch: null-safe displayValue + ASCII separators)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -38,6 +38,7 @@ Every meaningful change to the codebase must also update this file.
   - After permission changes: reseed `RolePermissionSeeder` (or sync admin role) so gates match routes
   - Full suite: **132 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
   - Run `php artisan migrate` for `payments.gateway` column (Prompt 12)
+  - **FormCombobox / pickers:** Headless UI calls `displayValue(null)` when nothing is selected — formatters and `FormCombobox` must treat null as `""`. Avoid Unicode middle-dot (`·`) in template literals on Windows/Vite Babel (use ASCII ` - ` instead).
 
 ## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
 These were decided during Admin Prompts 1–12. Confirm or correct before Web App work:
@@ -221,8 +222,8 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 
 | Piece | Location |
 |-------|----------|
-| Component | `components/form/FormCombobox.tsx` |
-| Helpers | `hooks/useEntitySearch.tsx` — `useEventSearch`, `useUserSearch`, `formatEventOption`, `formatUserOption` |
+| Component | `components/form/FormCombobox.tsx` (wraps Headless UI Combobox; **null-safe** `displayValue`) |
+| Helpers | `hooks/useEntitySearch.tsx` — `useEventSearch`, `useUserSearch`, `formatEventOption`, `formatUserOption` (also null-safe; ASCII ` - ` separators) |
 | Twin usage | `pages/user/components/UserForm.tsx` (roles); `PayoutRequestModal`; `ParticipationOversight`; QR filters |
 
 **Pattern:**
@@ -231,11 +232,11 @@ const eventSearch = useEventSearch();
 <FormCombobox<IEvent>
   id="…"
   label="Event"
-  value={selected}
+  value={selected} // may be null
   onChange={setSelected}
   onSearch={eventSearch.setQuery}
   options={eventSearch.options}
-  displayValue={formatEventOption} // title + date + organizer
+  displayValue={formatEventOption} // must accept null → ""
   loading={eventSearch.loading}
   placeholder="Search…"
 />
@@ -244,6 +245,7 @@ const eventSearch = useEventSearch();
 
 - API: `GET /api/v1/{resource}/search?q=` (Users, Events, Roles, Packages, Categories have search). Do **not** load entire tables into a static `<select>`.
 - Contextual FKs (you're inside Event Detail) → omit picker; pass `event_id` from props.
+- **Gotchas:** (1) Combobox `displayValue` is invoked with `null` when cleared/unselected — always guard. (2) Prefer ASCII separators in picker label strings (` - `) — Unicode `·` broke Vite Babel parse on this Windows env.
 ---
 
 ## High-Level Architecture
@@ -817,6 +819,7 @@ Final Admin System inventory (Prompts 1–12). Prompt 12 expanded Admin write ov
 
 ### Searchable FK pickers
 - All admin forms/filters that need a related entity use `FormCombobox` + `useEntitySearch` (see Scaffold §D). Never raw ID number inputs.
+- `formatEventOption` / `formatUserOption` and `FormCombobox` must accept **null** (Headless UI clears selection). Label separators: ASCII ` - ` (not Unicode `·`).
 
 ### API / FE patterns
 - List responses are Laravel paginator-shaped (`IApiResponse<T>`); filters `filter[field]=value`.
@@ -892,6 +895,15 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Fix FormCombobox / useEntitySearch crash and Babel parse
+- Files touched:
+  - `resources/js/src/hooks/useEntitySearch.tsx` — `formatEventOption` / `formatUserOption` null-safe; ASCII ` - ` instead of Unicode `·` (Vite Babel parse error on Windows)
+  - `resources/js/src/components/form/FormCombobox.tsx` — `displayValue` wraps null → `""`
+  - `.agent` — Scaffold §D + Runtime gotchas + Data conventions updated
+- Behavior: Payout (and other) searchable pickers no longer crash when value is null / unselected; Vite overlays from `·` character cleared
+- Migration/config/env impact: none
+- Verification: user-reported Vite overlay + runtime TypeError resolved in-browser after HMR
 
 ### 2026-08-16 - Prompt 12: Admin UX & completeness (write actions + searchable pickers)
 - **Category A fixed:**
