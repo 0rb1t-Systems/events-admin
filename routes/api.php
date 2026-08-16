@@ -18,6 +18,9 @@ Route::prefix('v1')->group(function () {
     // Settings routes
     Route::prefix('settings')->group(base_path('routes/api/v1/settings.php'));
 
+    // Admin dashboard stats
+    Route::prefix('dashboard')->group(base_path('routes/api/v1/dashboard.php'));
+
     // Users routes
     Route::prefix('users')->group(base_path('routes/api/v1/users.php'));
 

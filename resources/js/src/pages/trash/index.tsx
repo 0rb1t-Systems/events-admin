@@ -4,6 +4,7 @@ import {
     Shield,
     Briefcase,
     CalendarDays,
+    Tags,
 } from "lucide-react";
 import React, { Suspense } from "react";
 import { useLocation, NavLink, Outlet, useNavigate } from "react-router-dom";
@@ -43,6 +44,12 @@ const TrashIndex: React.FC = () => {
             icon: <CalendarDays className="w-5 h-5" />,
             path: "/trash/events",
         },
+        {
+            id: "event-categories",
+            title: t("trashed_event_categories"),
+            icon: <Tags className="w-5 h-5" />,
+            path: "/trash/event-categories",
+        },
     ];
 
     const breadcrumbItems = [
@@ -50,12 +57,13 @@ const TrashIndex: React.FC = () => {
         { title: t("trash_items") },
     ];
 
-    // Determine active tab from the current route
-    const activeTab = trashItems.find(item => location.pathname.startsWith(item.path))?.id || trashItems[0].id;
+    const activeTab =
+        trashItems.find((item) => location.pathname.startsWith(item.path))
+            ?.id || trashItems[0].id;
     const [showMobileMenu, setShowMobileMenu] = React.useState(false);
-    const activeTitle = trashItems.find(item => item.id === activeTab)?.title || '';
+    const activeTitle =
+        trashItems.find((item) => item.id === activeTab)?.title || "";
 
-    // Redirect to default tab if at /trash
     React.useEffect(() => {
         if (location.pathname === "/trash" || location.pathname === "/trash/") {
             navigate(trashItems[0].path, { replace: true });
@@ -79,14 +87,12 @@ const TrashIndex: React.FC = () => {
                         setShowMobileMenu={setShowMobileMenu}
                     />
                     <div className="flex flex-col md:flex-row h-[60vh] md:h-[70vh]">
-                        {/* Sidebar */}
                         <Sidebar
                             items={trashItems}
                             activeTab={activeTab}
                             showMobileMenu={showMobileMenu}
                             linkComponent={NavLink}
                         />
-                        {/* Content area */}
                         <main className="flex-1 min-w-0 h-full flex flex-col">
                             <Suspense fallback={<Loader />}>
                                 <Outlet />

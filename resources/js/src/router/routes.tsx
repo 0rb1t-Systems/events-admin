@@ -42,6 +42,9 @@ const TrashUsers = lazy(() => import("../pages/trash/Users"));
 const TrashRoles = lazy(() => import("../pages/trash/Roles"));
 const TrashOrganizers = lazy(() => import("../pages/trash/Organizers"));
 const TrashEvents = lazy(() => import("../pages/trash/Events"));
+const TrashEventCategories = lazy(
+    () => import("../pages/trash/EventCategories")
+);
 
 // Organizers (oversight)
 const Organizer = lazy(() => import("../pages/organizer"));
@@ -139,7 +142,12 @@ export const protectedRoutes: RouteConfig[] = [
         path: "/settings",
         element: <Settings />,
         layout: "default",
-        permissions: ["manage settings"],
+        permissions: [
+            "manage settings",
+            "view packages",
+            "view event categories",
+            "view organizations",
+        ],
         children: [
             {
                 path: "mail",
@@ -225,6 +233,12 @@ export const protectedRoutes: RouteConfig[] = [
             {
                 path: "events",
                 element: <TrashEvents />,
+                layout: "default",
+                permissions: ["view trash items"],
+            },
+            {
+                path: "event-categories",
+                element: <TrashEventCategories />,
                 layout: "default",
                 permissions: ["view trash items"],
             },

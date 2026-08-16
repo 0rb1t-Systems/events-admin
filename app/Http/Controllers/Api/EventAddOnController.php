@@ -131,6 +131,16 @@ class EventAddOnController extends BaseController
             ]);
         }
 
+        $this->logActivity(
+            'Event feedback submitted',
+            $row,
+            [
+                'participation_id' => $participation->id,
+                'rating' => (int) $validated['rating'],
+            ],
+            'created'
+        );
+
         return $this->createdResponse($row->fresh('participation'));
     }
 

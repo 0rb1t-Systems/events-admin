@@ -14,8 +14,17 @@
     "organizers": "Organizers",
     "events": "Events",
     "payouts": "Payouts",
+    "packages": "Packages",
+    "event_categories": "Event Categories",
+    "mail_settings": "Mail",
+    "commission": "Commission",
+    "organization": "Organization",
+    "roles": "Roles",
+    "all_users": "All Users",
+    "configuration": "Configuration",
     "trashed_organizers": "Trashed Organizers",
     "trashed_events": "Trashed Events",
+    "trashed_event_categories": "Trashed Event Categories",
     "pages": "Pages",
     "authentication": "Authentication",
     "drag_and_drop": "Drag and Drop",
@@ -194,5 +203,8 @@
     "upload_items": "Upload Items",
     "system_monitoring": "System Monitoring",
     "logs": "Logs",
-    "qr_scan_history": "QR Scan History"
+    "qr_scan_history": "QR Scan History",
+    "announcements": "Announcements",
+    "certificates": "Certificates",
+    "feedback": "Feedback"
 }

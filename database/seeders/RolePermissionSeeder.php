@@ -105,18 +105,14 @@ class RolePermissionSeeder extends Seeder
             // settings
             'manage settings',
 
-
-            // reports
-            'view reports',
-
             // logs
             'view logs',
 
-            // view dashboard
-            "view dashboard",
+            // dashboard (API + FE)
+            'view dashboard',
 
-            // view trash items
-            "view trash items",
+            // trash
+            'view trash items',
         ];
 
         foreach ($permissions as $permission) {

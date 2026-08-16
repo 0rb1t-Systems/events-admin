@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (Prompt 10: Analytics, announcements, certificates, feedback, sponsors/speakers/sessions)
+Last updated: 2026-08-16 (Prompt 11: Cross-cutting hardening — permissions, activity logs, sidebar, dashboard, trash, full suite, .agent sync)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -22,9 +22,12 @@ Every meaningful change to the codebase must also update this file.
   - Laravel serve: `http://localhost:8000` (Unix) / `http://localhost:8002` (Windows script)
   - Vite HMR via `npm run dev` / pnpm Vite
   - Queue worker: `php artisan queue:listen`
+  - Scheduler: `php artisan schedule:work` (or cron) for `ExpirePendingPayments` every 5 min
 - API base URL (axios): `/api/v1` (same-origin)
 - Absolute API examples: `http://localhost:8000/api/v1` (or `:8002` on Windows)
 - Health: `GET /up`; API ping: `GET /api/ping`
+- Seed admin: `admin@example.com` / `password` (`user_type=admin`, role `admin`, all permissions)
+- DB: MySQL `eventdb` (local); tests use SQLite `:memory:`
 - Known gotchas:
   - Windows `dev:windows` uses port **8002**, not 8000
   - Lockfile is **pnpm** (`pnpm-lock.yaml`); npm also works
@@ -32,16 +35,42 @@ Every meaningful change to the codebase must also update this file.
   - Organizations logo columns: create migration includes `logo_dark_url`/`icon_url`; alter is `2025_08_24_090000_...` (never `2025_01_27_...` before create)
   - Do not commit `.env` or secrets
   - Organization is effectively **single-tenant profile** (not a full CRUD list page like Users)
+  - After permission changes: reseed `RolePermissionSeeder` (or sync admin role) so gates match routes
+  - Full suite: **114 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all returns 200 for `/test/*`) — only acceptable failures
+
+## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
+These were decided during Admin Prompts 1–11. Confirm or correct before Web App work:
+
+1. **Refund after payout recorded** — Block refund when it would leave collected funds &lt; reserved/paid-out payouts. API: `errors.error_code: ["refund_blocked_payout_recorded"]`. No automatic clawback; no admin refund UI yet (API only).
+2. **Payout scope** — **Per-event** payout requests only (not multi-event / organizer-wide batches).
+3. **Admin edit rights on organizer identity** — Admins may view / suspend / reactivate / soft-delete. They **cannot** freely edit business name, contact, email, or password (Web App self-service owns that). Flag if “admin correction” edit is needed later.
+4. **Share Event (spec 12.3 MUST)** — **Explicitly deferred to Web App pack** (share-link generation is front-end). Not implemented in Admin.
+5. **Currency** — Platform assumes **USD** for WaafiPay / payments / payouts.
+6. **Pending payment stuck path** — After 15 minutes: payment → `failed`, participation → `cancelled`, ticket quantity released (`ExpirePendingPayments`).
+7. **WaafiPay success rule** — Both `responseCode === "2001"` **and** `state === "approved"` (case-insensitive). Timeout **180s**.
+8. **Commission** — Snapshotted on payout request create; changing Settings rate does **not** rewrite existing requests.
+9. **Event `monetized`** — Derived from paid ticket types; cannot be forced false while paid tiers exist.
+10. **Capacity → `sold_out`** — Sync when capacity is exhausted; `null` capacity = unlimited (distinct from `0`).
+11. **Organizer email uniqueness** — Unique on `organizers.email` only; may equal a `users.email` (separate identities).
+12. **Suspension cascade** — Suspending an organizer does **not** delete events; events stay admin-visible; organizer Web edits blocked while suspended.
+13. **Soft-delete FK policy** — Future `organizer_id` FKs use **`restrictOnDelete`**; soft-delete preserves rows for relations.
+14. **Form field delete** — If answers exist → deactivate (`active=false`); else hard-delete. Historical answers never retroactively invalidated.
+15. **QR outcomes** — Three results: `valid` | `already_used` | `invalid`. Cancelled/refunded → `invalid` **before** `already_used`. Re-scan logs `already_used` without double check-in.
+16. **Packages delete/archive** — Blocked if any subscription history exists (active or cancelled).
+17. **Ticket type force-delete** — Blocked when `quantity_sold > 0`; soft-delete still allowed.
+18. **Cancelled events** — Cannot be force-deleted.
+19. **Admin Users `user_type`** — Read-only in Admin UI; creates force `admin`; updates ignore `user_type`.
+20. **Orphaned permission cleanup (Prompt 11)** — Removed unused seeder permission `view reports`. Dashboard uses `view dashboard`. Logs routes re-gated with `view logs`.
 
 ## Tech Stack
 ### Backend
 - PHP 8.2+, Laravel 12
 - Auth: Laravel Sanctum (Bearer tokens)
 - RBAC: spatie/laravel-permission (`permission:` / `role:` middleware aliases in `bootstrap/app.php`)
-- Audit: spatie/laravel-activitylog (via `BaseController::logActivity`)
+- Audit: spatie/laravel-activitylog (via `BaseController::logActivity` or explicit `activity()` for Settings)
 - Location: stevebauman/location
 - Queue: `SendEmailJob`, `MailService`, **`ExpirePendingPayments`** (scheduled every 5 min)
-- **Payments (Phase 6):** WaafiPay Hormuud EVC via `WaafiPayService` → `POST {WAAFI_BASE_URL}` (default `https://api.waafipay.net/asm`), credentials in `config/waafipay.php` / `.env` (`WAAFI_MERCHANT_UID`, `WAAFI_API_USER_ID`, `WAAFI_API_KEY`). **HTTP timeout 180s** (customer phone approval). Currency **USD** (platform assumption). Never log `apiKey`. Tests mock HTTP — never hit production.
+- **Payments (Phase 6):** WaafiPay Hormuud EVC via `WaafiPayService` → `POST {WAAFI_BASE_URL}` (default `https://api.waafipay.net/asm`), credentials in `config/waafipay.php` / `.env` (`WAAFI_MERCHANT_UID`, `WAAFI_API_USER_ID`, `WAAFI_API_KEY`). **HTTP timeout 180s**. Currency **USD**. Never log `apiKey`. Tests mock HTTP.
 
 ### Frontend
 - React 18 + TypeScript, Vite 5, `laravel-vite-plugin`
@@ -51,6 +80,7 @@ Every meaningful change to the codebase must also update this file.
 - Forms: React Hook Form / Formik; Yup / Zod
 - i18n: i18next (`public/locales/{en,ae}/translation.json`)
 - HTTP: `resources/js/src/utils/axios.ts` → `baseURL: "/api/v1"`
+- Nav: `resources/js/src/lib/sidebar.ts` (permission-filtered)
 
 ### Build / Tooling
 - Composer + pnpm/npm
@@ -102,8 +132,9 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
    ```php
    Route::prefix('<resource>')->group(base_path('routes/api/v1/<resource>.php'));
    ```
-7. **Permissions** — add to `database/seeders/RolePermissionSeeder.php` (and reseed / sync as needed)
+7. **Permissions** — add to `database/seeders/RolePermissionSeeder.php` (and reseed / sync as needed). **Every** route `permission:` must exist in the seeder; every seeder permission must be used by a route (API or FE) or be intentionally FE-gated (`view dashboard`, `view trash items`).
 8. **Do not** put resource routes only in `web.php`; API belongs under `/api/v1`.
+9. **Activity log** — every write (create/update/delete/status/payout/check-in/settings) must call `logActivity` or equivalent `activity()`.
 
 ### B) Frontend checklist (every new list/CRUD resource)
 
@@ -150,24 +181,62 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Payments / Payouts Admin (Phase 6 — full Admin System, not oversight-only):** `pages/payout/` workflow (request → approve/reject → record payment). Event Detail **Financial summary**. Settings → Commission rate. Charge endpoint for Web App later.
 - **Event add-ons Admin (Prompt 10):** read-only Analytics + announcements/certificates/feedback/sponsors/speakers/sessions on Event Detail. Organizer authoring is Web App.
 - **Share Event (spec 12.3 MUST):** **explicitly deferred to Web App pack** — front-end share-link generation only; not forgotten.
+- **Dashboard** — `DashboardController` + `pages/dashboard/` + `services/dashboard.ts` (stats aggregates; not CRUD).
 - **Organization** — profile/settings style (`getProfile` / logo uploads); page at `pages/organization/index.tsx` under Settings; service still extends `BaseApi`
-- **Logs** — mostly read-only list + `LogDetail` (no Form/Modal create flow)
-- **Settings mail** — form + test modal, not full BaseController CRUD entity
-- **Trash** — reuses soft-delete endpoints; tabbed under `/trash` (users, roles, organizers, events)
+- **Logs** — mostly read-only list + `LogDetail` (no Form/Modal create flow); all routes require `permission:view logs`
+- **Settings mail / commission** — forms + test; activity logged via `activity('settings')` (controller does not extend BaseController)
+- **Trash** — reuses soft-delete endpoints; tabbed under `/trash` (**users, roles, organizers, events, event-categories**)
 
 ---
 
 ## High-Level Architecture
+
 ```
 Browser → resources/views/app.blade.php → Vite React (resources/js/src)
        → axios /api/v1/* → routes/api.php → routes/api/v1/*.php
-       → Api\*Controller (extends BaseController) → Model → DB
+       → Api\*Controller (extends BaseController unless Settings)
+       → Domain services → Eloquent models → MySQL
 ```
-- Middleware: `EnsureJsonResponse` on API; Sanctum auth; Spatie permission aliases; **`admin.panel`** (`EnsureAdminPanelAccess`) on Admin Panel resource routes; **`organizer.web`** for organizer-auth me routes
-- Traits on BaseController: `ApiResponseTrait`, `ApiFilterTrait`
-- Domain services (non-controller): `MailService`, `LocationService`, `CommonServices`, **`EventStatusMachine`**, **`EventRegistrationGate`**, **`EventMonetization`**, **`ParticipationService`**, **`FormFieldValidationService`**, **`EventFormFieldService`**, **`QrTokenService`**, **`QrValidationService`**, **`EventQuota`**
-- Domain ownership: **Users** (admin staff / participants) ≠ **Organizers** ≠ **Events** (belong to organizers). Packages gate how many events an organizer may create via `EventQuota`.
 
+### Request / auth flow
+- Middleware: `EnsureJsonResponse` on API; Sanctum `auth:sanctum`; Spatie `permission:`; **`admin.panel`** (`EnsureAdminPanelAccess`: `UserType::ADMIN` + token ability `admin-panel`) on Admin resource routes; **`organizer.web`** for organizer-auth me routes.
+- Traits on `BaseController`: `ApiResponseTrait`, `ApiFilterTrait`.
+- Sanctum abilities: `admin-panel`, `web-participant`, `organizer-web` (plus legacy lock flag string `'locked'` on token JSON — not Spatie).
+
+### Admin navigation (permission-gated)
+| Nav | Path | Permission(s) |
+|-----|------|----------------|
+| Dashboard | `/dashboard` | `view dashboard` |
+| Users | `/users` | `view users` |
+| Organizers | `/organizers` | `view organizers` |
+| Events | `/events` | `view events` |
+| Payouts | `/payouts` | `view payouts` |
+| Settings → Mail / Roles / Commission | `/settings/...` | `manage settings` |
+| Settings → Packages | `/settings/packages` | `view packages` |
+| Settings → Event Categories | `/settings/event-categories` | `view event categories` |
+| Settings → Organization | `/settings/organization` | `view organizations` |
+| Logs | `/logs` | `view logs` |
+| QR Scan History | `/qr-scan-logs` | `view qr scan logs` |
+| Trash | `/trash/*` | `view trash items` |
+
+Event Detail nested panels (not separate top-level nav): ticket types, discounts, participations, form fields, invitation template, check-in stats, finance, analytics, announcements, certificates, feedback, sponsors, speakers, sessions.
+
+### Domain services (non-controller)
+`MailService`, `LocationService`, `CommonServices`, `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`, `EventQuota`, `ParticipationService`, `FormFieldValidationService`, `EventFormFieldService`, `QrTokenService`, `QrValidationService`, `WaafiPayService`, `PaymentService`, `PayoutService`, `EventFinanceService`, `CommissionSettings`, `EventAnalyticsService`, `CertificateIssuanceService`, `EventFeedbackService`, `SomaliPhoneNormalizer`.
+
+### Domain ownership
+**Users** (admin staff / participants) ≠ **Organizers** ≠ **Events** (belong to organizers). Packages gate how many events an organizer may create via `EventQuota`. **Payments** table is financial source of truth; participation `payment_status` is a denormalized mirror.
+
+### Permission audit (Prompt 11 — final)
+- Seeder ↔ route `permission:` lists are **1:1** (55 permissions). Removed orphan `view reports`.
+- Logs: `permission:view logs` **enabled** on all log routes.
+- Dashboard stats API: `GET /api/v1/dashboard/stats` → `permission:view dashboard`.
+- Auth / organizer-auth login routes intentionally ungated beyond Sanctum (by design).
+
+### Activity log audit (Prompt 11 — final)
+- BaseController CRUD writes log automatically.
+- Custom writes that log: Event transition/gallery, Organizer suspend/reactivate, Package archive, TicketType disable/enable sales, Participation promote/cancel, FormField store/destroy, Invitation template store/update, Payment charge/refund, Payout request/approve/reject/recordPayment, QR validateScan, Event feedback submit, Settings mail/commission (via `activity()`).
+- Read-only oversight endpoints do not log.
 ## Auth + User Types (Phase 1 — EventHub multi-tenant foundation)
 
 EventHub participants are **Users** distinguished by `users.user_type` (`App\Enums\UserType`: `admin` | `user`). Organizers/Events are **not** in this phase.
@@ -608,68 +677,101 @@ Read-only nested GETs under `/events/{id}/…`. Models: `EventAnnouncement`, `Ev
 
 ## Current Module Inventory
 
-| Domain | Model | Controller | API v1 file | FE page | FE service | FE types |
-|--------|-------|------------|-------------|---------|------------|----------|
-| Users | `User` | `UserController` | `users.php` | `pages/user/` | `user.ts` | `user.ts` |
-| Organizers | `Organizer` | `OrganizerController` + `OrganizerAuthController` | `organizers.php` + `organizer-auth.php` | `pages/organizer/` + trash | `organizer.ts` | `organizer.ts` |
+Final Admin System inventory (Prompts 1–11). Oversight-only modules are noted; Web App owns organizer/participant authoring UX for those.
+
+| Domain | Model(s) | Controller | API v1 | FE surface | FE service | FE types |
+|--------|----------|------------|--------|------------|------------|----------|
+| Dashboard | — | `DashboardController` | `dashboard.php` | `pages/dashboard/` | `dashboard.ts` | (inline) |
+| Users | `User` | `UserController` | `users.php` | `pages/user/` + trash | `user.ts` | `user.ts` |
+| Auth | `User` | `AuthController` | `auth.php` | login / profile / lock | `auth.ts` | `auth.ts` |
+| Roles | `Role` | `RoleController` | `roles.php` | `pages/settings/roles/` + trash | `role.ts` | `role.ts` |
+| Organizations | `Organization` | `OrganizationController` | `organizations.php` | `pages/organization/` (Settings) | `organization.ts` | (service) |
+| Organizers | `Organizer` | `OrganizerController` | `organizers.php` | `pages/organizer/` + trash | `organizer.ts` | `organizer.ts` |
+| Organizer auth | `Organizer` | `OrganizerAuthController` | `organizer-auth.php` | API only (Web App later) | — | — |
 | Packages | `Package` | `PackageController` | `packages.php` | `pages/settings/packages/` | `package.ts` | `package.ts` |
-| Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested in `organizers.php` | Organizer detail | `organizerSubscription.ts` | `package.ts` |
-| Events | `Event` (+ `EventImage`) | `EventController` | `events.php` | `pages/event/` + trash | `event.ts` | `event.ts` |
-| Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` | `pages/settings/event-categories/` | `eventCategory.ts` | `event.ts` |
-| Ticket types | `TicketType` | `TicketTypeController` | nested + `ticket-types.php` | Event Detail | `event.ts` | `event.ts` |
-| Discount codes | `DiscountCode` | `DiscountCodeController` | nested + `ticket-types.php` | Event Detail | `event.ts` | `event.ts` |
+| Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested in `organizers.php` | Organizer Detail | `organizerSubscription.ts` | `package.ts` |
+| Events | `Event`, `EventImage` | `EventController` | `events.php` | `pages/event/` + trash | `event.ts` | `event.ts` |
+| Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` | Settings + trash | `eventCategory.ts` | `event.ts` |
+| Ticket types | `TicketType` | `TicketTypeController` | `ticket-types.php` + nested | Event Detail | `event.ts` | `event.ts` |
+| Discount codes | `DiscountCode` | `DiscountCodeController` | `ticket-types.php` + nested | Event Detail | `event.ts` | `event.ts` |
 | Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event Detail | `event.ts` | `event.ts` |
 | Event form fields | `EventFormField` | `EventFormFieldController` | `event-form-fields.php` + nested | Event Detail (read-only) | `event.ts` | `event.ts` |
-| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | `event-invitation-templates.php` + nested | Event Detail (read API) | — | `qrScan.ts` |
-| QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` + Event Detail stats | `qrScanLog.ts` | `qrScan.ts` |
+| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | `event-invitation-templates.php` + nested | Event Detail (read) | — | `qrScan.ts` |
+| QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` + Event Detail | `qrScanLog.ts` | `qrScan.ts` |
 | Payments | `Payment` | `PaymentController` | `payments.php` | Event finance panel | `payout.ts` | `payment.ts` |
 | Payout requests | `PayoutRequest` | `PayoutRequestController` | `payout-requests.php` | `pages/payout/` | `payout.ts` | `payment.ts` |
-| Event add-ons | Announcement, Certificate, Feedback, Sponsor, Speaker, Session | `EventAddOnController` | nested under `events.php` | Event Detail panels | axios in panels | — |
-| Roles | `Role` | `RoleController` | `roles.php` | `pages/settings/roles/` | `role.ts` | `role.ts` |
-| Organizations | `Organization` | `OrganizationController` | `organizations.php` | `pages/organization/` | `organization.ts` | (in service) |
-| Settings | `Settings` | `SettingsController` | `settings.php` | settings + mail + commission | `mail.ts` / `payout.ts` | `mail.ts` / `payment.ts` |
-| Logs | Activity | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
-| Auth | `User` | `AuthController` | `auth.php` | login/profile/lock | `auth.ts` | `auth.ts` |
+| Event add-ons | Announcement, Certificate, Feedback, Sponsor, Speaker, Session (+ views) | `EventAddOnController` | nested `events.php` + `POST /event-feedback` | Event Detail panels | panel axios | — |
+| Settings | `Settings` | `SettingsController` | `settings.php` | mail + commission | `mail.ts` / `payout.ts` | `mail.ts` / `payment.ts` |
+| Logs | Activity log | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
+| Trash | soft-deleted rows | per-resource trash endpoints | users/roles/organizers/events/event-categories | `pages/trash/` | BaseApi trash methods | — |
 
-Also: trash (users, roles, organizers, events); dashboard; global search. **Share Event → Web App pack (deferred).**
+**Explicitly deferred:** Share Event → Web App pack.
 
 ## Backend Structure Notes
-- Controllers: … `Payment`, `PayoutRequest`, `EventAddOn`
-- Models: … `Certificate`, `EventFeedback`, `EventAnnouncement`, `EventSponsor`, `EventSpeaker`, `EventSession`
-- Services: … `EventAnalyticsService`, `CertificateIssuanceService`, `EventFeedbackService`
-- Events/Listeners: `ParticipationCheckedIn` → `IssueAttendanceCertificate`
-- Enums: … `SponsorTier`
-- Factories: … `CertificateFactory`, `EventFeedbackFactory`
+- Controllers live in `app/Http/Controllers/Api/` and extend `BaseController` except `SettingsController` (uses `activity()` directly).
+- Models in `app/Models/`; enums in `app/Enums/`; domain services in `app/Services/`.
+- Jobs: `ExpirePendingPayments`; Events/Listeners: `ParticipationCheckedIn` → `IssueAttendanceCertificate`.
+- Route files under `routes/api/v1/` imported from `routes/api.php`.
+- Factories under `database/factories/` for all major models used in tests.
 
 ## Frontend Structure Notes
 - Entry: `main.tsx`, `App.tsx`
-- Router: `router/routes.tsx`, `router/index.tsx`
-- Shared list UX: `components/DataTableWithSidebar.tsx`, `GenericModal.tsx`, `GenericSidebar.tsx`, `DetailSidebar.tsx`
+- Router: `router/routes.tsx`, `router/index.tsx` (lazy + `permissions`)
+- Sidebar: `lib/sidebar.ts` + `filterMenuByPermissions` / `cleanEmptySections`
+- Shared list UX: `DataTableWithSidebar`, `GenericModal`, `GenericSidebar`, `DetailSidebar`
 - Hooks: `useSidebarDetail`, `useConfirmDialog`, `usePermission`, `useAuth`, `useAuthInit`
 - Store: `authSlice`, `organizationSlice`, `themeConfigSlice`
-- Contexts: `OrganizationContext`, `ModalContext`
-- Axios Bearer token from storage/Redux (`utils/axios.ts`, `utils/storage.ts`, `utils/auth.ts`)
+- Axios Bearer from storage/Redux (`utils/axios.ts`, `utils/storage.ts`, `utils/auth.ts`)
 
 ## Data + Domain Conventions
-- Soft deletes + trash UI for Users and Roles
-- `User.user_type`: `admin` (Admin Panel staff) vs `user` (Web participant). Admin UI treats type as **read-only**; do not add write UI without an explicit permission decision.
-- Spatie roles/permissions apply to admin staff; FE `usePermission` + route `permissions` arrays
-- Sanctum login abilities (not Spatie): `admin-panel` / `web-participant` only. Pre-existing lock-screen flag `'locked'` may appear in token `abilities` JSON but is not a `SanctumAbility` case and is not used for API authorization.
-- Audit note (Phase 1): codebase grep found no pre-existing `tokenCan()` / `ability:` middleware usage outside the new guard + AuthController lock flag + new tests. Prior tokens were unscoped (`createToken(...)` → `['*']`).
-- API list responses are Laravel paginator-shaped (`IApiResponse<T>` in `types/common.ts`); filters via `filter[field]=value` (Users type filter uses `filter[user_type]`)
-- Mutations use React Query; invalidate table query keys after success
-- Single organization profile (first row) for branding/logo
-- Activity log on BaseController write paths
+
+### Soft deletes & trash
+| Resource | SoftDeletes | Admin Trash tab |
+|----------|-------------|-----------------|
+| Users | yes | yes |
+| Roles | yes | yes |
+| Organizers | yes | yes |
+| Events | yes | yes |
+| Event categories | yes | yes |
+| Ticket types | yes | no (Event Detail / force rules) |
+| Discount codes | yes | no (oversight read) |
+| Organizations | yes | no (single profile) |
+| Packages / payments / payouts / participations / add-ons | no soft-delete trash UI | — |
+
+### Auth & identity
+- `User.user_type`: `admin` | `user`. Admin UI type is **read-only**. Admin creates force `admin`.
+- Organizers are **not** Users — separate table, Sanctum ability `organizer-web`, email unique only on organizers table.
+- Spatie permissions gate Admin Panel; FE mirrors with route + sidebar `permissions`.
+
+### Events & registration
+- Status transitions only via `EventStatusMachine` / `POST …/transition` — never free-text PATCH status.
+- Registration gates (capacity + deadline) are independent (`EventRegistrationGate`).
+- `monetized` derived from paid ticket types.
+- Participations: waitlist when full; join/promote/cancel in DB transaction with atomic ticket claim/release.
+- Form answers validated at submit only; no FK from answers → schema rows.
+- QR token issued for confirmed (paid/free) participations; validation order: not found → cancelled → refunded → already_used → not claimable → valid.
+
+### Money
+- `payments` is SoT; participation `payment_status` is mirror.
+- Currency USD; WaafiPay both-conditions success; pending expire 15 min.
+- Payouts **per event**; commission snapshotted at request; double-payout guarded with `lockForUpdate`.
+- Refund blocked when outstanding would go negative (`refund_blocked_payout_recorded`).
+
+### API / FE patterns
+- List responses are Laravel paginator-shaped (`IApiResponse<T>`); filters `filter[field]=value`.
+- Mutations use React Query; invalidate table keys after success.
+- Single organization profile for branding.
+- Compact tables + dense details (see UI rules below).
+- Activity log on all Admin write paths (see Architecture audit).
 
 ## Known Risks / Watchouts
-- Feature tests: … `QrInvitationModuleTest`, `PaymentPayoutModuleTest`
-- **Refund-after-payout:** blocked when outstanding would go negative — product owner may want clawback workflow later
-- **WaafiPay:** never call production from CI; mock HTTP; never log apiKey; timeout 180s requires long-running PHP/web limits in production
-- Run `php artisan schedule:work` (or cron) so `ExpirePendingPayments` runs
-- **Phase 6 Payments** is SoT; sync participation mirror + `QrTokenService::ensureForConfirmed` on completed charge only
-- Reseed permissions after migrate (`view/manage payments|payouts`)
-- `ExceptionHandlerTest` 3 failures pre-existing — unrelated
-- After migrate: reseed permissions + `EventCategorySeeder`
+- Full suite: **114 passed / 3 failed** — only `ExceptionHandlerTest` (pre-existing SPA catch-all). Do not “fix” by weakening that test without product decision.
+- **Refund-after-payout** and other flagged decisions need client sign-off before Web App pack.
+- **WaafiPay:** never call production from CI; mock HTTP; never log apiKey; production PHP/web timeout must allow 180s.
+- Run scheduler so `ExpirePendingPayments` runs.
+- Reseed permissions after migrate when gates change.
+- After migrate: seed permissions + `EventCategorySeeder`.
+- Participation ticket lock + payment refund/release must stay in the same transactional rules — regressions show up in `ParticipationModuleTest` + `PaymentPayoutModuleTest`.
 
 ## Agent Behavior Rules (for every chat)
 1. Read this `.agent` file first.
@@ -729,6 +831,19 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Prompt 11: Cross-cutting hardening & final verification
+- Files touched:
+  - Permissions: re-enabled `permission:view logs` on all `logs.php` routes; removed orphan seeder permission `view reports`; seeder↔route map verified 1:1
+  - Activity logs: Settings mail/commission/`testMail`; QR `validateScan`; Event feedback submit (plus existing BaseController/custom writers audited)
+  - Dashboard: `DashboardController`, `routes/api/v1/dashboard.php`, `pages/dashboard/index.tsx`, `services/dashboard.ts`, `DashboardStatsTest`
+  - Sidebar/i18n: Settings children (mail/roles/packages/categories/commission/organization); empty-children filter; en/ae keys
+  - Trash: Event Categories tab + route (`pages/trash/EventCategories.tsx`)
+  - Bugfix: Settings `getMailConfig` used undefined `$credentials` → `$details`
+  - `.agent`: Architecture, Module Inventory, Data+Domain Conventions rewritten; Flagged Decisions list added
+- Behavior: Admin dashboard shows organizers, events-by-status, collected funds, pending payouts; packages/categories reachable via permission-gated Settings children; logs no longer open under `admin.panel` alone
+- Migration/config: reseed permissions (drops need for `view reports`; ensures `view dashboard` / `view logs`)
+- Verification: `php artisan test` → **114 passed**, **3 failed** (`ExceptionHandlerTest` only, pre-existing)
 
 ### 2026-08-16 - Prompt 10: Event add-ons (analytics, certificates, feedback, content oversight)
 - Files touched:

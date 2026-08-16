@@ -4,10 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Settings;
+use App\Services\CommissionSettings;
 use App\Services\MailService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class SettingsController extends Controller
@@ -28,7 +27,7 @@ class SettingsController extends Controller
             ->where('name', 'smtp')
             ->first();
 
-        if (!$mailSetting || !$mailSetting->details) {
+        if (! $mailSetting || ! $mailSetting->details) {
             $config = [
                 'from_name' => '',
                 'from_email' => '',
@@ -39,21 +38,21 @@ class SettingsController extends Controller
                 'password' => '',
             ];
         } else {
-            $details = json_decode($mailSetting->details, true);
+            $details = json_decode($mailSetting->details, true) ?: [];
             $config = [
                 'from_name' => $details['from_name'] ?? '',
                 'from_email' => $details['from_email'] ?? '',
                 'host' => $details['host'] ?? '',
                 'port' => $details['port'] ?? 587,
                 'encryption' => $details['encryption'] ?? 'tls',
-                'username' => $credentials['username'] ?? '',
-                'password' => $credentials['password'] ?? '',
+                'username' => $details['username'] ?? '',
+                'password' => $details['password'] ?? '',
             ];
         }
 
         return response()->json([
             'success' => true,
-            'data' => $config
+            'data' => $config,
         ]);
     }
 
@@ -83,10 +82,10 @@ class SettingsController extends Controller
                 'password' => $request->password,
             ];
 
-            Settings::updateOrCreate(
+            $setting = Settings::updateOrCreate(
                 [
                     'setting_type' => 'email',
-                    'name' => 'smtp'
+                    'name' => 'smtp',
                 ],
                 [
                     'slug' => 'email-smtp',
@@ -96,13 +95,23 @@ class SettingsController extends Controller
                 ]
             );
 
+            activity('settings')
+                ->causedBy($request->user())
+                ->performedOn($setting)
+                ->withProperties([
+                    'from_email' => $details['from_email'],
+                    'host' => $details['host'],
+                ])
+                ->event('updated')
+                ->log('Mail configuration updated');
+
             return response()->json([
                 'success' => true,
-                'message' => 'Mail configuration updated successfully'
+                'message' => 'Mail configuration updated successfully',
             ]);
         } catch (\Exception $e) {
             throw ValidationException::withMessages([
-                'config' => ['Failed to update mail configuration: ' . $e->getMessage()]
+                'config' => ['Failed to update mail configuration: '.$e->getMessage()],
             ]);
         }
     }
@@ -113,20 +122,26 @@ class SettingsController extends Controller
     public function testMailConfig(Request $request)
     {
         $request->validate([
-            'test_email' => 'required|email'
+            'test_email' => 'required|email',
         ]);
 
         try {
             $user = ['email' => $request->test_email, 'name' => 'Test User'];
             $this->mailService->sendEmail($user, 'test');
 
+            activity('settings')
+                ->causedBy($request->user())
+                ->withProperties(['test_email' => $request->test_email])
+                ->event('updated')
+                ->log('Test mail sent');
+
             return response()->json([
                 'success' => true,
-                'message' => 'Test mail sent successfully'
+                'message' => 'Test mail sent successfully',
             ]);
         } catch (\Exception $e) {
             throw ValidationException::withMessages([
-                'email' => ['Failed to send test mail: ' . $e->getMessage()]
+                'email' => ['Failed to send test mail: '.$e->getMessage()],
             ]);
         }
     }
@@ -139,7 +154,7 @@ class SettingsController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'rate' => \App\Services\CommissionSettings::currentRate(),
+                'rate' => CommissionSettings::currentRate(),
             ],
         ]);
     }
@@ -153,12 +168,20 @@ class SettingsController extends Controller
             'rate' => 'required|numeric|min:0|max:100',
         ]);
 
-        \App\Services\CommissionSettings::setRate((float) $request->rate);
+        $previous = CommissionSettings::currentRate();
+        CommissionSettings::setRate((float) $request->rate);
+        $rate = CommissionSettings::currentRate();
+
+        activity('settings')
+            ->causedBy($request->user())
+            ->withProperties(['previous_rate' => $previous, 'rate' => $rate])
+            ->event('updated')
+            ->log('Commission rate updated');
 
         return response()->json([
             'success' => true,
             'data' => [
-                'rate' => \App\Services\CommissionSettings::currentRate(),
+                'rate' => $rate,
             ],
             'message' => 'Commission rate updated. Existing payout requests keep their snapshotted rate.',
         ]);

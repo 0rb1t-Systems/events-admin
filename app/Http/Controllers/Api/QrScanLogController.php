@@ -88,11 +88,25 @@ class QrScanLogController extends BaseController
             $organizer
         );
 
+        $scanLog = $outcome['scan_log']->fresh($this->relationships);
+
+        $this->logActivity(
+            $outcome['checked_in'] ? 'QR check-in succeeded' : 'QR scan validated',
+            $scanLog,
+            [
+                'result' => $outcome['result']->value,
+                'checked_in' => $outcome['checked_in'],
+                'participation_id' => $outcome['participation']?->id,
+                'gate' => $validated['gate'] ?? null,
+            ],
+            'updated'
+        );
+
         return $this->successResponse([
             'result' => $outcome['result']->value,
             'checked_in' => $outcome['checked_in'],
             'participation' => $outcome['participation'],
-            'scan_log' => $outcome['scan_log']->fresh($this->relationships),
+            'scan_log' => $scanLog,
         ], 'Scan processed.');
     }
 

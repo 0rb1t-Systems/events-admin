@@ -29,6 +29,8 @@ export const sidebarMenu: MenuItem[] = [
             "view events",
             "view payouts",
             "manage settings",
+            "view packages",
+            "view event categories",
             "view organizations",
         ],
     },
@@ -59,8 +61,28 @@ export const sidebarMenu: MenuItem[] = [
     {
         title: "settings",
         icon: Settings,
-        path: "/settings",
-        permissions: ["manage settings"],
+        permissions: [
+            "manage settings",
+            "view packages",
+            "view event categories",
+            "view organizations",
+        ],
+        children: [
+            { title: "mail_settings", path: "/settings/mail", permissions: ["manage settings"] },
+            { title: "roles", path: "/settings/roles", permissions: ["manage settings"] },
+            { title: "packages", path: "/settings/packages", permissions: ["view packages"] },
+            {
+                title: "event_categories",
+                path: "/settings/event-categories",
+                permissions: ["view event categories"],
+            },
+            { title: "commission", path: "/settings/commission", permissions: ["manage settings"] },
+            {
+                title: "organization",
+                path: "/settings/organization",
+                permissions: ["view organizations"],
+            },
+        ],
     },
 
     {
@@ -116,6 +138,9 @@ export const filterMenuByPermissions = (
                     item.children,
                     hasAnyPermission
                 );
+                if (filteredChildren.length === 0) {
+                    return null;
+                }
                 return {
                     ...item,
                     children: filteredChildren,
