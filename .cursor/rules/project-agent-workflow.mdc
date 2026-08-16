@@ -61,3 +61,4 @@ Also follow `.cursor/rules/ui-consistency-compact-data.mdc` on every UI task:
 - Do not commit generated uploads or secret files.
 - If a requested change conflicts with current architecture, ask before proceeding.
 - Work is not complete until `.agent` reflects the new state (inventory + Change Log).
+- `.agent` updates must be **complete standalone context** — follow `.cursor/rules/agent-context-completeness.mdc`. Another agent reading only `.agent` must fully understand current architecture, modules, patterns, runtime state, and what changed.

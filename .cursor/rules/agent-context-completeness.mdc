@@ -1,0 +1,63 @@
+---
+description: Force complete .agent context so any new chat can fully understand the project
+alwaysApply: true
+---
+
+# Complete Agent Context Ledger (Mandatory)
+
+`.agent` is the **handoff document for every future chat**. Another agent must be able to read **only** `.agent` and correctly understand architecture, patterns, current state, and how to extend the system — without rediscovering the project from scratch.
+
+## Completeness Standard
+
+When updating `.agent`, write **complete context**, not cryptic notes.
+
+A valid update must leave `.agent` able to answer, without code spelunking:
+
+1. What the app is and how it runs (stack, ports, commands, env/DB gotchas)
+2. How requests flow (Blade → React → `/api/v1` → controllers → models)
+3. How to add a feature end-to-end (backend + frontend scaffold checklists)
+4. What modules exist now (inventory: model, controller, routes, pages, services, types)
+5. What is intentionally exceptional (Auth, Org profile, Logs, Mail, Trash, etc.)
+6. UI conventions (theme components, compact tables, complete dense details)
+7. Permissions / domain rules that affect new work
+8. Known risks and current runtime state (what is running, seeded users if relevant)
+9. What just changed (Change Log with files, behavior, migrations/env, verification)
+
+## How to Write Updates
+
+For every meaningful code change in the same session:
+
+1. Set `Last updated` to today’s date + a clear one-line summary.
+2. Patch the **relevant living sections** (not only Change Log):
+   - Runtime / Workspace State
+   - Tech Stack / Run Commands (if changed)
+   - Architecture / Structure Notes
+   - Module Inventory (add/rename/remove rows)
+   - Scaffold / UI / Domain conventions (if patterns changed)
+   - Known Risks / Watchouts
+3. Append a Change Log entry that another agent can act on:
+   - date + title
+   - files touched (concrete paths)
+   - behavior change (what users/devs observe)
+   - migration/config/env impact
+   - verification performed
+4. Prefer precise names (`UserController`, `pages/user/components/UserDetail.tsx`) over vague phrases (“updated users stuff”).
+5. Record decisions and constraints (“must extend BaseController”, “tables stay compact”) so the next agent does not reverse them.
+
+## Forbidden Incomplete Context
+
+Do **not** leave `.agent` in a state where the next agent must guess:
+
+- “Fixed bug” / “Updated UI” with no files, no behavior, no section sync
+- Change Log only, while Module Inventory / architecture still describe the old world
+- Partial feature docs (backend mentioned, frontend path omitted — or the reverse)
+- Outdated ports, run commands, or module lists after you changed them
+- Secret values (passwords/tokens) — document existence/location patterns only, never real secrets beyond known seed demo creds already in project docs
+
+## Self-Check Before Ending the Session
+
+Ask: “If a new agent opened only `.agent` right now, could they continue this work correctly?”
+
+If **no** → expand `.agent` until the answer is **yes**.
+
+Work is incomplete until `.agent` is a complete, current, standalone project briefing.

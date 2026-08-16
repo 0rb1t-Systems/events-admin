@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (added mandatory UI consistency + compact data rules)
+Last updated: 2026-08-16 (require complete standalone .agent context for other agents)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -208,8 +208,8 @@ Also: trash pages for users/roles; dashboard; global search (`services/globalSea
    - Reuse theme components (`panel`, `btn`, forms, `DataTableWithSidebar`, `GenericModal`, etc.)
    - Tables = important scannable fields only
    - Details = complete useful fields, dense layout, light+dark
-7. Update this `.agent` in the same session (Last updated + Change Log + inventory/sections if architecture changed).
-8. Work is incomplete until code **and** `.agent` match.
+7. Update this `.agent` in the same session with **complete standalone context** (not terse notes): living sections + Change Log must fully brief the next agent — see `.cursor/rules/agent-context-completeness.mdc`.
+8. Work is incomplete until code **and** `.agent` match, and a new chat could continue correctly from `.agent` alone.
 
 ## UI / UX Conventions (Mandatory)
 - Visual language comes from existing admin theme (`theme.config.tsx`, Tailwind primary/secondary, `panel`, shared components) — do not invent a parallel look.
@@ -222,6 +222,16 @@ Also: trash pages for users/roles; dashboard; global search (`services/globalSea
 
 When any future chat changes code, this `.agent` file must be updated in the same work session.
 
+### Completeness Bar (for other agents)
+`.agent` must remain a **full project briefing**. After every update, another agent reading only this file must understand:
+- how to run the app and current runtime state
+- architecture and request flow
+- mandatory backend/frontend/UI patterns
+- current module inventory and exceptions
+- what changed in this session (files, behavior, migrations/env, verification)
+
+Do not write vague Change Log-only stubs. Sync living sections whenever reality changed.
+
 ### Minimum Required Updates Per Change
 1. Update `Last updated` date + short summary.
 2. Append a Change Log entry with:
@@ -231,7 +241,8 @@ When any future chat changes code, this `.agent` file must be updated in the sam
    - behavior change
    - migration/config/env impact
    - verification performed
-3. If architecture/routes/modules/permissions/data model changed, update the matching sections above (especially **Current Module Inventory** and scaffold notes).
+3. If architecture/routes/modules/permissions/data model/UI conventions/runtime state changed, update the matching sections above (especially **Current Module Inventory** and scaffold/UI notes).
+4. Self-check: could a new agent continue correctly from `.agent` alone? If not, expand until yes.
 
 ### Keep In Sync Rule
 - If code and `.agent` disagree, `.agent` is stale and must be fixed immediately.
@@ -245,6 +256,15 @@ When any future chat changes code, this `.agent` file must be updated in the sam
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-16 - Require complete standalone .agent context
+- Files touched:
+  - `.cursor/rules/agent-context-completeness.mdc` (new, alwaysApply)
+  - `.cursor/rules/project-agent-workflow.mdc`
+  - `.agent`
+- Behavior change: agents must write complete living context in `.agent` so other chats can understand the full project from that file alone (not vague Change Log stubs)
+- Migration/config/env impact: none
+- Verification: completeness rule linked from workflow + Update Protocol self-check
 
 ### 2026-08-16 - Mandatory UI consistency + compact data rules
 - Files touched:
