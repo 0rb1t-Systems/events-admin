@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\EventStatus;
+use App\Enums\SanctumAbility;
 use App\Models\Event;
 use App\Models\EventImage;
 use App\Models\Organizer;
+use App\Models\User;
+use App\Services\EventMonetization;
 use App\Services\EventRegistrationGate;
 use App\Services\EventStatusMachine;
-use App\Services\EventMonetization;
 use App\Support\EventQuota;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -41,12 +43,111 @@ class EventController extends BaseController
 
     protected $relationships = ['organizer', 'category', 'images', 'ticketTypes', 'discountCodes'];
 
+    /** @var list<string> */
+    protected array $publicListRelationships = ['organizer', 'category', 'images', 'ticketTypes'];
+
+    /** @var list<string> */
+    protected array $publicShowRelationships = [
+        'organizer',
+        'category',
+        'images',
+        'ticketTypes',
+        'speakers',
+        'sponsors',
+        'sessions',
+    ];
+
     protected $validationRules = [
         'store' => [],
         'update' => [],
     ];
 
     public function __construct(private EventStatusMachine $statusMachine) {}
+
+    public function index(Request $request)
+    {
+        $isAdmin = $this->isAdminPanelCaller($request);
+        $query = $this->model::query();
+
+        if (! $isAdmin) {
+            $query->publicCatalog();
+        }
+
+        $query = $this->applyApiFilters(
+            $query,
+            $request,
+            $this->searchableFields,
+            $this->sortableFields,
+            $this->defaultSortField,
+            $this->defaultSortDirection
+        );
+
+        $query->with($isAdmin ? $this->relationships : $this->publicListRelationships);
+
+        if ($isAdmin) {
+            return $this->paginateResponse($query, $request);
+        }
+
+        $perPage = min((int) $request->input('per_page', 15), 100);
+        if ($request->input('all') === 'true') {
+            $perPage = 1000;
+        }
+
+        $paginator = $query->paginate($perPage);
+        $paginator->getCollection()->each(fn (Event $event) => $this->sanitizePublicEvent($event));
+
+        return response()->json($paginator);
+    }
+
+    public function show($id)
+    {
+        $request = request();
+        $isAdmin = $this->isAdminPanelCaller($request);
+        $query = $this->model::query()->with(
+            $isAdmin
+                ? array_values(array_unique([...$this->relationships, 'speakers', 'sponsors', 'sessions']))
+                : $this->publicShowRelationships
+        );
+
+        if (! $isAdmin) {
+            $query->publicCatalog();
+        }
+
+        $event = $query->find($id);
+        if (! $event) {
+            return $this->notFoundResponse();
+        }
+
+        if (! $isAdmin) {
+            $this->sanitizePublicEvent($event);
+        }
+
+        return $this->successResponse($event);
+    }
+
+    /**
+     * Admin-panel Sanctum ability sees all statuses; HMAC-only (or other tokens) get the public catalog.
+     */
+    private function isAdminPanelCaller(Request $request): bool
+    {
+        $user = $request->user('sanctum');
+        if (! $user instanceof User || ! $user->isAdmin()) {
+            return false;
+        }
+
+        $token = $user->currentAccessToken();
+
+        return $token && $token->can(SanctumAbility::AdminPanel->value);
+    }
+
+    private function sanitizePublicEvent(Event $event): void
+    {
+        if ($event->relationLoaded('organizer') && $event->organizer) {
+            $event->organizer->setVisible(['id', 'business_name']);
+        }
+
+        $event->unsetRelation('discountCodes');
+    }
 
     /**
      * Shared create/update field rules (organizer create + admin seed).

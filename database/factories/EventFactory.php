@@ -38,9 +38,19 @@ class EventFactory extends Factory
         ];
     }
 
+    public function published(): static
+    {
+        return $this->state(fn () => ['status' => EventStatus::PUBLISHED]);
+    }
+
     public function registrationOpen(): static
     {
         return $this->state(fn () => ['status' => EventStatus::REGISTRATION_OPEN]);
+    }
+
+    public function cancelled(): static
+    {
+        return $this->state(fn () => ['status' => EventStatus::CANCELLED]);
     }
 
     public function unlimitedCapacity(): static

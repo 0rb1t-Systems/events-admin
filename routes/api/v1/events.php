@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
-    Route::get('/', [EventController::class, 'index'])->middleware('permission:view events');
     Route::get('/search', [EventController::class, 'search'])->middleware('permission:view events');
     Route::post('/', [EventController::class, 'store'])->middleware('permission:create events');
 
@@ -98,7 +97,13 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     Route::post('/{id}/restore', [EventController::class, 'restore'])->middleware('permission:delete events');
     Route::delete('/{id}/force', [EventController::class, 'forceDestroy'])->middleware('permission:delete events');
 
-    Route::get('/{id}', [EventController::class, 'show'])->middleware('permission:view events');
     Route::patch('/{id}', [EventController::class, 'update'])->middleware('permission:edit events');
     Route::delete('/{id}', [EventController::class, 'destroy'])->middleware('permission:delete events');
 });
+
+/*
+| HMAC-only public catalog (verify.api.client from routes/api.php).
+| Admin Bearer with admin-panel ability still receives the full unfiltered payload.
+*/
+Route::get('/', [EventController::class, 'index']);
+Route::get('/{id}', [EventController::class, 'show']);

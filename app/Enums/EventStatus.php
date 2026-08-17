@@ -22,4 +22,21 @@ enum EventStatus: string
     {
         return array_column(self::cases(), 'value');
     }
+
+    /**
+     * Catalog statuses for HMAC-only public Web App reads.
+     * Draft, cancelled, and completed are never public.
+     *
+     * @return list<string>
+     */
+    public static function publicCatalogValues(): array
+    {
+        return [
+            self::PUBLISHED->value,
+            self::REGISTRATION_OPEN->value,
+            self::SOLD_OUT->value,
+            self::REGISTRATION_CLOSED->value,
+            self::ONGOING->value,
+        ];
+    }
 }

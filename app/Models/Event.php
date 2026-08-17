@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\EventStatus;
 use App\Services\EventRegistrationGate;
 use App\Services\ParticipationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -172,5 +173,13 @@ class Event extends Model
     public function isZeroCapacity(): bool
     {
         return $this->capacity === 0;
+    }
+
+    /**
+     * Web App public catalog — excludes draft, cancelled, and completed.
+     */
+    public function scopePublicCatalog(Builder $query): Builder
+    {
+        return $query->whereIn('status', EventStatus::publicCatalogValues());
     }
 }

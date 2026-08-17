@@ -9,8 +9,9 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+Route::get('/', [EventCategoryController::class, 'index']);
+
 Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
-    Route::get('/', [EventCategoryController::class, 'index'])->middleware('permission:view event categories');
     Route::get('/search', [EventCategoryController::class, 'search'])->middleware('permission:view event categories');
     Route::post('/', [EventCategoryController::class, 'store'])->middleware('permission:create event categories');
     Route::get('/trashed/list', [EventCategoryController::class, 'trashed'])->middleware('permission:view trash items');
