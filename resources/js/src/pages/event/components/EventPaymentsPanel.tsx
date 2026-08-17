@@ -4,9 +4,13 @@ import React, { useState } from "react";
 import { toast } from "sonner";
 import GenericModal from "../../../components/GenericModal";
 import Loader from "../../../components/Loader";
+import SimpleAdminTable, { SimpleAdminTd } from "../../../components/SimpleAdminTable";
+import StatusFilterBar from "../../../components/StatusFilterBar";
 import { useConfirmDialog, usePermission } from "../../../hooks";
 import { paymentApi } from "../../../services/payment";
 import { IPayment } from "../../../types/payment";
+import { formatMoney } from "../../../utils/money";
+import { statusBadgeClass } from "../../../utils/statusBadge";
 
 interface Props {
     eventId: number;
@@ -14,16 +18,16 @@ interface Props {
 
 const statusBadge = (status: string) => {
     const s = String(status).toLowerCase();
-    const cls =
+    const color =
         s === "completed"
-            ? "bg-success/10 text-success"
+            ? "success"
             : s === "refunded"
-              ? "bg-warning/10 text-warning"
+              ? "warning"
               : s === "failed"
-                ? "bg-danger/10 text-danger"
-                : "bg-primary/10 text-primary";
+                ? "danger"
+                : "primary";
     return (
-        <span className={`badge capitalize ${cls}`}>
+        <span className={`capitalize ${statusBadgeClass(color)}`}>
             {s.replace(/_/g, " ")}
         </span>
     );
@@ -87,57 +91,71 @@ const EventPaymentsPanel: React.FC<Props> = ({ eventId }) => {
 
     return (
         <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-                <select
-                    className="form-select w-auto text-xs"
-                    value={statusFilter}
-                    onChange={(e) => {
-                        setStatusFilter(e.target.value);
-                        setPage(1);
-                    }}
-                >
-                    <option value="">All statuses</option>
-                    <option value="completed">Completed</option>
-                    <option value="pending">Pending</option>
-                    <option value="refunded">Refunded</option>
-                    <option value="failed">Failed</option>
-                </select>
-                <span className="text-[10px] text-gray-500">
-                    {pagination?.total ?? rows.length} payment
-                    {(pagination?.total ?? rows.length) === 1 ? "" : "s"}
-                </span>
-            </div>
+            <StatusFilterBar
+                options={[
+                    { value: "", label: "All" },
+                    { value: "completed", label: "Completed" },
+                    { value: "pending", label: "Pending" },
+                    { value: "refunded", label: "Refunded" },
+                    { value: "failed", label: "Failed" },
+                ]}
+                value={statusFilter}
+                onChange={(value) => {
+                    setStatusFilter(value);
+                    setPage(1);
+                }}
+                extra={
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {pagination?.total ?? rows.length} payment
+                        {(pagination?.total ?? rows.length) === 1 ? "" : "s"}
+                    </span>
+                }
+            />
 
-            {rows.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No payments yet</p>
-            ) : (
-                <ul className="max-h-72 space-y-1.5 overflow-y-auto text-xs">
-                    {rows.map((p) => (
-                        <li
-                            key={p.id}
-                            className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]"
-                        >
-                            <div className="flex items-start justify-between gap-2">
+            <SimpleAdminTable
+                columns={[
+                    { key: "participant", label: "Participant" },
+                    { key: "ticket", label: "Ticket" },
+                    { key: "amount", label: "Amount", align: "right" },
+                    { key: "method", label: "Method", hideBelow: "lg" },
+                    { key: "status", label: "Status" },
+                    { key: "date", label: "Date", hideBelow: "lg" },
+                    { key: "actions", label: "Actions", align: "center" },
+                ]}
+                empty={rows.length === 0}
+                emptyText="No payments yet"
+            >
+                {rows.map((p) => (
+                    <tr
+                        key={p.id}
+                        className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                    >
+                        <SimpleAdminTd>
+                            <button
+                                type="button"
+                                className="text-left font-medium text-primary hover:underline"
+                                onClick={() => setSelected(p)}
+                            >
+                                {p.participation?.user?.name ?? `P#${p.participation_id}`}
+                            </button>
+                        </SimpleAdminTd>
+                        <SimpleAdminTd>{p.ticket_type?.name ?? "—"}</SimpleAdminTd>
+                        <SimpleAdminTd align="right">
+                            {formatMoney(p.amount, p.currency || "USD")}
+                        </SimpleAdminTd>
+                        <SimpleAdminTd hideBelow="lg">{methodLabel(p.gateway)}</SimpleAdminTd>
+                        <SimpleAdminTd>{statusBadge(String(p.status))}</SimpleAdminTd>
+                        <SimpleAdminTd hideBelow="lg">
+                            {p.created_at ? moment(p.created_at).format("MMM DD, YYYY") : "—"}
+                        </SimpleAdminTd>
+                        <SimpleAdminTd align="center">
+                            <div className="flex items-center justify-center gap-1.5">
                                 <button
                                     type="button"
-                                    className="min-w-0 flex-1 text-left"
+                                    className="btn btn-outline-primary btn-sm"
                                     onClick={() => setSelected(p)}
                                 >
-                                    <div className="font-medium text-gray-900 dark:text-white">
-                                        {p.participation?.user?.name ?? `P#${p.participation_id}`}
-                                    </div>
-                                    <div className="text-gray-500 dark:text-gray-400">
-                                        {p.ticket_type?.name ?? "—"}
-                                        {" - "}
-                                        {Number(p.amount).toFixed(2)} {p.currency || "USD"}
-                                        {" - "}
-                                        {methodLabel(p.gateway)}
-                                        {" - "}
-                                        {p.created_at
-                                            ? moment(p.created_at).format("MMM DD, YYYY")
-                                            : "—"}
-                                    </div>
-                                    <div className="mt-0.5">{statusBadge(String(p.status))}</div>
+                                    View
                                 </button>
                                 {canRefund && String(p.status) === "completed" && (
                                     <button
@@ -149,7 +167,7 @@ const EventPaymentsPanel: React.FC<Props> = ({ eventId }) => {
                                                 p.participation?.user?.name ?? "participant";
                                             const ok = await confirmAction({
                                                 title: "Refund payment?",
-                                                text: `Refund ${Number(p.amount).toFixed(2)} ${p.currency || "USD"} to ${name}? This cannot be undone.`,
+                                                text: `Refund ${formatMoney(p.amount, p.currency || "USD")} to ${name}? This cannot be undone.`,
                                                 confirmButtonText: "Refund",
                                             });
                                             if (ok) refund.mutate(p.id);
@@ -159,10 +177,10 @@ const EventPaymentsPanel: React.FC<Props> = ({ eventId }) => {
                                     </button>
                                 )}
                             </div>
-                        </li>
-                    ))}
-                </ul>
-            )}
+                        </SimpleAdminTd>
+                    </tr>
+                ))}
+            </SimpleAdminTable>
 
             {lastPage > 1 && (
                 <div className="flex items-center justify-between gap-2 text-xs">

@@ -7,12 +7,14 @@ import { toast } from "sonner";
 import { z } from "zod";
 import GenericModal from "../../../components/GenericModal";
 import Loader from "../../../components/Loader";
+import SimpleAdminTable, { SimpleAdminTd } from "../../../components/SimpleAdminTable";
 import FormInput from "../../../components/form/FormInput";
 import FormSelect from "../../../components/form/FormSelect";
 import { useConfirmDialog } from "../../../hooks";
 import { eventApi } from "../../../services/event";
 import { certificateApi } from "../../../services/certificate";
 import { IEventSpeaker, IEventSponsor, IEventSession } from "../../../types/event";
+import { statusBadgeClass } from "../../../utils/statusBadge";
 import axiosInstance from "../../../utils/axios";
 
 interface Props {
@@ -39,19 +41,13 @@ const Section = ({
     action?: React.ReactNode;
     children: React.ReactNode;
 }) => (
-    <div className="space-y-1.5">
+    <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-            <h5 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                {title}
-            </h5>
+            <h5 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h5>
             {action}
         </div>
         {children}
     </div>
-);
-
-const Empty = ({ label }: { label: string }) => (
-    <p className="text-xs text-gray-500">No {label}</p>
 );
 
 // ── Announcement form schema ─────────────────────────────────────────────────
@@ -336,7 +332,7 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId, only }) => {
 
     return (
         <>
-            <div className="space-y-4 text-xs">
+            <div className="space-y-8 text-sm">
 
                 {show("announcements") && (
                 <Section
@@ -351,34 +347,68 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId, only }) => {
                         </button>
                     }
                 >
-                    {(announcements.data?.announcements?.length ?? 0) === 0
-                        ? <Empty label="announcements" />
-                        : announcements.data!.announcements.map((a: any) => (
-                            <div key={a.id} className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]">
-                                <div className="font-medium text-gray-900 dark:text-white">{a.subject}</div>
-                                <div className="text-gray-500">
-                                    {a.sent_at ? moment(a.sent_at).format("MMM DD, YYYY") : "not sent"}
-                                </div>
-                            </div>
+                    <SimpleAdminTable
+                        columns={[
+                            { key: "subject", label: "Subject" },
+                            { key: "sent", label: "Sent" },
+                        ]}
+                        empty={(announcements.data?.announcements?.length ?? 0) === 0}
+                        emptyText="No announcements"
+                    >
+                        {(announcements.data?.announcements ?? []).map((a: any) => (
+                            <tr
+                                key={a.id}
+                                className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                            >
+                                <SimpleAdminTd>
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                        {a.subject}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    {a.sent_at
+                                        ? moment(a.sent_at).format("MMM DD, YYYY")
+                                        : "Not sent"}
+                                </SimpleAdminTd>
+                            </tr>
                         ))}
+                    </SimpleAdminTable>
                 </Section>
                 )}
 
                 {show("certificates") && (
                 <Section title="Certificates">
-                    {(certificates.data?.certificates?.length ?? 0) === 0
-                        ? <Empty label="certificates" />
-                        : certificates.data!.certificates.map((c: any) => (
-                            <div key={c.id} className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]">
-                                <div className="flex items-center justify-between gap-2">
-                                    <div>
-                                        <span className="font-medium">
-                                            {c.participation?.user?.name ?? `P#${c.participation_id}`}
-                                        </span>
-                                        {" · "}
-                                        {c.issued_at ? moment(c.issued_at).format("MMM DD, YYYY") : "—"}
-                                        {c.verified ? " · verified" : ""}
-                                    </div>
+                    <SimpleAdminTable
+                        columns={[
+                            { key: "participant", label: "Participant" },
+                            { key: "issued", label: "Issued" },
+                            { key: "status", label: "Status" },
+                            { key: "actions", label: "Actions", align: "center" },
+                        ]}
+                        empty={(certificates.data?.certificates?.length ?? 0) === 0}
+                        emptyText="No certificates"
+                    >
+                        {(certificates.data?.certificates ?? []).map((c: any) => (
+                            <tr
+                                key={c.id}
+                                className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                            >
+                                <SimpleAdminTd>
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                        {c.participation?.user?.name ?? `P#${c.participation_id}`}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    {c.issued_at
+                                        ? moment(c.issued_at).format("MMM DD, YYYY")
+                                        : "—"}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    <span className={statusBadgeClass(c.verified ? "success" : "info")}>
+                                        {c.verified ? "Verified" : "Issued"}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd align="center">
                                     <button
                                         type="button"
                                         className="btn btn-outline-primary btn-sm"
@@ -397,9 +427,10 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId, only }) => {
                                     >
                                         Re-issue
                                     </button>
-                                </div>
-                            </div>
+                                </SimpleAdminTd>
+                            </tr>
                         ))}
+                    </SimpleAdminTable>
                 </Section>
                 )}
 
@@ -407,17 +438,34 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId, only }) => {
                 <Section
                     title={`Feedback (avg ${feedback.data?.average_rating ?? "—"} · ${feedback.data?.feedback_count ?? 0} total · ${feedback.data?.hidden_count ?? 0} hidden)`}
                 >
-                    {(feedback.data?.feedback?.length ?? 0) === 0
-                        ? <Empty label="feedback" />
-                        : feedback.data!.feedback.map((f: any) => (
-                            <div key={f.id} className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]">
-                                <span className="font-medium">{f.rating}/5</span>
-                                {f.hidden ? (
-                                    <span className="ml-1 text-[10px] uppercase text-warning">hidden</span>
-                                ) : null}
-                                {f.comment ? ` — ${f.comment}` : ""}
-                            </div>
+                    <SimpleAdminTable
+                        columns={[
+                            { key: "rating", label: "Rating" },
+                            { key: "comment", label: "Comment" },
+                            { key: "status", label: "Status" },
+                        ]}
+                        empty={(feedback.data?.feedback?.length ?? 0) === 0}
+                        emptyText="No feedback"
+                    >
+                        {(feedback.data?.feedback ?? []).map((f: any) => (
+                            <tr
+                                key={f.id}
+                                className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                            >
+                                <SimpleAdminTd>
+                                    <span className="font-medium">{f.rating}/5</span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd className="max-w-md whitespace-normal">
+                                    {f.comment || "—"}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    <span className={statusBadgeClass(f.hidden ? "warning" : "success")}>
+                                        {f.hidden ? "Hidden" : "Visible"}
+                                    </span>
+                                </SimpleAdminTd>
+                            </tr>
                         ))}
+                    </SimpleAdminTable>
                 </Section>
                 )}
 
@@ -434,35 +482,53 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId, only }) => {
                         </button>
                     }
                 >
-                    {(sponsors.data?.sponsors?.length ?? 0) === 0
-                        ? <Empty label="sponsors" />
-                        : sponsors.data!.sponsors.map((s: any) => (
-                            <div key={s.id} className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]">
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="font-medium">{s.name}</span>
-                                    <span className="capitalize text-gray-500">{s.tier}</span>
-                                </div>
-                                <div className="mt-1 flex gap-1">
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-primary btn-sm"
-                                        onClick={() => setSponsorModal({ open: true, item: s })}
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-danger btn-sm"
-                                        onClick={async () => {
-                                            const ok = await confirmAction({ title: "Remove sponsor?", confirmButtonText: "Remove" });
-                                            if (ok) deleteSponsor.mutate(s.id);
-                                        }}
-                                    >
-                                        Remove
-                                    </button>
-                                </div>
-                            </div>
+                    <SimpleAdminTable
+                        columns={[
+                            { key: "name", label: "Name" },
+                            { key: "tier", label: "Tier" },
+                            { key: "actions", label: "Actions", align: "center" },
+                        ]}
+                        empty={(sponsors.data?.sponsors?.length ?? 0) === 0}
+                        emptyText="No sponsors"
+                    >
+                        {(sponsors.data?.sponsors ?? []).map((s: any) => (
+                            <tr
+                                key={s.id}
+                                className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                            >
+                                <SimpleAdminTd>
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                        {s.name}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd className="capitalize">{s.tier}</SimpleAdminTd>
+                                <SimpleAdminTd align="center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-primary btn-sm"
+                                            onClick={() => setSponsorModal({ open: true, item: s })}
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-danger btn-sm"
+                                            onClick={async () => {
+                                                const ok = await confirmAction({
+                                                    title: "Remove sponsor?",
+                                                    confirmButtonText: "Remove",
+                                                });
+                                                if (ok) deleteSponsor.mutate(s.id);
+                                            }}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                </SimpleAdminTd>
+                            </tr>
                         ))}
+                    </SimpleAdminTable>
                 </Section>
                 )}
 
@@ -479,36 +545,55 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId, only }) => {
                         </button>
                     }
                 >
-                    {(speakers.data?.speakers?.length ?? 0) === 0
-                        ? <Empty label="speakers" />
-                        : speakers.data!.speakers.map((s: any) => (
-                            <div key={s.id} className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]">
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="font-medium">{s.name}</span>
-                                    {s.title && <span className="text-gray-500">{s.title}</span>}
-                                </div>
-                                {s.organization && <div className="text-gray-500">{s.organization}</div>}
-                                <div className="mt-1 flex gap-1">
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-primary btn-sm"
-                                        onClick={() => setSpeakerModal({ open: true, item: s })}
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-danger btn-sm"
-                                        onClick={async () => {
-                                            const ok = await confirmAction({ title: "Remove speaker?", confirmButtonText: "Remove" });
-                                            if (ok) deleteSpeaker.mutate(s.id);
-                                        }}
-                                    >
-                                        Remove
-                                    </button>
-                                </div>
-                            </div>
+                    <SimpleAdminTable
+                        columns={[
+                            { key: "name", label: "Name" },
+                            { key: "title", label: "Title" },
+                            { key: "org", label: "Organization", hideBelow: "lg" },
+                            { key: "actions", label: "Actions", align: "center" },
+                        ]}
+                        empty={(speakers.data?.speakers?.length ?? 0) === 0}
+                        emptyText="No speakers"
+                    >
+                        {(speakers.data?.speakers ?? []).map((s: any) => (
+                            <tr
+                                key={s.id}
+                                className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                            >
+                                <SimpleAdminTd>
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                        {s.name}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>{s.title || "—"}</SimpleAdminTd>
+                                <SimpleAdminTd hideBelow="lg">{s.organization || "—"}</SimpleAdminTd>
+                                <SimpleAdminTd align="center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-primary btn-sm"
+                                            onClick={() => setSpeakerModal({ open: true, item: s })}
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-danger btn-sm"
+                                            onClick={async () => {
+                                                const ok = await confirmAction({
+                                                    title: "Remove speaker?",
+                                                    confirmButtonText: "Remove",
+                                                });
+                                                if (ok) deleteSpeaker.mutate(s.id);
+                                            }}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                </SimpleAdminTd>
+                            </tr>
                         ))}
+                    </SimpleAdminTable>
                 </Section>
                 )}
 
@@ -525,37 +610,61 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId, only }) => {
                         </button>
                     }
                 >
-                    {(sessions.data?.sessions?.length ?? 0) === 0
-                        ? <Empty label="sessions" />
-                        : sessions.data!.sessions.map((s: any) => (
-                            <div key={s.id} className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]">
-                                <div className="font-medium text-gray-900 dark:text-white">{s.title}</div>
-                                <div className="text-gray-500">
-                                    {s.starts_at ? moment(s.starts_at).format("MMM DD HH:mm") : "—"}
-                                    {s.room ? ` · ${s.room}` : ""}
-                                    {s.speaker?.name ? ` · ${s.speaker.name}` : ""}
-                                </div>
-                                <div className="mt-1 flex gap-1">
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-primary btn-sm"
-                                        onClick={() => setSessionModal({ open: true, item: s })}
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-danger btn-sm"
-                                        onClick={async () => {
-                                            const ok = await confirmAction({ title: "Remove session?", confirmButtonText: "Remove" });
-                                            if (ok) deleteSession.mutate(s.id);
-                                        }}
-                                    >
-                                        Remove
-                                    </button>
-                                </div>
-                            </div>
+                    <SimpleAdminTable
+                        columns={[
+                            { key: "title", label: "Title" },
+                            { key: "starts", label: "Starts" },
+                            { key: "room", label: "Room", hideBelow: "lg" },
+                            { key: "speaker", label: "Speaker", hideBelow: "lg" },
+                            { key: "actions", label: "Actions", align: "center" },
+                        ]}
+                        empty={(sessions.data?.sessions?.length ?? 0) === 0}
+                        emptyText="No sessions"
+                    >
+                        {(sessions.data?.sessions ?? []).map((s: any) => (
+                            <tr
+                                key={s.id}
+                                className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                            >
+                                <SimpleAdminTd>
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                        {s.title}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    {s.starts_at
+                                        ? moment(s.starts_at).format("MMM DD, YYYY HH:mm")
+                                        : "—"}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd hideBelow="lg">{s.room || "—"}</SimpleAdminTd>
+                                <SimpleAdminTd hideBelow="lg">{s.speaker?.name || "—"}</SimpleAdminTd>
+                                <SimpleAdminTd align="center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-primary btn-sm"
+                                            onClick={() => setSessionModal({ open: true, item: s })}
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-danger btn-sm"
+                                            onClick={async () => {
+                                                const ok = await confirmAction({
+                                                    title: "Remove session?",
+                                                    confirmButtonText: "Remove",
+                                                });
+                                                if (ok) deleteSession.mutate(s.id);
+                                            }}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                </SimpleAdminTd>
+                            </tr>
                         ))}
+                    </SimpleAdminTable>
                 </Section>
                 )}
             </div>

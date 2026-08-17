@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import Loader from "../../../components/Loader";
 import axiosInstance from "../../../utils/axios";
+import { formatMoney } from "../../../utils/money";
+import { EventMetricCard } from "./EventField";
 
 interface Props {
     eventId: number;
@@ -32,7 +34,7 @@ const EventAnalyticsPanel: React.FC<Props> = ({ eventId }) => {
         },
         {
             label: "Revenue",
-            value: `${Number(data.revenue).toFixed(2)} ${data.currency}`,
+            value: formatMoney(data.revenue, data.currency || "USD"),
         },
         { label: "Check-ins", value: data.check_ins },
         {
@@ -46,19 +48,9 @@ const EventAnalyticsPanel: React.FC<Props> = ({ eventId }) => {
     ];
 
     return (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {cells.map((c) => (
-                <div
-                    key={c.label}
-                    className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]"
-                >
-                    <div className="text-[10px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        {c.label}
-                    </div>
-                    <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {c.value}
-                    </div>
-                </div>
+                <EventMetricCard key={c.label} label={c.label} value={c.value} />
             ))}
         </div>
     );

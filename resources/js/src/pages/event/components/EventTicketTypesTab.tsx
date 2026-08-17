@@ -3,9 +3,12 @@ import moment from "moment";
 import React, { useState } from "react";
 import { toast } from "sonner";
 import Loader from "../../../components/Loader";
+import SimpleAdminTable, { SimpleAdminTd } from "../../../components/SimpleAdminTable";
 import { useConfirmDialog } from "../../../hooks";
 import { eventApi } from "../../../services/event";
 import { IDiscountCode, ITicketType } from "../../../types";
+import { formatMoney } from "../../../utils/money";
+import { statusBadgeClass } from "../../../utils/statusBadge";
 import DiscountCodeModal from "./DiscountCodeModal";
 import TicketTypeModal from "./TicketTypeModal";
 
@@ -92,14 +95,22 @@ const EventTicketTypesTab: React.FC<Props> = ({ eventId }) => {
         return <div className="p-4 text-center text-sm text-red-500">Failed to load</div>;
     }
 
+    const ticketTypes = event.ticket_types ?? [];
+    const discountCodes = event.discount_codes ?? [];
+
     return (
         <>
-            <div className="space-y-6 p-1">
+            <div className="space-y-8 p-1">
                 <div>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                            Ticket types
-                        </h4>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                        <div>
+                            <h4 className="text-base font-semibold text-gray-900 dark:text-white">
+                                Ticket types
+                            </h4>
+                            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                                Monetized is derived from paid tiers (price &gt; 0).
+                            </p>
+                        </div>
                         <button
                             type="button"
                             className="btn btn-primary btn-sm gap-1"
@@ -108,36 +119,46 @@ const EventTicketTypesTab: React.FC<Props> = ({ eventId }) => {
                             + Add
                         </button>
                     </div>
-                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                        Monetized is derived from paid tiers (price &gt; 0).
-                    </p>
-                    {(event.ticket_types?.length ?? 0) === 0 ? (
-                        <p className="text-sm text-gray-500">No ticket types</p>
-                    ) : (
-                        <ul className="space-y-1.5 text-xs">
-                            {event.ticket_types!.map((tt) => (
-                                <li
-                                    key={tt.id}
-                                    className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]"
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="font-medium text-gray-900 dark:text-white">
-                                            {tt.name}
-                                        </span>
-                                        <span className="whitespace-nowrap text-right">
-                                            ${Number(tt.price).toFixed(2)}
-                                            {Number(tt.price) === 0 ? " (free)" : ""}
-                                        </span>
-                                    </div>
-                                    <div className="text-gray-500">
-                                        Sold{" "}
-                                        {tt.quantity_limit === null
-                                            ? `${tt.quantity_sold} / Unlimited`
-                                            : `${tt.quantity_sold} / ${tt.quantity_limit}`}
-                                        {" · "}
-                                        {tt.sales_enabled ? "Sales on" : "Sales off"}
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap gap-1">
+                    <SimpleAdminTable
+                        columns={[
+                            { key: "name", label: "Name" },
+                            { key: "price", label: "Price", align: "right" },
+                            { key: "sold", label: "Sold" },
+                            { key: "sales", label: "Sales" },
+                            { key: "actions", label: "Actions", align: "center" },
+                        ]}
+                        empty={ticketTypes.length === 0}
+                        emptyText="No ticket types"
+                    >
+                        {ticketTypes.map((tt) => (
+                            <tr
+                                key={tt.id}
+                                className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                            >
+                                <SimpleAdminTd>
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                        {tt.name}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd align="right">
+                                    {Number(tt.price) === 0 ? "Free" : formatMoney(tt.price)}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    {tt.quantity_limit === null
+                                        ? `${tt.quantity_sold} / Unlimited`
+                                        : `${tt.quantity_sold} / ${tt.quantity_limit}`}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    <span
+                                        className={statusBadgeClass(
+                                            tt.sales_enabled ? "success" : "warning"
+                                        )}
+                                    >
+                                        {tt.sales_enabled ? "On" : "Off"}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd align="center">
+                                    <div className="flex items-center justify-center gap-1.5">
                                         <button
                                             type="button"
                                             className="btn btn-outline-primary btn-sm"
@@ -158,7 +179,7 @@ const EventTicketTypesTab: React.FC<Props> = ({ eventId }) => {
                                                     if (ok) disableSales.mutate(tt.id);
                                                 }}
                                             >
-                                                Disable sales
+                                                Disable
                                             </button>
                                         ) : (
                                             <button
@@ -166,7 +187,7 @@ const EventTicketTypesTab: React.FC<Props> = ({ eventId }) => {
                                                 className="btn btn-outline-success btn-sm"
                                                 onClick={() => enableSales.mutate(tt.id)}
                                             >
-                                                Enable sales
+                                                Enable
                                             </button>
                                         )}
                                         <button
@@ -184,15 +205,15 @@ const EventTicketTypesTab: React.FC<Props> = ({ eventId }) => {
                                             Delete
                                         </button>
                                     </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                                </SimpleAdminTd>
+                            </tr>
+                        ))}
+                    </SimpleAdminTable>
                 </div>
 
-                <div className="border-t border-gray-100 pt-4 dark:border-[#1b2e4b]">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                <div>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                        <h4 className="text-base font-semibold text-gray-900 dark:text-white">
                             Discount codes
                         </h4>
                         <button
@@ -203,34 +224,57 @@ const EventTicketTypesTab: React.FC<Props> = ({ eventId }) => {
                             + Add
                         </button>
                     </div>
-                    {(event.discount_codes?.length ?? 0) === 0 ? (
-                        <p className="text-sm text-gray-500">No codes for this event</p>
-                    ) : (
-                        <ul className="space-y-1.5 text-xs">
-                            {event.discount_codes!.map((dc) => (
-                                <li
-                                    key={dc.id}
-                                    className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]"
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="font-medium text-gray-900 dark:text-white">
-                                            {dc.code}
-                                        </span>
-                                        <span>
-                                            {dc.type === "percent"
-                                                ? `${dc.value}%`
-                                                : `$${Number(dc.value).toFixed(2)}`}
-                                        </span>
-                                    </div>
-                                    <div className="text-gray-500">
-                                        Used {dc.usage_count}
-                                        {dc.usage_limit ? ` / ${dc.usage_limit}` : ""}
-                                        {dc.expires_at
-                                            ? ` · exp ${moment(dc.expires_at).format("MMM DD, YYYY")}`
-                                            : ""}
-                                        {dc.event_id ? " · event" : " · org-wide"}
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap gap-1">
+                    <SimpleAdminTable
+                        columns={[
+                            { key: "code", label: "Code" },
+                            { key: "value", label: "Value", align: "right" },
+                            { key: "usage", label: "Usage" },
+                            { key: "expires", label: "Expires", hideBelow: "lg" },
+                            { key: "scope", label: "Scope", hideBelow: "lg" },
+                            { key: "status", label: "Status" },
+                            { key: "actions", label: "Actions", align: "center" },
+                        ]}
+                        empty={discountCodes.length === 0}
+                        emptyText="No codes for this event"
+                    >
+                        {discountCodes.map((dc) => (
+                            <tr
+                                key={dc.id}
+                                className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                            >
+                                <SimpleAdminTd>
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                        {dc.code}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd align="right">
+                                    {dc.type === "percent"
+                                        ? `${dc.value}%`
+                                        : formatMoney(dc.value)}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    {dc.usage_count}
+                                    {dc.usage_limit ? ` / ${dc.usage_limit}` : ""}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd hideBelow="lg">
+                                    {dc.expires_at
+                                        ? moment(dc.expires_at).format("MMM DD, YYYY")
+                                        : "—"}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd hideBelow="lg">
+                                    {dc.event_id ? "Event" : "Org-wide"}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    <span
+                                        className={statusBadgeClass(
+                                            dc.active ? "success" : "warning"
+                                        )}
+                                    >
+                                        {dc.active ? "Active" : "Inactive"}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd align="center">
+                                    <div className="flex items-center justify-center gap-1.5">
                                         <button
                                             type="button"
                                             className="btn btn-outline-primary btn-sm"
@@ -265,10 +309,10 @@ const EventTicketTypesTab: React.FC<Props> = ({ eventId }) => {
                                             Delete
                                         </button>
                                     </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                                </SimpleAdminTd>
+                            </tr>
+                        ))}
+                    </SimpleAdminTable>
                 </div>
             </div>
 

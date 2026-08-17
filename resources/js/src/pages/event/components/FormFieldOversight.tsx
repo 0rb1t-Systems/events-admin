@@ -6,12 +6,14 @@ import { toast } from "sonner";
 import { z } from "zod";
 import GenericModal from "../../../components/GenericModal";
 import Loader from "../../../components/Loader";
+import SimpleAdminTable, { SimpleAdminTd } from "../../../components/SimpleAdminTable";
 import FormInput from "../../../components/form/FormInput";
 import FormSelect from "../../../components/form/FormSelect";
 import FormSwitch from "../../../components/form/FormSwitch";
 import { useConfirmDialog } from "../../../hooks";
 import { eventApi } from "../../../services/event";
 import { IEventFormField } from "../../../types/event";
+import { statusBadgeClass } from "../../../utils/statusBadge";
 
 interface Props {
     eventId: number;
@@ -178,9 +180,9 @@ const FormFieldOversight: React.FC<Props> = ({ eventId }) => {
 
     return (
         <>
-            <div className="space-y-2">
+            <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                         {data.form_fields.length} field{data.form_fields.length !== 1 ? "s" : ""}
                     </p>
                     <button
@@ -192,33 +194,68 @@ const FormFieldOversight: React.FC<Props> = ({ eventId }) => {
                     </button>
                 </div>
 
-                {data.form_fields.length === 0 ? (
-                    <p className="text-sm text-gray-500">No custom form fields</p>
-                ) : (
-                    <ul className="max-h-64 space-y-1.5 overflow-y-auto text-xs">
-                        {data.form_fields.map((f, idx) => {
-                            const opts = optionsPreview(f);
-                            return (
-                                <li
-                                    key={f.id}
-                                    className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]"
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="font-medium text-gray-900 dark:text-white">
-                                            {f.label}
-                                        </span>
-                                        <span className="shrink-0 text-gray-500">
-                                            {f.required ? "required" : "optional"}
-                                            {!f.active ? " · inactive" : ""}
-                                        </span>
-                                    </div>
-                                    <div className="text-gray-500">
-                                        <code className="text-[11px]">{f.key}</code>
-                                        {" · "}
-                                        {typeLabel(f.type)}
-                                        {opts ? ` · [${opts}]` : ""}
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap gap-1">
+                <SimpleAdminTable
+                    columns={[
+                        { key: "label", label: "Label" },
+                        { key: "key", label: "Key" },
+                        { key: "type", label: "Type" },
+                        { key: "required", label: "Required" },
+                        { key: "status", label: "Status" },
+                        { key: "actions", label: "Actions", align: "center" },
+                    ]}
+                    empty={data.form_fields.length === 0}
+                    emptyText="No custom form fields"
+                >
+                    {data.form_fields.map((f, idx) => {
+                        const opts = optionsPreview(f);
+                        return (
+                            <tr
+                                key={f.id}
+                                className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                            >
+                                <SimpleAdminTd>
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                        {f.label}
+                                    </span>
+                                    {opts ? (
+                                        <div className="max-w-xs truncate text-xs text-gray-500 dark:text-gray-400">
+                                            {opts}
+                                        </div>
+                                    ) : null}
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    <code className="text-xs">{f.key}</code>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd className="capitalize">{typeLabel(f.type)}</SimpleAdminTd>
+                                <SimpleAdminTd>{f.required ? "Yes" : "No"}</SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    <span className={statusBadgeClass(f.active ? "success" : "warning")}>
+                                        {f.active ? "Active" : "Inactive"}
+                                    </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd align="center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-secondary btn-sm px-2"
+                                            disabled={idx === 0 || reorderMut.isPending}
+                                            onClick={() => handleMove(idx, "up")}
+                                            title="Move up"
+                                        >
+                                            ↑
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-secondary btn-sm px-2"
+                                            disabled={
+                                                idx === data.form_fields.length - 1 ||
+                                                reorderMut.isPending
+                                            }
+                                            onClick={() => handleMove(idx, "down")}
+                                            title="Move down"
+                                        >
+                                            ↓
+                                        </button>
                                         <button
                                             type="button"
                                             className="btn btn-outline-primary btn-sm"
@@ -240,30 +277,12 @@ const FormFieldOversight: React.FC<Props> = ({ eventId }) => {
                                         >
                                             {f.active ? "Remove" : "Delete"}
                                         </button>
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-secondary btn-sm px-1"
-                                            disabled={idx === 0 || reorderMut.isPending}
-                                            onClick={() => handleMove(idx, "up")}
-                                            title="Move up"
-                                        >
-                                            ↑
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-secondary btn-sm px-1"
-                                            disabled={idx === data.form_fields.length - 1 || reorderMut.isPending}
-                                            onClick={() => handleMove(idx, "down")}
-                                            title="Move down"
-                                        >
-                                            ↓
-                                        </button>
                                     </div>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                )}
+                                </SimpleAdminTd>
+                            </tr>
+                        );
+                    })}
+                </SimpleAdminTable>
             </div>
 
             {/* Add/Edit form field modal */}

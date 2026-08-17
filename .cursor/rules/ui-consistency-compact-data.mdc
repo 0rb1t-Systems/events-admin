@@ -19,6 +19,7 @@ Prefer these existing pieces over one-off UI:
 
 - Layout / chrome: `Breadcrumb`, `DefaultLayout` patterns, `panel`, sidebar nav
 - Lists: `DataTableWithSidebar`, `CustomDataTable` / datatable helpers, column configs, `StatusFilterBar`
+- Nested lists inside Event hub tabs: `SimpleAdminTable` (not stacked cards or `<ul>` dumps)
 - Detail: **side panel** via `DataTableWithSidebar` + `*Detail.tsx` for compact records; **full page** `pages/<name>/show.tsx` + `DetailPageHeader` / `DetailTabs` when data volume is high (see Side panel vs full page)
 - Forms / dialogs: `GenericModal`, `components/form/*` (`FormInput`, `FormSelect`, `FormCombobox`, `FormTextarea`, `FormDatePicker`, `FormSwitch`, `FileUpload` / `ImageUpload`)
 - Feedback: `Loader`, `sonner` toasts, `useConfirmDialog`, existing `btn btn-primary` / `btn` variants
@@ -46,7 +47,9 @@ Tables are for **scanning**. Keep them dense and high-signal.
 
 Default is **not** “everything in a right sidebar.” Choose by data volume:
 
-**Keep as side panel** (~8 fields, no nested lists): Users, Payments (single txn), Subscriptions, QR Scan History, Roles, Packages, Categories, Invitation templates, API clients, Logs, ticket types / discount codes nested lists.
+**Keep as side panel** (~8 fields, no nested lists): Users, Payments (single txn), Subscriptions, QR Scan History, Roles, Packages, Categories, Invitation templates, API clients, Logs.
+
+**Event hub nested lists** (ticket types, discount codes, registrations, payments, speakers, sessions, sponsors, announcements, form fields, gallery): render with `SimpleAdminTable` — identity, status/key field, one date or amount, actions. Do not use stacked bordered cards.
 
 **Convert to full page** (`pages/<resource>/show.tsx`, route `/{resource}/:id`, back button, row-click navigates):
 - Events hub (`/events/:id` with lazy tabs)

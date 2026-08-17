@@ -4,12 +4,14 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import GenericModal from "../../../components/GenericModal";
 import Loader from "../../../components/Loader";
+import SimpleAdminTable, { SimpleAdminTd } from "../../../components/SimpleAdminTable";
 import FormCombobox from "../../../components/form/FormCombobox";
 import FormSelect from "../../../components/form/FormSelect";
 import { useConfirmDialog } from "../../../hooks";
 import { useUserSearch, formatUserOption } from "../../../hooks/useEntitySearch";
 import { eventApi } from "../../../services/event";
 import { ITicketType, IUser } from "../../../types";
+import { statusBadgeClass } from "../../../utils/statusBadge";
 
 interface Props {
     eventId: number;
@@ -92,11 +94,18 @@ const ParticipationOversight: React.FC<Props> = ({ eventId }) => {
     const cap = data.capacity;
     const ticketOptions: ITicketType[] = ticketQuery.data?.ticket_types ?? [];
 
+    const participationStatusColor = (status: string) => {
+        if (status === "cancelled") return "danger";
+        if (status === "waitlisted") return "warning";
+        if (status === "checked_in") return "success";
+        return "info";
+    };
+
     return (
         <>
-            <div className="space-y-2">
+            <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                         Registered {cap.registered_count}
                         {cap.capacity != null ? ` / ${cap.capacity}` : " (unlimited)"}
                         {" · "}
@@ -112,46 +121,43 @@ const ParticipationOversight: React.FC<Props> = ({ eventId }) => {
                     </button>
                 </div>
 
-                {data.participations.length === 0 ? (
-                    <p className="text-sm text-gray-500">No participations yet</p>
-                ) : (
-                    <ul className="max-h-64 space-y-1.5 overflow-y-auto text-xs">
-                        {data.participations.map((p) => (
-                            <li
-                                key={p.id}
-                                className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]"
-                            >
+                <SimpleAdminTable
+                    columns={[
+                        { key: "participant", label: "Participant" },
+                        { key: "ticket", label: "Ticket" },
+                        { key: "status", label: "Status" },
+                        { key: "payment", label: "Payment", hideBelow: "lg" },
+                        { key: "actions", label: "Actions", align: "center" },
+                    ]}
+                    empty={data.participations.length === 0}
+                    emptyText="No participations yet"
+                >
+                    {data.participations.map((p) => (
+                        <tr
+                            key={p.id}
+                            className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                        >
+                            <SimpleAdminTd>
                                 <div className="font-medium text-gray-900 dark:text-white">
                                     {p.user?.name ?? `User #${p.user_id}`}
                                 </div>
-                                <div className="text-gray-500">
-                                    {p.user?.email}
-                                    {" · "}
-                                    <span className="capitalize">{p.status.replace(/_/g, " ")}</span>
-                                    {" · pay: "}
-                                    {p.payment_status}
-                                    {p.ticket_type ? ` · ${p.ticket_type.name}` : ""}
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {p.user?.email ?? "—"}
                                 </div>
-
-                                {/* Cancel reason input (shown when not yet cancelled) */}
-                                {p.status !== "cancelled" && (
-                                    <div className="mt-1 flex items-center gap-1">
-                                        <input
-                                            type="text"
-                                            placeholder="Reason (optional)"
-                                            className="form-input h-6 flex-1 rounded border border-gray-200 px-1.5 text-[11px] dark:border-gray-700 dark:bg-black/30 dark:text-white"
-                                            value={cancelReason[p.id] ?? ""}
-                                            onChange={(e) =>
-                                                setCancelReason((prev) => ({
-                                                    ...prev,
-                                                    [p.id]: e.target.value,
-                                                }))
-                                            }
-                                        />
-                                    </div>
-                                )}
-
-                                <div className="mt-1 flex flex-wrap gap-2">
+                            </SimpleAdminTd>
+                            <SimpleAdminTd>{p.ticket_type?.name ?? "—"}</SimpleAdminTd>
+                            <SimpleAdminTd>
+                                <span className={statusBadgeClass(participationStatusColor(p.status))}>
+                                    {p.status.replace(/_/g, " ")}
+                                </span>
+                            </SimpleAdminTd>
+                            <SimpleAdminTd hideBelow="lg">
+                                <span className="capitalize">
+                                    {(p.payment_status || "—").replace(/_/g, " ")}
+                                </span>
+                            </SimpleAdminTd>
+                            <SimpleAdminTd align="center">
+                                <div className="flex items-center justify-center gap-1.5">
                                     {p.status === "waitlisted" && (
                                         <button
                                             type="button"
@@ -162,30 +168,44 @@ const ParticipationOversight: React.FC<Props> = ({ eventId }) => {
                                         </button>
                                     )}
                                     {p.status !== "cancelled" && (
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-danger btn-sm"
-                                            onClick={async () => {
-                                                const ok = await confirmAction({
-                                                    title: "Cancel participation?",
-                                                    text: "Releases a seat/ticket if held. User may re-join later.",
-                                                    confirmButtonText: "Cancel participation",
-                                                });
-                                                if (ok)
-                                                    cancel.mutate({
-                                                        id: p.id,
-                                                        reason: cancelReason[p.id] || undefined,
+                                        <>
+                                            <input
+                                                type="text"
+                                                placeholder="Reason (optional)"
+                                                className="form-input hidden h-8 w-36 lg:block"
+                                                value={cancelReason[p.id] ?? ""}
+                                                onChange={(e) =>
+                                                    setCancelReason((prev) => ({
+                                                        ...prev,
+                                                        [p.id]: e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline-danger btn-sm"
+                                                onClick={async () => {
+                                                    const ok = await confirmAction({
+                                                        title: "Cancel participation?",
+                                                        text: "Releases a seat/ticket if held. User may re-join later.",
+                                                        confirmButtonText: "Cancel participation",
                                                     });
-                                            }}
-                                        >
-                                            Cancel
-                                        </button>
+                                                    if (ok)
+                                                        cancel.mutate({
+                                                            id: p.id,
+                                                            reason: cancelReason[p.id] || undefined,
+                                                        });
+                                                }}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </>
                                     )}
                                 </div>
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                            </SimpleAdminTd>
+                        </tr>
+                    ))}
+                </SimpleAdminTable>
             </div>
 
             {/* Add Participation Modal */}

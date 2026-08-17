@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { toast } from "sonner";
 import GenericModal from "../../../components/GenericModal";
 import Loader from "../../../components/Loader";
+import SimpleAdminTable, { SimpleAdminTd } from "../../../components/SimpleAdminTable";
 import FileUpload from "../../../components/form/FileUpload";
 import { useConfirmDialog, usePermission } from "../../../hooks";
 import { eventApi } from "../../../services/event";
@@ -62,7 +63,7 @@ const EventGalleryTab: React.FC<Props> = ({ eventId }) => {
         <>
             <div className="p-1">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-white">
                         Gallery
                     </h4>
                     {canEditEvent && (
@@ -79,22 +80,35 @@ const EventGalleryTab: React.FC<Props> = ({ eventId }) => {
                         </button>
                     )}
                 </div>
-                {(event.images?.length ?? 0) === 0 ? (
-                    <p className="text-sm text-gray-500">No images</p>
-                ) : (
-                    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                        {event.images!.map((img) => (
-                            <li
-                                key={img.id}
-                                className="rounded border border-gray-100 p-2 dark:border-[#1b2e4b]"
-                            >
-                                <span className="block truncate text-xs text-gray-700 dark:text-gray-300">
-                                    {img.path}
-                                </span>
-                                {canEditEvent && (
+                <SimpleAdminTable
+                    columns={[
+                        { key: "image", label: "Image" },
+                        { key: "file", label: "File" },
+                        { key: "actions", label: "Actions", align: "center" },
+                    ]}
+                    empty={(event.images?.length ?? 0) === 0}
+                    emptyText="No images"
+                >
+                    {(event.images ?? []).map((img) => (
+                        <tr
+                            key={img.id}
+                            className="hover:bg-white-light/20 dark:hover:bg-[#1a2941]/40"
+                        >
+                            <SimpleAdminTd>
+                                <img
+                                    src={img.path}
+                                    alt=""
+                                    className="h-12 w-16 rounded object-cover"
+                                />
+                            </SimpleAdminTd>
+                            <SimpleAdminTd className="max-w-md truncate">
+                                {img.path}
+                            </SimpleAdminTd>
+                            <SimpleAdminTd align="center">
+                                {canEditEvent ? (
                                     <button
                                         type="button"
-                                        className="mt-1 text-xs text-danger"
+                                        className="btn btn-outline-danger btn-sm"
                                         onClick={async () => {
                                             const ok = await confirmAction({
                                                 title: "Delete gallery image?",
@@ -106,11 +120,13 @@ const EventGalleryTab: React.FC<Props> = ({ eventId }) => {
                                     >
                                         Remove
                                     </button>
+                                ) : (
+                                    "—"
                                 )}
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                            </SimpleAdminTd>
+                        </tr>
+                    ))}
+                </SimpleAdminTable>
             </div>
 
             <GenericModal
