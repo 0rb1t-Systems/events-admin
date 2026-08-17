@@ -109,7 +109,8 @@ const LogsList = () => {
             title: "ID",
             type: "number",
             sortable: true,
-            width: 80,
+            width: 70,
+            hideBelow: "lg",
         },
         {
             accessor: "log_name",
@@ -140,27 +141,30 @@ const LogsList = () => {
         },
         {
             accessor: "subject_type",
-            title: "Subject Type",
+            title: "Subject",
             type: "text",
             sortable: true,
+            hideBelow: "lg",
             render: ({ subject_type }) => (
                 <div>{subject_type ? subject_type.split("\\").pop() : "-"}</div>
             ),
         },
         {
             accessor: "causer_type",
-            title: "Causer Type",
+            title: "Causer",
             type: "text",
             sortable: true,
+            hideBelow: "lg",
             render: ({ causer_type }) => (
                 <div>{causer_type ? causer_type.split("\\").pop() : "-"}</div>
             ),
         },
         {
             accessor: "created_at",
-            title: "Created At",
+            title: "Created",
             type: "date",
             sortable: true,
+            hideBelow: "lg",
             render: ({ created_at }) => (
                 <div>
                     {created_at

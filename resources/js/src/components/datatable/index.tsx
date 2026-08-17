@@ -56,6 +56,7 @@ export interface CustomDataTableProps<T> {
     className?: string;
     bulkActions?: BulkAction[];
     getRecordId?: (record: T) => number;
+    onRowClick?: (record: T) => void;
 }
 
 function CustomDataTable<T>({
@@ -76,6 +77,7 @@ function CustomDataTable<T>({
     className,
     bulkActions = [],
     getRecordId = (record) => (record as any).id,
+    onRowClick,
 }: CustomDataTableProps<T>) {
     const [searchParams, setSearchParams] = useSearchParams();
     const [columns, setColumns] = useState<ColumnConfig<T>[]>(initialColumns);
@@ -132,10 +134,12 @@ function CustomDataTable<T>({
         setSearchParams(params);
     }, [search, page, pageSize, sortStatus, title, setSearchParams]);
 
-    // Reset to first page when page size or search changes
+    const queryFingerprint = JSON.stringify(query ?? {});
+
+    // Reset to first page when page size, search, or filters change
     useEffect(() => {
         setPage(1);
-    }, [pageSize, search]);
+    }, [pageSize, search, queryFingerprint]);
 
     // Handle data fetching with all dynamic parameters
     const { data, isLoading, error } = useFetchTableData<T>({
@@ -351,10 +355,11 @@ function CustomDataTable<T>({
                     </div>
                 </div>
 
-                <div className="datatables pagination-padding">
+                <div className="datatables pagination-padding admin-table-scroll">
                     <DataTable
                         className={clsx(
                             "whitespace-nowrap table-hover invoice-table",
+                            onRowClick && "cursor-pointer",
                             className
                         )}
                         records={data?.data || []}
@@ -374,6 +379,38 @@ function CustomDataTable<T>({
                         onSelectedRecordsChange={
                             rowSelectionEnabled
                                 ? handleSelectedRecordsChange
+                                : undefined
+                        }
+                        onRowClick={
+                            onRowClick
+                                ? ((...args: unknown[]) => {
+                                      const mouseEvent = args.find(
+                                          (item): item is React.MouseEvent =>
+                                              !!item &&
+                                              typeof item === "object" &&
+                                              "target" in item &&
+                                              "nativeEvent" in item
+                                      );
+                                      if (mouseEvent) {
+                                          const target = mouseEvent.target as HTMLElement | null;
+                                          if (
+                                              target?.closest(
+                                                  "button, a, input, select, textarea, .btn"
+                                              )
+                                          ) {
+                                              return;
+                                          }
+                                      }
+                                      const first = args[0] as { record?: T } | T;
+                                      const record =
+                                          first &&
+                                          typeof first === "object" &&
+                                          "record" in first &&
+                                          first.record !== undefined
+                                              ? first.record
+                                              : (first as T);
+                                      onRowClick(record);
+                                  }) as never
                                 : undefined
                         }
                         paginationText={({ from, to, totalRecords }) =>

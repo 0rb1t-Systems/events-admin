@@ -77,7 +77,7 @@ const UserDetail: React.FC<UserDetailProps> = ({ userId }) => {
                         className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${
                             user.user_type === "admin"
                                 ? "bg-primary/10 text-primary"
-                                : "bg-secondary/10 text-secondary"
+                                : "bg-info/10 text-info"
                         }`}
                     >
                         {typeLabel}

@@ -1,9 +1,9 @@
-import { Filter } from "lucide-react";
 import moment from "moment";
 import React, { useState } from "react";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
 import FormCombobox from "../../components/form/FormCombobox";
+import StatusFilterBar from "../../components/StatusFilterBar";
 import { useSidebarDetail } from "../../hooks";
 import {
     formatEventOption,
@@ -18,7 +18,6 @@ import QrScanLogDetail from "./components/QrScanLogDetail";
 const QrScanLogsPage = () => {
     const [resultFilter, setResultFilter] = useState<string>("");
     const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
-    const [showFilters, setShowFilters] = useState(false);
     const eventSearch = useEventSearch();
 
     const { selectedId, showSidebar, openSidebar, closeSidebar } =
@@ -30,9 +29,10 @@ const QrScanLogsPage = () => {
             title: "Result",
             type: "custom",
             sortable: true,
-            width: 110,
+            width: 120,
+            minWidth: 110,
             render: ({ result }) => (
-                <span className="text-xs capitalize">
+                <span className="capitalize">
                     {String(result).replace(/_/g, " ")}
                 </span>
             ),
@@ -42,6 +42,7 @@ const QrScanLogsPage = () => {
             title: "Event",
             type: "custom",
             sortable: false,
+            minWidth: 140,
             render: (row) => (
                 <span className="font-medium">
                     {row.event?.title ??
@@ -56,7 +57,7 @@ const QrScanLogsPage = () => {
             sortable: false,
             width: 140,
             render: (row) => (
-                <span className="text-xs">
+                <span>
                     {row.participation?.user?.name ?? "—"}
                 </span>
             ),
@@ -67,6 +68,7 @@ const QrScanLogsPage = () => {
             type: "text",
             sortable: true,
             width: 90,
+            hideBelow: "lg",
             render: ({ gate }) => gate || "—",
         },
         {
@@ -74,7 +76,8 @@ const QrScanLogsPage = () => {
             title: "When",
             type: "date",
             sortable: true,
-            width: 130,
+            width: 140,
+            hideBelow: "lg",
             render: ({ created_at }) =>
                 created_at
                     ? moment(created_at).format("MMM DD, YYYY HH:mm")
@@ -85,6 +88,7 @@ const QrScanLogsPage = () => {
             title: "Actions",
             type: "actions",
             sortable: false,
+            width: 80,
             textAlignment: "center",
             actions: [{ type: "view", onClick: (r) => openSidebar(r.id) }],
         },
@@ -103,6 +107,32 @@ const QrScanLogsPage = () => {
                 ]}
             />
 
+            <StatusFilterBar
+                value={resultFilter}
+                onChange={setResultFilter}
+                options={[
+                    { value: "", label: "All" },
+                    { value: "valid", label: "Valid" },
+                    { value: "already_used", label: "Already used" },
+                    { value: "invalid", label: "Invalid" },
+                ]}
+                extra={
+                    <div className="w-56">
+                        <FormCombobox<IEvent>
+                            id="qr_event_filter"
+                            label="Event"
+                            value={selectedEvent}
+                            onChange={setSelectedEvent}
+                            onSearch={eventSearch.setQuery}
+                            options={eventSearch.options}
+                            displayValue={formatEventOption}
+                            loading={eventSearch.loading}
+                            placeholder="Search events…"
+                        />
+                    </div>
+                }
+            />
+
             <DataTableWithSidebar<IQrScanLog>
                 title="QR Scan History"
                 columns={columns}
@@ -112,62 +142,7 @@ const QrScanLogsPage = () => {
                 query={tableQuery}
                 rowSelectionEnabled={false}
                 searchable
-                className="mt-5"
-                buttons={
-                    <div className="relative">
-                        <button
-                            type="button"
-                            className="btn btn-outline-primary gap-2"
-                            onClick={() => setShowFilters((v) => !v)}
-                        >
-                            <Filter className="h-4 w-4" />
-                            Filters
-                        </button>
-                        {showFilters && (
-                            <div className="absolute right-0 z-20 mt-2 w-72 space-y-3 rounded border border-gray-200 bg-white p-3 shadow dark:border-[#1b2e4b] dark:bg-[#0e1726]">
-                                <div>
-                                    <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
-                                        Result
-                                    </label>
-                                    <select
-                                        className="form-select"
-                                        value={resultFilter}
-                                        onChange={(e) =>
-                                            setResultFilter(e.target.value)
-                                        }
-                                    >
-                                        <option value="">All</option>
-                                        <option value="valid">Valid</option>
-                                        <option value="already_used">
-                                            Already used
-                                        </option>
-                                        <option value="invalid">Invalid</option>
-                                    </select>
-                                </div>
-                                <FormCombobox<IEvent>
-                                    id="qr_event_filter"
-                                    label="Event"
-                                    value={selectedEvent}
-                                    onChange={setSelectedEvent}
-                                    onSearch={eventSearch.setQuery}
-                                    options={eventSearch.options}
-                                    displayValue={formatEventOption}
-                                    loading={eventSearch.loading}
-                                    placeholder="Search events…"
-                                />
-                                {selectedEvent && (
-                                    <button
-                                        type="button"
-                                        className="btn btn-sm w-full"
-                                        onClick={() => setSelectedEvent(null)}
-                                    >
-                                        Clear event
-                                    </button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                }
+                className="mt-0"
                 showSidebar={showSidebar}
                 sidebarTitle="Scan Detail"
                 onCloseSidebar={closeSidebar}

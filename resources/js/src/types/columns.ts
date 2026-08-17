@@ -32,8 +32,13 @@ export interface BaseColumnConfig<T = any> {
     type?: ColumnType;
     sortable?: boolean;
     width?: number;
+    minWidth?: number;
     textAlignment?: "left" | "center" | "right";
     hidden?: boolean;
+    /** Hide column below this Tailwind breakpoint (th/td use hidden {bp}:table-cell). */
+    hideBelow?: "md" | "lg" | "xl";
+    headerClassName?: string;
+    cellsClassName?: string;
     render?: (record: T) => React.ReactNode;
     // Export related properties
     skipExport?: boolean;

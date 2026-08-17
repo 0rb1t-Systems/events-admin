@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
 import FormCombobox from "../../components/form/FormCombobox";
+import StatusFilterBar from "../../components/StatusFilterBar";
 import { useSidebarDetail } from "../../hooks";
 import {
     formatOrganizerOption,
@@ -38,6 +39,7 @@ const SubscriptionsPage = () => {
             title: "Organizer",
             type: "custom",
             sortable: false,
+            width: 200,
             render: (r) => (
                 <span className="font-medium">
                     {r.organizer?.business_name ?? `#${r.organizer_id}`}
@@ -49,8 +51,9 @@ const SubscriptionsPage = () => {
             title: "Package",
             type: "custom",
             sortable: false,
+            width: 140,
             render: (r) => (
-                <span className="text-xs">{r.package?.name ?? `#${r.package_id}`}</span>
+                <span>{r.package?.name ?? `#${r.package_id}`}</span>
             ),
         },
         {
@@ -58,9 +61,9 @@ const SubscriptionsPage = () => {
             title: "Status",
             type: "custom",
             sortable: true,
-            width: 100,
+            width: 110,
             render: ({ status }) => (
-                <span className="text-xs capitalize">
+                <span className="capitalize">
                     {String(status).replace(/_/g, " ")}
                 </span>
             ),
@@ -71,6 +74,7 @@ const SubscriptionsPage = () => {
             type: "date",
             sortable: true,
             width: 110,
+            hideBelow: "lg",
             render: ({ started_at }) =>
                 started_at ? moment(started_at).format("MMM DD, YYYY") : "—",
         },
@@ -80,6 +84,7 @@ const SubscriptionsPage = () => {
             type: "custom",
             sortable: true,
             width: 110,
+            hideBelow: "lg",
             render: ({ expires_at }) =>
                 expires_at ? moment(expires_at).format("MMM DD, YYYY") : "No expiry",
         },
@@ -89,8 +94,9 @@ const SubscriptionsPage = () => {
             type: "custom",
             sortable: false,
             width: 110,
+            hideBelow: "lg",
             render: (r) => (
-                <span className="text-xs">{formatQuotaUsage(r.quota_usage)}</span>
+                <span>{formatQuotaUsage(r.quota_usage)}</span>
             ),
         },
         {
@@ -98,6 +104,7 @@ const SubscriptionsPage = () => {
             title: "Actions",
             type: "actions",
             sortable: false,
+            width: 80,
             textAlignment: "center",
             actions: [{ type: "view", onClick: (r) => openSidebar(r.id) }],
         },
@@ -117,27 +124,17 @@ const SubscriptionsPage = () => {
                 ]}
             />
 
-            <DataTableWithSidebar<IOrganizerSubscription>
-                title="Subscriptions"
-                columns={columns}
-                fetchData={(params) => subscriptionApi.getAll(params)}
-                sortCol="started_at"
-                query={tableQuery}
-                rowSelectionEnabled={false}
-                searchable={false}
-                className="mt-5"
-                buttons={
-                    <div className="flex flex-wrap items-end gap-2">
-                        <select
-                            className="form-select w-auto text-xs"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                            <option value="">All statuses</option>
-                            <option value="active">Active</option>
-                            <option value="expired">Expired</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
+            <StatusFilterBar
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                    { value: "", label: "All" },
+                    { value: "active", label: "Active" },
+                    { value: "expired", label: "Expired" },
+                    { value: "cancelled", label: "Cancelled" },
+                ]}
+                extra={
+                    <>
                         <select
                             className="form-select w-auto text-xs"
                             value={packageId}
@@ -163,8 +160,19 @@ const SubscriptionsPage = () => {
                                 placeholder="Search organizers…"
                             />
                         </div>
-                    </div>
+                    </>
                 }
+            />
+
+            <DataTableWithSidebar<IOrganizerSubscription>
+                title="Subscriptions"
+                columns={columns}
+                fetchData={(params) => subscriptionApi.getAll(params)}
+                sortCol="started_at"
+                query={tableQuery}
+                rowSelectionEnabled={false}
+                searchable={false}
+                className="mt-0"
                 showSidebar={showSidebar}
                 sidebarTitle="Subscription Detail"
                 onCloseSidebar={closeSidebar}

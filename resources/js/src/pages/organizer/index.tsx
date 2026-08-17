@@ -1,17 +1,17 @@
 import { IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Filter } from "lucide-react";
 import moment from "moment";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
-import { useConfirmDialog, useSidebarDetail } from "../../hooks";
+import StatusFilterBar from "../../components/StatusFilterBar";
+import { useConfirmDialog } from "../../hooks";
 import { organizerApi } from "../../services/organizer";
 import { IOrganizer } from "../../types";
 import { ColumnConfig } from "../../types/columns";
-import OrganizerDetail from "./components/OrganizerDetail";
 import OrganizerModal from "./components/OrganizerModal";
 import OrganizerStatusModal from "./components/OrganizerStatusModal";
 
@@ -19,38 +19,15 @@ type StatusFilter = "" | "active" | "suspended";
 
 const OrganizerList = () => {
     const { t } = useTranslation();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [selectedRecords, setSelectedRecords] = useState<IOrganizer[]>([]);
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
-    const [showFilter, setShowFilter] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [statusModalOpen, setStatusModalOpen] = useState(false);
     const [organizerToEdit, setOrganizerToEdit] = useState<IOrganizer | null>(null);
     const [organizerForStatus, setOrganizerForStatus] = useState<IOrganizer | null>(null);
-    const filterRef = useRef<HTMLDivElement>(null);
-
-    const {
-        selectedId: selectedOrganizerId,
-        showSidebar,
-        openSidebar,
-        closeSidebar,
-    } = useSidebarDetail();
-
     const { confirmDelete } = useConfirmDialog();
-
-    useEffect(() => {
-        const onClickOutside = (event: MouseEvent) => {
-            if (
-                showFilter &&
-                filterRef.current &&
-                !filterRef.current.contains(event.target as Node)
-            ) {
-                setShowFilter(false);
-            }
-        };
-        document.addEventListener("mousedown", onClickOutside);
-        return () => document.removeEventListener("mousedown", onClickOutside);
-    }, [showFilter]);
 
     const { mutate: deleteOrganizer } = useMutation({
         mutationFn: (id: number) => organizerApi.delete(id),
@@ -58,7 +35,6 @@ const OrganizerList = () => {
             queryClient.invalidateQueries({ queryKey: ["Organizer Table"] });
             queryClient.invalidateQueries({ queryKey: [t("trashed_organizers")] });
             toast.success("Organizer moved to trash");
-            if (selectedOrganizerId) closeSidebar();
         },
         onError: (error: Error) => toast.error(error.message || "Failed to delete"),
     });
@@ -70,20 +46,11 @@ const OrganizerList = () => {
             queryClient.invalidateQueries({ queryKey: [t("trashed_organizers")] });
             toast.success(`${data.deleted_count} organizers moved to trash`);
             setSelectedRecords([]);
-            if (selectedOrganizerId) closeSidebar();
         },
         onError: (error: Error) => toast.error(error.message || "Failed to delete"),
     });
 
-    const openEditModal = (organizer: IOrganizer) => {
-        setOrganizerToEdit(organizer);
-        setEditModalOpen(true);
-    };
-
-    const openStatusModal = (organizer: IOrganizer) => {
-        setOrganizerForStatus(organizer);
-        setStatusModalOpen(true);
-    };
+    const openDetail = (id: number) => navigate(`/organizers/${id}`);
 
     const columns: ColumnConfig<IOrganizer>[] = [
         {
@@ -91,6 +58,7 @@ const OrganizerList = () => {
             title: "Business",
             type: "text",
             sortable: true,
+            width: 200,
             render: ({ business_name }) => (
                 <div className="font-medium">{business_name}</div>
             ),
@@ -100,12 +68,14 @@ const OrganizerList = () => {
             title: "Contact",
             type: "text",
             sortable: true,
+            hideBelow: "lg",
         },
         {
             accessor: "email",
             title: "Email",
             type: "text",
             sortable: true,
+            hideBelow: "lg",
         },
         {
             accessor: "status",
@@ -124,14 +94,14 @@ const OrganizerList = () => {
             type: "custom",
             sortable: false,
             width: 120,
+            hideBelow: "lg",
             render: (row) => {
                 const name =
-                    row.active_subscription?.package?.name ??
-                    row.subscription_package;
+                    row.active_subscription?.package?.name ?? row.subscription_package;
                 return name ? (
-                    <span className="text-xs font-medium">{name}</span>
+                    <span className="font-medium">{name}</span>
                 ) : (
-                    <span className="text-gray-400 text-xs">—</span>
+                    <span className="text-gray-400">—</span>
                 );
             },
         },
@@ -141,8 +111,9 @@ const OrganizerList = () => {
             type: "custom",
             sortable: false,
             width: 80,
+            hideBelow: "lg",
             render: ({ events_count }) => (
-                <span className="text-xs">{events_count ?? 0}</span>
+                <span>{events_count ?? 0}</span>
             ),
         },
         {
@@ -151,6 +122,7 @@ const OrganizerList = () => {
             type: "date",
             sortable: true,
             width: 110,
+            hideBelow: "lg",
             render: ({ created_at }) => (
                 <div>{created_at ? moment(created_at).format("MM/DD/YYYY") : "-"}</div>
             ),
@@ -160,20 +132,24 @@ const OrganizerList = () => {
             title: "Actions",
             type: "actions",
             sortable: false,
+            width: 176,
             textAlignment: "center",
             actions: [
-                {
-                    type: "view",
-                    onClick: (record) => openSidebar(record.id),
-                },
+                { type: "view", onClick: (record) => openDetail(record.id) },
                 {
                     type: "edit",
-                    onClick: (record) => openEditModal(record),
+                    onClick: (record) => {
+                        setOrganizerToEdit(record);
+                        setEditModalOpen(true);
+                    },
                 },
                 {
                     type: "edit",
                     label: "Status",
-                    onClick: (record) => openStatusModal(record),
+                    onClick: (record) => {
+                        setOrganizerForStatus(record);
+                        setStatusModalOpen(true);
+                    },
                 },
                 {
                     type: "delete",
@@ -197,6 +173,16 @@ const OrganizerList = () => {
                 ]}
             />
 
+            <StatusFilterBar
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as StatusFilter)}
+                options={[
+                    { value: "", label: "All" },
+                    { value: "active", label: "Active" },
+                    { value: "suspended", label: "Suspended" },
+                ]}
+            />
+
             <DataTableWithSidebar<IOrganizer>
                 title="Organizer Table"
                 columns={columns}
@@ -204,10 +190,11 @@ const OrganizerList = () => {
                 searchFields={["business_name", "contact_name", "email"]}
                 sortCol="created_at"
                 query={tableQuery}
-                rowSelectionEnabled={true}
+                rowSelectionEnabled
                 onSelectionChange={setSelectedRecords}
-                searchable={true}
-                className="mt-5"
+                searchable
+                className="mt-0"
+                onRowClick={(record) => openDetail(record.id)}
                 bulkActions={[
                     {
                         label: "Delete Selected",
@@ -228,61 +215,6 @@ const OrganizerList = () => {
                         },
                     },
                 ]}
-                buttons={
-                    <div className="filter-dropdown relative" ref={filterRef}>
-                        <button
-                            type="button"
-                            className={`px-3 py-2 rounded-lg border flex items-center gap-2 text-sm ${
-                                statusFilter
-                                    ? "bg-primary text-white border-primary"
-                                    : "border-gray-300 bg-white text-gray-700 dark:bg-[#1b2e4b] dark:border-[#1b2e4b] dark:text-white-light"
-                            }`}
-                            onClick={() => setShowFilter((v) => !v)}
-                        >
-                            <Filter size={16} />
-                            <span>
-                                {statusFilter === "active"
-                                    ? "Active"
-                                    : statusFilter === "suspended"
-                                      ? "Suspended"
-                                      : "All statuses"}
-                            </span>
-                        </button>
-                        {showFilter && (
-                            <div className="absolute right-0 z-20 mt-2 w-44 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-[#1b2e4b] dark:bg-[#0e1726]">
-                                {(
-                                    [
-                                        { value: "", label: "All statuses" },
-                                        { value: "active", label: "Active" },
-                                        { value: "suspended", label: "Suspended" },
-                                    ] as { value: StatusFilter; label: string }[]
-                                ).map((option) => (
-                                    <button
-                                        key={option.label}
-                                        type="button"
-                                        className={`block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-[#1b2e4b] ${
-                                            statusFilter === option.value
-                                                ? "text-primary font-medium"
-                                                : "text-gray-700 dark:text-white-light"
-                                        }`}
-                                        onClick={() => {
-                                            setStatusFilter(option.value);
-                                            setShowFilter(false);
-                                        }}
-                                    >
-                                        {option.label}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                }
-                showSidebar={showSidebar}
-                sidebarTitle="Organizer Details"
-                onCloseSidebar={closeSidebar}
-                sidebarContent={
-                    <OrganizerDetail organizerId={selectedOrganizerId} />
-                }
             />
 
             <OrganizerModal

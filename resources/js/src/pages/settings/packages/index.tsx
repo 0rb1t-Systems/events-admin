@@ -8,6 +8,7 @@ import { useConfirmDialog, useSidebarDetail } from "../../../hooks";
 import { packageApi } from "../../../services/package";
 import { IPackage } from "../../../types";
 import { ColumnConfig } from "../../../types/columns";
+import { formatMoney } from "../../../utils/money";
 import PackageDetail from "./components/PackageDetail";
 import PackageModal from "./components/PackageModal";
 
@@ -84,8 +85,12 @@ const PackageList = () => {
             title: "Price",
             type: "text",
             sortable: true,
-            width: 100,
-            render: ({ price }) => Number(price).toFixed(2),
+            width: 130,
+            minWidth: 120,
+            textAlignment: "right",
+            render: ({ price }) => (
+                <span className="whitespace-nowrap">{formatMoney(price)}</span>
+            ),
         },
         {
             accessor: "event_quota",
@@ -120,6 +125,7 @@ const PackageList = () => {
             type: "date",
             sortable: true,
             width: 110,
+            hideBelow: "lg",
             render: ({ created_at }) => (
                 <div>{created_at ? moment(created_at).format("MM/DD/YYYY") : "-"}</div>
             ),

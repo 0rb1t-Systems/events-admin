@@ -52,24 +52,29 @@ const TrashEventCategories = lazy(
 
 // Organizers (oversight)
 const Organizer = lazy(() => import("../pages/organizer"));
+const OrganizerShow = lazy(() => import("../pages/organizer/show"));
 
 // Events (oversight)
 const Event = lazy(() => import("../pages/event"));
+const EventShow = lazy(() => import("../pages/event/show"));
 
 // Payouts (Admin System — Phase 6)
 const Payout = lazy(() => import("../pages/payout"));
+const PayoutShow = lazy(() => import("../pages/payout/show"));
 
 // Payments (platform-wide — Prompt 14)
 const Payment = lazy(() => import("../pages/payment"));
 
 // Certificates (platform-wide — Prompt 14)
 const Certificate = lazy(() => import("../pages/certificate"));
+const CertificateShow = lazy(() => import("../pages/certificate/show"));
 
 // Subscriptions (platform-wide — Prompt 14)
 const Subscription = lazy(() => import("../pages/subscription"));
 
 // Feedback (platform content oversight — Prompt 13)
 const Feedback = lazy(() => import("../pages/feedback"));
+const FeedbackShow = lazy(() => import("../pages/feedback/show"));
 
 // Redirect component - now redirects from root (/) to /dashboard
 const RedirectToDashboard = () => <Navigate to="/dashboard" replace />;
@@ -136,6 +141,12 @@ export const protectedRoutes: RouteConfig[] = [
         layout: "default",
         permissions: ["view organizers"],
     },
+    {
+        path: "/organizers/:id",
+        element: <OrganizerShow />,
+        layout: "default",
+        permissions: ["view organizers"],
+    },
 
     // Events (Admin oversight)
     {
@@ -144,11 +155,23 @@ export const protectedRoutes: RouteConfig[] = [
         layout: "default",
         permissions: ["view events"],
     },
+    {
+        path: "/events/:id",
+        element: <EventShow />,
+        layout: "default",
+        permissions: ["view events"],
+    },
 
     // Payouts (Admin System)
     {
         path: "/payouts",
         element: <Payout />,
+        layout: "default",
+        permissions: ["view payouts"],
+    },
+    {
+        path: "/payouts/:id",
+        element: <PayoutShow />,
         layout: "default",
         permissions: ["view payouts"],
     },
@@ -168,6 +191,12 @@ export const protectedRoutes: RouteConfig[] = [
         layout: "default",
         permissions: ["view certificates"],
     },
+    {
+        path: "/certificates/:id",
+        element: <CertificateShow />,
+        layout: "default",
+        permissions: ["view certificates"],
+    },
 
     // Subscriptions (platform-wide overview)
     {
@@ -181,6 +210,12 @@ export const protectedRoutes: RouteConfig[] = [
     {
         path: "/feedback",
         element: <Feedback />,
+        layout: "default",
+        permissions: ["view event feedback"],
+    },
+    {
+        path: "/feedback/:id",
+        element: <FeedbackShow />,
         layout: "default",
         permissions: ["view event feedback"],
     },

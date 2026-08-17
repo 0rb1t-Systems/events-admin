@@ -42,6 +42,7 @@ const EventCategoryList = () => {
             type: "date",
             sortable: true,
             width: 120,
+            hideBelow: "lg",
             render: ({ created_at }) =>
                 created_at ? moment(created_at).format("MM/DD/YYYY") : "-",
         },

@@ -2,12 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import Loader from "../../../components/Loader";
 import { fetchCheckInStats } from "../../../services/qrScanLog";
+import { EventMetricCard } from "./EventField";
 
 interface Props {
     eventId: number;
 }
 
-/** Compact check-in dashboard stats (add-on 12.5) on Event Detail. */
 const CheckInStatsPanel: React.FC<Props> = ({ eventId }) => {
     const { data, isLoading, error } = useQuery({
         queryKey: ["event-check-in-stats", eventId],
@@ -30,22 +30,12 @@ const CheckInStatsPanel: React.FC<Props> = ({ eventId }) => {
 
     return (
         <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {cells.map((c) => (
-                    <div
-                        key={c.label}
-                        className="rounded border border-gray-100 px-2 py-1.5 dark:border-[#1b2e4b]"
-                    >
-                        <div className="text-[10px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                            {c.label}
-                        </div>
-                        <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                            {c.value}
-                        </div>
-                    </div>
+                    <EventMetricCard key={c.label} label={c.label} value={c.value} />
                 ))}
             </div>
-            <p className="text-[11px] text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
                 Scans: {data.scan_attempts} total · {data.valid_scans} valid ·{" "}
                 {data.already_used_scans} already used · {data.invalid_scans} invalid
             </p>

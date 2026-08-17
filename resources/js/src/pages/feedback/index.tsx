@@ -1,18 +1,17 @@
 import moment from "moment";
 import React, { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
-import { useSidebarDetail } from "../../hooks";
+import StatusFilterBar from "../../components/StatusFilterBar";
 import { feedbackApi } from "../../services/feedback";
 import { ColumnConfig } from "../../types/columns";
 import { IEventFeedback } from "../../types/feedback";
-import FeedbackDetail from "./components/FeedbackDetail";
 
 const Stars = ({ rating }: { rating: number }) => {
     const n = Math.max(0, Math.min(5, Math.round(rating)));
     return (
-        <span className="text-xs tracking-tight text-amber-500" title={`${n}/5`}>
+        <span className="tracking-tight text-amber-500" title={`${n}/5`}>
             {"★".repeat(n)}
             <span className="text-gray-300 dark:text-gray-600">{"★".repeat(5 - n)}</span>
         </span>
@@ -20,9 +19,10 @@ const Stars = ({ rating }: { rating: number }) => {
 };
 
 const FeedbackPage = () => {
-    const queryClient = useQueryClient();
-    const { selectedId, showSidebar, openSidebar, closeSidebar } = useSidebarDetail();
+    const navigate = useNavigate();
     const [visibilityFilter, setVisibilityFilter] = useState<string>("");
+
+    const openDetail = (id: number) => navigate(`/feedback/${id}`);
 
     const columns: ColumnConfig<IEventFeedback>[] = [
         {
@@ -30,8 +30,9 @@ const FeedbackPage = () => {
             title: "Event",
             type: "custom",
             sortable: false,
+            width: 200,
             render: (row) => (
-                <span className="font-medium">
+                <span className="font-medium text-gray-900 dark:text-white">
                     {row.participation?.event?.title ?? "—"}
                 </span>
             ),
@@ -41,9 +42,12 @@ const FeedbackPage = () => {
             title: "Participant",
             type: "custom",
             sortable: false,
-            width: 140,
+            width: 160,
+            hideBelow: "lg",
             render: (row) => (
-                <span className="text-xs">{row.participation?.user?.name ?? "—"}</span>
+                <span className="text-gray-800 dark:text-white-light">
+                    {row.participation?.user?.name ?? "—"}
+                </span>
             ),
         },
         {
@@ -51,7 +55,7 @@ const FeedbackPage = () => {
             title: "Rating",
             type: "custom",
             sortable: true,
-            width: 110,
+            width: 120,
             render: ({ rating }) => <Stars rating={rating} />,
         },
         {
@@ -59,8 +63,10 @@ const FeedbackPage = () => {
             title: "Comment",
             type: "custom",
             sortable: false,
+            width: 240,
+            hideBelow: "lg",
             render: ({ comment }) => (
-                <span className="line-clamp-1 text-xs text-gray-600 dark:text-gray-300">
+                <span className="line-clamp-1 text-gray-700 dark:text-gray-200">
                     {comment
                         ? comment.length > 60
                             ? `${comment.slice(0, 60)}…`
@@ -74,7 +80,8 @@ const FeedbackPage = () => {
             title: "Submitted",
             type: "date",
             sortable: true,
-            width: 120,
+            width: 130,
+            hideBelow: "lg",
             render: ({ submitted_at }) =>
                 submitted_at ? moment(submitted_at).format("MMM DD, YYYY") : "—",
         },
@@ -83,10 +90,10 @@ const FeedbackPage = () => {
             title: "Visibility",
             type: "custom",
             sortable: true,
-            width: 90,
+            width: 110,
             render: ({ hidden }) => (
                 <span
-                    className={`badge ${
+                    className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${
                         hidden
                             ? "bg-warning/10 text-warning"
                             : "bg-success/10 text-success"
@@ -101,8 +108,9 @@ const FeedbackPage = () => {
             title: "Actions",
             type: "actions",
             sortable: false,
+            width: 96,
             textAlignment: "center",
-            actions: [{ type: "view", onClick: (r) => openSidebar(r.id) }],
+            actions: [{ type: "view", onClick: (r) => openDetail(r.id) }],
         },
     ];
 
@@ -119,6 +127,16 @@ const FeedbackPage = () => {
                 ]}
             />
 
+            <StatusFilterBar
+                value={visibilityFilter}
+                onChange={setVisibilityFilter}
+                options={[
+                    { value: "", label: "All" },
+                    { value: "visible", label: "Visible" },
+                    { value: "hidden", label: "Hidden" },
+                ]}
+            />
+
             <DataTableWithSidebar<IEventFeedback>
                 title="Feedback"
                 columns={columns}
@@ -128,31 +146,8 @@ const FeedbackPage = () => {
                 query={tableQuery}
                 rowSelectionEnabled={false}
                 searchable
-                className="mt-5"
-                buttons={
-                    <select
-                        className="form-select w-auto text-xs"
-                        value={visibilityFilter}
-                        onChange={(e) => setVisibilityFilter(e.target.value)}
-                    >
-                        <option value="">All visibility</option>
-                        <option value="visible">Visible</option>
-                        <option value="hidden">Hidden</option>
-                    </select>
-                }
-                showSidebar={showSidebar}
-                sidebarTitle="Feedback Detail"
-                onCloseSidebar={closeSidebar}
-                sidebarContent={
-                    <FeedbackDetail
-                        feedbackId={selectedId}
-                        onVisibilityChanged={() => {
-                            queryClient.invalidateQueries({
-                                queryKey: ["Feedback"],
-                            });
-                        }}
-                    />
-                }
+                className="mt-0"
+                onRowClick={(r) => openDetail(r.id)}
             />
         </div>
     );

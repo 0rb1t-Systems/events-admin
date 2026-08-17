@@ -7,7 +7,7 @@ interface DataTableWithSidebarProps<T> {
     title: string;
     columns: ColumnConfig<T>[];
     fetchData: (params: any) => Promise<any>;
-    searchFields: string[];
+    searchFields?: string[];
     sortCol?: string;
     query?: Record<string, any>;
     rowSelectionEnabled?: boolean;
@@ -27,17 +27,18 @@ interface DataTableWithSidebarProps<T> {
         onClick: (ids: any[]) => void;
     }>;
     buttons?: React.ReactNode;
-    showSidebar: boolean;
-    sidebarTitle: string;
-    onCloseSidebar: () => void;
-    sidebarContent: React.ReactNode;
+    showSidebar?: boolean;
+    sidebarTitle?: string;
+    onCloseSidebar?: () => void;
+    sidebarContent?: React.ReactNode;
+    onRowClick?: (record: T) => void;
 }
 
 const DataTableWithSidebar = <T,>({
     title,
     columns,
     fetchData,
-    searchFields,
+    searchFields = [],
     sortCol = "created_at",
     query = {},
     rowSelectionEnabled = true,
@@ -48,10 +49,11 @@ const DataTableWithSidebar = <T,>({
     className = "mt-5",
     bulkActions,
     buttons,
-    showSidebar,
-    sidebarTitle,
-    onCloseSidebar,
-    sidebarContent,
+    showSidebar = false,
+    sidebarTitle = "",
+    onCloseSidebar = () => {},
+    sidebarContent = null,
+    onRowClick,
 }: DataTableWithSidebarProps<T>) => {
     return (
         <div className="flex transition-all duration-300 ease-in-out">
@@ -75,6 +77,7 @@ const DataTableWithSidebar = <T,>({
                     className={className}
                     bulkActions={bulkActions}
                     buttons={buttons}
+                    onRowClick={onRowClick}
                 />
             </div>
 

@@ -1,9 +1,10 @@
 import moment from "moment";
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
 import FormCombobox from "../../components/form/FormCombobox";
-import { useSidebarDetail } from "../../hooks";
+import StatusFilterBar from "../../components/StatusFilterBar";
 import {
     formatEventOption,
     useEventSearch,
@@ -12,15 +13,16 @@ import { certificateApi } from "../../services/certificate";
 import { ColumnConfig } from "../../types/columns";
 import { ICertificate } from "../../types/certificate";
 import { IEvent } from "../../types/event";
-import CertificateDetail from "./components/CertificateDetail";
 
 const CertificatesPage = () => {
-    const { selectedId, showSidebar, openSidebar, closeSidebar } = useSidebarDetail();
+    const navigate = useNavigate();
     const [verifiedFilter, setVerifiedFilter] = useState("");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
     const eventSearch = useEventSearch();
+
+    const openDetail = (id: number) => navigate(`/certificates/${id}`);
 
     const columns: ColumnConfig<ICertificate>[] = [
         {
@@ -28,6 +30,7 @@ const CertificatesPage = () => {
             title: "Participant",
             type: "custom",
             sortable: false,
+            minWidth: 140,
             render: (r) => (
                 <span className="font-medium">
                     {r.participation?.user?.name ?? `P#${r.participation_id}`}
@@ -39,8 +42,9 @@ const CertificatesPage = () => {
             title: "Event",
             type: "custom",
             sortable: false,
+            minWidth: 140,
             render: (r) => (
-                <span className="text-xs">{r.participation?.event?.title ?? "—"}</span>
+                <span>{r.participation?.event?.title ?? "—"}</span>
             ),
         },
         {
@@ -49,6 +53,7 @@ const CertificatesPage = () => {
             type: "date",
             sortable: true,
             width: 120,
+            hideBelow: "lg",
             render: ({ issued_at }) =>
                 issued_at ? moment(issued_at).format("MMM DD, YYYY") : "—",
         },
@@ -57,13 +62,13 @@ const CertificatesPage = () => {
             title: "Verified",
             type: "custom",
             sortable: true,
-            width: 90,
+            width: 100,
             render: ({ verified }) => (
                 <span
-                    className={`badge ${
+                    className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${
                         verified
                             ? "bg-success/10 text-success"
-                            : "bg-gray-500/10 text-gray-500"
+                            : "bg-gray-500/10 text-gray-600 dark:text-gray-300"
                     }`}
                 >
                     {verified ? "Yes" : "No"}
@@ -75,16 +80,17 @@ const CertificatesPage = () => {
             title: "File",
             type: "custom",
             sortable: false,
-            width: 90,
+            width: 80,
+            hideBelow: "lg",
             render: (r) => {
                 const href = r.file_url || r.file_path;
-                if (!href) return <span className="text-xs text-gray-400">—</span>;
+                if (!href) return <span className="text-gray-400">—</span>;
                 return (
                     <a
                         href={href.startsWith("http") ? href : `/${href}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-xs text-primary underline"
+                        className="text-primary underline"
                         onClick={(e) => e.stopPropagation()}
                     >
                         View
@@ -97,8 +103,9 @@ const CertificatesPage = () => {
             title: "Actions",
             type: "actions",
             sortable: false,
+            width: 80,
             textAlignment: "center",
-            actions: [{ type: "view", onClick: (r) => openSidebar(r.id) }],
+            actions: [{ type: "view", onClick: (r) => openDetail(r.id) }],
         },
     ];
 
@@ -118,17 +125,16 @@ const CertificatesPage = () => {
                 ]}
             />
 
-            <DataTableWithSidebar<ICertificate>
-                title="Certificates"
-                columns={columns}
-                fetchData={(params) => certificateApi.getAll(params)}
-                sortCol="issued_at"
-                query={tableQuery}
-                rowSelectionEnabled={false}
-                searchable={false}
-                className="mt-5"
-                buttons={
-                    <div className="flex flex-wrap items-end gap-2">
+            <StatusFilterBar
+                value={verifiedFilter}
+                onChange={setVerifiedFilter}
+                options={[
+                    { value: "", label: "All" },
+                    { value: "yes", label: "Verified" },
+                    { value: "no", label: "Not verified" },
+                ]}
+                extra={
+                    <>
                         <div className="w-56">
                             <FormCombobox<IEvent>
                                 id="cert_event_filter"
@@ -142,15 +148,6 @@ const CertificatesPage = () => {
                                 placeholder="Search events…"
                             />
                         </div>
-                        <select
-                            className="form-select w-auto text-xs"
-                            value={verifiedFilter}
-                            onChange={(e) => setVerifiedFilter(e.target.value)}
-                        >
-                            <option value="">All verified</option>
-                            <option value="yes">Verified</option>
-                            <option value="no">Not verified</option>
-                        </select>
                         <div>
                             <label className="mb-1 block text-[10px] uppercase text-gray-500">
                                 From
@@ -173,12 +170,20 @@ const CertificatesPage = () => {
                                 onChange={(e) => setDateTo(e.target.value)}
                             />
                         </div>
-                    </div>
+                    </>
                 }
-                showSidebar={showSidebar}
-                sidebarTitle="Certificate Detail"
-                onCloseSidebar={closeSidebar}
-                sidebarContent={<CertificateDetail certificateId={selectedId} />}
+            />
+
+            <DataTableWithSidebar<ICertificate>
+                title="Certificates"
+                columns={columns}
+                fetchData={(params) => certificateApi.getAll(params)}
+                sortCol="issued_at"
+                query={tableQuery}
+                rowSelectionEnabled={false}
+                searchable={false}
+                className="mt-0"
+                onRowClick={(r) => openDetail(r.id)}
             />
         </div>
     );

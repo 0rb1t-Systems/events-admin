@@ -24,4 +24,5 @@ export interface CustomDataTableProps<T> {
     className?: string;
     bulkActions?: BulkAction[];
     getRecordId?: (record: T) => number;
+    onRowClick?: (record: T) => void;
 }

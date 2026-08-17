@@ -13,13 +13,34 @@ table > thead > tr > th.mantine-187dsit {
     @apply bg-transparent;
 }
 .datatables table tbody tr td {
-    @apply !border-0 !border-none;
+    @apply !border-0 !border-none text-sm text-gray-800 dark:text-white-light;
+    overflow: visible !important;
+    vertical-align: middle;
 }
 table tr .mantine-Checkbox-root {
     @apply flex;
 }
+.datatables table {
+    @apply font-nunito text-sm !text-black dark:!text-white-dark;
+    table-layout: auto;
+    width: 100%;
+    min-width: 960px;
+}
 .datatables table thead tr th {
-    @apply !border-b-0 !bg-white-light/30  text-black dark:!bg-[#1a2941] dark:!text-white-dark;
+    @apply !border-b-0 !bg-white-light/30 text-sm font-semibold text-black dark:!bg-[#1a2941] dark:!text-white-dark whitespace-nowrap;
+    overflow: visible !important;
+    text-overflow: clip !important;
+}
+.datatables table thead tr th .mantine-Text-root {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+    display: inline !important;
+    font-size: 0.875rem !important;
+}
+.admin-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .datatables .table-bordered table thead tr th,
@@ -51,7 +72,10 @@ table tr .mantine-Checkbox-root {
     @apply bg-white-light/20 dark:!bg-[#1a2941]/40;
 }
 .datatables table {
-    @apply font-nunito !text-black dark:!text-white-dark;
+    @apply font-nunito text-sm !text-black dark:!text-white-dark;
+    table-layout: auto;
+    width: 100%;
+    min-width: 960px;
 }
 .datatables .mantine-Text-root {
     @apply flex-none !font-nunito text-sm font-medium;

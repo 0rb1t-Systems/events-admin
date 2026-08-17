@@ -17,9 +17,11 @@ import axiosInstance from "../../../utils/axios";
 
 interface Props {
     eventId: number;
+    /** When set, only those sections fetch and render (lazy event hub tabs). */
+    only?: Kind[];
 }
 
-type Kind = "announcements" | "certificates" | "feedback" | "sponsors" | "speakers" | "sessions";
+export type Kind = "announcements" | "certificates" | "feedback" | "sponsors" | "speakers" | "sessions";
 
 const fetchList = async (eventId: number, kind: Kind) => {
     const res = await axiosInstance.get(`/events/${eventId}/${kind}`);
@@ -99,9 +101,10 @@ type SessionForm = z.infer<typeof sessionSchema>;
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
+const EventAddOnOversight: React.FC<Props> = ({ eventId, only }) => {
     const queryClient = useQueryClient();
     const { confirmAction } = useConfirmDialog();
+    const show = (kind: Kind) => !only || only.includes(kind);
 
     const invalidateKind = (kind: Kind) =>
         queryClient.invalidateQueries({ queryKey: [`event-${kind}`, eventId] });
@@ -111,26 +114,32 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
     const announcements = useQuery({
         queryKey: ["event-announcements", eventId],
         queryFn: () => fetchList(eventId, "announcements"),
+        enabled: show("announcements"),
     });
     const certificates = useQuery({
         queryKey: ["event-certificates", eventId],
         queryFn: () => fetchList(eventId, "certificates"),
+        enabled: show("certificates"),
     });
     const feedback = useQuery({
         queryKey: ["event-feedback", eventId],
         queryFn: () => fetchList(eventId, "feedback"),
+        enabled: show("feedback"),
     });
     const sponsors = useQuery({
         queryKey: ["event-sponsors", eventId],
         queryFn: () => fetchList(eventId, "sponsors"),
+        enabled: show("sponsors"),
     });
     const speakers = useQuery({
         queryKey: ["event-speakers", eventId],
         queryFn: () => fetchList(eventId, "speakers"),
+        enabled: show("speakers"),
     });
     const sessions = useQuery({
         queryKey: ["event-sessions", eventId],
         queryFn: () => fetchList(eventId, "sessions"),
+        enabled: show("sessions"),
     });
 
     // ── Modal state ───────────────────────────────────────────────────────────
@@ -314,8 +323,12 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
     });
 
     const loading =
-        announcements.isLoading || certificates.isLoading || feedback.isLoading ||
-        sponsors.isLoading || speakers.isLoading || sessions.isLoading;
+        (show("announcements") && announcements.isLoading) ||
+        (show("certificates") && certificates.isLoading) ||
+        (show("feedback") && feedback.isLoading) ||
+        (show("sponsors") && sponsors.isLoading) ||
+        (show("speakers") && speakers.isLoading) ||
+        (show("sessions") && sessions.isLoading);
 
     if (loading) return <Loader />;
 
@@ -325,7 +338,7 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
         <>
             <div className="space-y-4 text-xs">
 
-                {/* Announcements */}
+                {show("announcements") && (
                 <Section
                     title="Announcements"
                     action={
@@ -349,8 +362,9 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
                             </div>
                         ))}
                 </Section>
+                )}
 
-                {/* Certificates */}
+                {show("certificates") && (
                 <Section title="Certificates">
                     {(certificates.data?.certificates?.length ?? 0) === 0
                         ? <Empty label="certificates" />
@@ -387,8 +401,9 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
                             </div>
                         ))}
                 </Section>
+                )}
 
-                {/* Feedback aggregates (moderation on /feedback) */}
+                {show("feedback") && (
                 <Section
                     title={`Feedback (avg ${feedback.data?.average_rating ?? "—"} · ${feedback.data?.feedback_count ?? 0} total · ${feedback.data?.hidden_count ?? 0} hidden)`}
                 >
@@ -404,8 +419,9 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
                             </div>
                         ))}
                 </Section>
+                )}
 
-                {/* Sponsors */}
+                {show("sponsors") && (
                 <Section
                     title="Sponsors"
                     action={
@@ -448,8 +464,9 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
                             </div>
                         ))}
                 </Section>
+                )}
 
-                {/* Speakers */}
+                {show("speakers") && (
                 <Section
                     title="Speakers"
                     action={
@@ -493,8 +510,9 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
                             </div>
                         ))}
                 </Section>
+                )}
 
-                {/* Sessions */}
+                {show("sessions") && (
                 <Section
                     title="Sessions"
                     action={
@@ -539,6 +557,7 @@ const EventAddOnOversight: React.FC<Props> = ({ eventId }) => {
                             </div>
                         ))}
                 </Section>
+                )}
             </div>
 
             {/* Announcement compose modal */}

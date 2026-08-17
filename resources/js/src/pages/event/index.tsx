@@ -1,47 +1,47 @@
 import { IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import moment from "moment";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
-import { useConfirmDialog, useSidebarDetail } from "../../hooks";
+import StatusFilterBar from "../../components/StatusFilterBar";
+import { useConfirmDialog } from "../../hooks";
 import { eventApi } from "../../services/event";
 import { IEvent } from "../../types";
 import { ColumnConfig } from "../../types/columns";
-import EventDetail from "./components/EventDetail";
+import { EVENT_STATUS_OPTIONS } from "./components/EventForm";
 import EventModal from "./components/EventModal";
+import { statusBadgeClass } from "../../utils/statusBadge";
 
 type StatusFilter = "" | IEvent["status"];
 
+const EVENT_STATUS_COLOR: Record<string, string> = {
+    draft: "warning",
+    published: "primary",
+    registration_open: "success",
+    sold_out: "danger",
+    registration_closed: "info",
+    ongoing: "info",
+    completed: "success",
+    cancelled: "danger",
+};
+
 const EventList = () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [selectedRecords, setSelectedRecords] = useState<IEvent[]>([]);
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
-    const [showFilter, setShowFilter] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
     const [eventToEdit, setEventToEdit] = useState<IEvent | null>(null);
-    const filterRef = useRef<HTMLDivElement>(null);
-
-    const { selectedId, showSidebar, openSidebar, closeSidebar } = useSidebarDetail();
     const { confirmDelete } = useConfirmDialog();
-
-    useEffect(() => {
-        const onClick = (e: MouseEvent) => {
-            if (showFilter && filterRef.current && !filterRef.current.contains(e.target as Node)) {
-                setShowFilter(false);
-            }
-        };
-        document.addEventListener("mousedown", onClick);
-        return () => document.removeEventListener("mousedown", onClick);
-    }, [showFilter]);
 
     const { mutate: remove } = useMutation({
         mutationFn: (id: number) => eventApi.delete(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["Event Table"] });
             toast.success("Event moved to trash");
-            if (selectedId) closeSidebar();
         },
         onError: (e: Error) => toast.error(e.message),
     });
@@ -62,22 +62,30 @@ const EventList = () => {
         return `${e.registrations_count}/${e.capacity}`;
     };
 
+    const openEvent = (id: number) => navigate(`/events/${id}`);
+
     const columns: ColumnConfig<IEvent>[] = [
         {
             accessor: "title",
             title: "Title",
             type: "text",
             sortable: true,
-            render: ({ title }) => <div className="font-medium">{title}</div>,
+            width: 220,
+            render: ({ title }) => (
+                <div className="font-medium text-gray-900 dark:text-white">{title}</div>
+            ),
         },
         {
             accessor: "organizer",
             title: "Organizer",
             type: "custom",
             sortable: false,
-            width: 130,
+            width: 170,
+            hideBelow: "lg",
             render: ({ organizer }) => (
-                <span className="text-xs">{organizer?.business_name ?? "—"}</span>
+                <span className="text-gray-800 dark:text-white-light">
+                    {organizer?.business_name ?? "—"}
+                </span>
             ),
         },
         {
@@ -85,9 +93,11 @@ const EventList = () => {
             title: "Status",
             type: "text",
             sortable: true,
-            width: 130,
+            width: 160,
             render: ({ status }) => (
-                <span className="text-xs capitalize">{String(status).replace(/_/g, " ")}</span>
+                <span className={statusBadgeClass(EVENT_STATUS_COLOR[status] || "primary")}>
+                    {String(status).replace(/_/g, " ")}
+                </span>
             ),
         },
         {
@@ -95,15 +105,17 @@ const EventList = () => {
             title: "Capacity",
             type: "custom",
             sortable: true,
-            width: 90,
-            render: (row) => <span className="text-xs">{formatCapacity(row)}</span>,
+            width: 110,
+            hideBelow: "lg",
+            render: (row) => <span>{formatCapacity(row)}</span>,
         },
         {
             accessor: "monetized",
             title: "Paid",
             type: "custom",
             sortable: true,
-            width: 70,
+            width: 80,
+            hideBelow: "lg",
             render: ({ monetized }) => (monetized ? "Yes" : "—"),
         },
         {
@@ -111,7 +123,8 @@ const EventList = () => {
             title: "Starts",
             type: "date",
             sortable: true,
-            width: 100,
+            width: 120,
+            hideBelow: "lg",
             render: ({ starts_at }) =>
                 starts_at ? moment(starts_at).format("MM/DD/YYYY") : "—",
         },
@@ -120,9 +133,10 @@ const EventList = () => {
             title: "Actions",
             type: "actions",
             sortable: false,
+            width: 150,
             textAlignment: "center",
             actions: [
-                { type: "view", onClick: (r) => openSidebar(r.id) },
+                { type: "view", onClick: (r) => openEvent(r.id) },
                 {
                     type: "edit",
                     label: "Moderate",
@@ -152,6 +166,18 @@ const EventList = () => {
                 ]}
             />
 
+            <StatusFilterBar
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as StatusFilter)}
+                options={[
+                    { value: "", label: "All" },
+                    ...EVENT_STATUS_OPTIONS.map((o) => ({
+                        value: o.value,
+                        label: o.label,
+                    })),
+                ]}
+            />
+
             <DataTableWithSidebar<IEvent>
                 title="Event Table"
                 columns={columns}
@@ -162,7 +188,8 @@ const EventList = () => {
                 rowSelectionEnabled
                 onSelectionChange={setSelectedRecords}
                 searchable
-                className="mt-5"
+                className="mt-0"
+                onRowClick={(r) => openEvent(r.id)}
                 bulkActions={[
                     {
                         label: "Delete Selected",
@@ -181,52 +208,6 @@ const EventList = () => {
                         },
                     },
                 ]}
-                buttons={
-                    <div className="relative" ref={filterRef}>
-                        <button
-                            type="button"
-                            className="btn btn-outline-primary btn-sm"
-                            onClick={() => setShowFilter((v) => !v)}
-                        >
-                            {statusFilter
-                                ? String(statusFilter).replace(/_/g, " ")
-                                : "All statuses"}
-                        </button>
-                        {showFilter && (
-                            <div className="absolute right-0 z-20 mt-1 max-h-64 w-48 overflow-y-auto rounded border bg-white shadow dark:border-[#1b2e4b] dark:bg-[#0e1726]">
-                                {(
-                                    [
-                                        "",
-                                        "draft",
-                                        "published",
-                                        "registration_open",
-                                        "sold_out",
-                                        "registration_closed",
-                                        "ongoing",
-                                        "completed",
-                                        "cancelled",
-                                    ] as StatusFilter[]
-                                ).map((s) => (
-                                    <button
-                                        key={s || "all"}
-                                        type="button"
-                                        className="block w-full px-3 py-1.5 text-left text-sm capitalize hover:bg-gray-50 dark:hover:bg-[#1b2e4b]"
-                                        onClick={() => {
-                                            setStatusFilter(s);
-                                            setShowFilter(false);
-                                        }}
-                                    >
-                                        {s ? String(s).replace(/_/g, " ") : "All statuses"}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                }
-                showSidebar={showSidebar}
-                sidebarTitle="Event Details"
-                onCloseSidebar={closeSidebar}
-                sidebarContent={<EventDetail eventId={selectedId} />}
             />
 
             <EventModal

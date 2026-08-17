@@ -22,7 +22,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const STATUS_OPTIONS: { value: EventStatus; label: string }[] = [
+export const EVENT_STATUS_OPTIONS: { value: EventStatus; label: string }[] = [
     { value: "draft", label: "Draft" },
     { value: "published", label: "Published" },
     { value: "registration_open", label: "Registration open" },
@@ -193,7 +193,7 @@ const EventForm: React.FC<Props> = ({ eventToEdit, onClose }) => {
                 value={String(nextStatus)}
                 onChange={setNextStatus}
                 onBlur={() => undefined}
-                options={STATUS_OPTIONS.map((o) => ({
+                options={EVENT_STATUS_OPTIONS.map((o) => ({
                     value: o.value,
                     label: o.label,
                 }))}

@@ -118,7 +118,8 @@ const RoleList = () => {
             title: "ID",
             type: "number",
             sortable: true,
-            width: 80,
+            width: 70,
+            hideBelow: "lg",
         },
         {
             accessor: "name",
@@ -129,9 +130,11 @@ const RoleList = () => {
         },
         {
             accessor: "guard_name",
-            title: "Guard Name",
+            title: "Guard",
             type: "text",
             sortable: true,
+            width: 90,
+            hideBelow: "lg",
         },
         {
             accessor: "permissions",
@@ -152,9 +155,11 @@ const RoleList = () => {
         },
         {
             accessor: "created_at",
-            title: "Created At",
+            title: "Created",
             type: "date",
             sortable: true,
+            width: 110,
+            hideBelow: "lg",
             render: ({ created_at }) => (
                 <div>
                     {created_at ? moment(created_at).format("MM/DD/YYYY") : "-"}

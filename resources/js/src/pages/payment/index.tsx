@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
 import FormCombobox from "../../components/form/FormCombobox";
+import StatusFilterBar from "../../components/StatusFilterBar";
 import { useSidebarDetail } from "../../hooks";
 import {
     formatEventOption,
@@ -15,6 +16,7 @@ import { ColumnConfig } from "../../types/columns";
 import { IEvent } from "../../types/event";
 import { IOrganizer } from "../../types";
 import { IPayment } from "../../types/payment";
+import { formatMoney } from "../../utils/money";
 import PaymentDetail from "./components/PaymentDetail";
 
 const PaymentsPage = () => {
@@ -33,6 +35,7 @@ const PaymentsPage = () => {
             title: "Event",
             type: "custom",
             sortable: false,
+            width: 200,
             render: (r) => (
                 <span className="font-medium">
                     {r.participation?.event?.title ?? "—"}
@@ -45,8 +48,9 @@ const PaymentsPage = () => {
             type: "custom",
             sortable: false,
             width: 130,
+            hideBelow: "lg",
             render: (r) => (
-                <span className="text-xs">
+                <span>
                     {r.participation?.event?.organizer?.business_name ?? "—"}
                 </span>
             ),
@@ -58,7 +62,7 @@ const PaymentsPage = () => {
             sortable: false,
             width: 120,
             render: (r) => (
-                <span className="text-xs">{r.participation?.user?.name ?? "—"}</span>
+                <span>{r.participation?.user?.name ?? "—"}</span>
             ),
         },
         {
@@ -67,24 +71,29 @@ const PaymentsPage = () => {
             type: "custom",
             sortable: false,
             width: 100,
-            render: (r) => <span className="text-xs">{r.ticket_type?.name ?? "—"}</span>,
+            hideBelow: "lg",
+            render: (r) => <span>{r.ticket_type?.name ?? "—"}</span>,
         },
         {
             accessor: "amount",
             title: "Amount",
             type: "custom",
             sortable: true,
-            width: 90,
-            render: (r) => Number(r.amount).toFixed(2),
+            width: 130,
+            minWidth: 120,
+            textAlignment: "right",
+            render: (r) => (
+                <span className="whitespace-nowrap">{formatMoney(r.amount)}</span>
+            ),
         },
         {
             accessor: "status",
             title: "Status",
             type: "custom",
             sortable: true,
-            width: 100,
+            width: 110,
             render: ({ status }) => (
-                <span className="text-xs capitalize">
+                <span className="capitalize">
                     {String(status).replace(/_/g, " ")}
                 </span>
             ),
@@ -94,7 +103,8 @@ const PaymentsPage = () => {
             title: "Method",
             type: "custom",
             sortable: false,
-            width: 90,
+            width: 100,
+            hideBelow: "lg",
             render: ({ gateway }) =>
                 !gateway || gateway === "waafipay" ? "WaafiPay" : gateway,
         },
@@ -104,6 +114,7 @@ const PaymentsPage = () => {
             type: "date",
             sortable: true,
             width: 110,
+            hideBelow: "lg",
             render: ({ created_at }) =>
                 created_at ? moment(created_at).format("MMM DD, YYYY") : "—",
         },
@@ -112,6 +123,7 @@ const PaymentsPage = () => {
             title: "Actions",
             type: "actions",
             sortable: false,
+            width: 80,
             textAlignment: "center",
             actions: [{ type: "view", onClick: (r) => openSidebar(r.id) }],
         },
@@ -133,29 +145,18 @@ const PaymentsPage = () => {
                 ]}
             />
 
-            <DataTableWithSidebar<IPayment>
-                title="Payments"
-                columns={columns}
-                fetchData={(params) => paymentApi.getAll(params)}
-                searchFields={["reference_id", "payer_phone"]}
-                sortCol="created_at"
-                query={tableQuery}
-                rowSelectionEnabled={false}
-                searchable
-                className="mt-5"
-                buttons={
-                    <div className="flex flex-wrap items-end gap-2">
-                        <select
-                            className="form-select w-auto text-xs"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                            <option value="">All statuses</option>
-                            <option value="completed">Completed</option>
-                            <option value="pending">Pending</option>
-                            <option value="refunded">Refunded</option>
-                            <option value="failed">Failed</option>
-                        </select>
+            <StatusFilterBar
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                    { value: "", label: "All" },
+                    { value: "completed", label: "Completed" },
+                    { value: "pending", label: "Pending" },
+                    { value: "refunded", label: "Refunded" },
+                    { value: "failed", label: "Failed" },
+                ]}
+                extra={
+                    <>
                         <div className="w-56">
                             <FormCombobox<IEvent>
                                 id="payment_event_filter"
@@ -204,8 +205,20 @@ const PaymentsPage = () => {
                                 onChange={(e) => setDateTo(e.target.value)}
                             />
                         </div>
-                    </div>
+                    </>
                 }
+            />
+
+            <DataTableWithSidebar<IPayment>
+                title="Payments"
+                columns={columns}
+                fetchData={(params) => paymentApi.getAll(params)}
+                searchFields={["reference_id", "payer_phone"]}
+                sortCol="created_at"
+                query={tableQuery}
+                rowSelectionEnabled={false}
+                searchable
+                className="mt-0"
                 showSidebar={showSidebar}
                 sidebarTitle="Payment Detail"
                 onCloseSidebar={closeSidebar}

@@ -1,11 +1,12 @@
 import { IconTrash } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Filter, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import moment from "moment";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
+import StatusFilterBar from "../../components/StatusFilterBar";
 import { useConfirmDialog, useSidebarDetail } from "../../hooks";
 import { userApi } from "../../services/user";
 import { ColumnConfig } from "../../types/columns";
@@ -15,6 +16,7 @@ import { IUser } from "../../types";
 import { useTranslation } from "react-i18next";
 
 type UserTypeFilter = "" | "admin" | "user";
+type StatusFilter = "" | "active" | "inactive" | "suspended";
 
 const UserList = () => {
     const { t } = useTranslation();
@@ -23,8 +25,7 @@ const UserList = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState<IUser | null>(null);
     const [userTypeFilter, setUserTypeFilter] = useState<UserTypeFilter>("");
-    const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-    const filterRef = useRef<HTMLDivElement>(null);
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
 
     const {
         selectedId: selectedUserId,
@@ -34,21 +35,6 @@ const UserList = () => {
     } = useSidebarDetail();
 
     const { confirmDelete } = useConfirmDialog();
-
-    useEffect(() => {
-        const onClickOutside = (event: MouseEvent) => {
-            const target = event.target as HTMLElement;
-            if (
-                showTypeDropdown &&
-                filterRef.current &&
-                !filterRef.current.contains(target)
-            ) {
-                setShowTypeDropdown(false);
-            }
-        };
-        document.addEventListener("mousedown", onClickOutside);
-        return () => document.removeEventListener("mousedown", onClickOutside);
-    }, [showTypeDropdown]);
 
     const { mutate: deleteUser } = useMutation({
         mutationFn: (id: number) => userApi.delete(id),
@@ -137,23 +123,27 @@ const UserList = () => {
             title: "Name",
             type: "text",
             sortable: true,
-            render: ({ name }) => <div className="font-medium">{name}</div>,
+            width: 180,
+            render: ({ name }) => (
+                <div className="font-medium text-gray-900 dark:text-white">{name}</div>
+            ),
         },
         {
             accessor: "email",
             title: "Email",
             type: "text",
             sortable: true,
+            width: 220,
         },
         {
             accessor: "user_type",
             title: "Type",
             type: "status",
             sortable: true,
-            width: 110,
+            width: 130,
             options: [
                 { value: "admin", label: "Admin", color: "primary" },
-                { value: "user", label: "Participant", color: "secondary" },
+                { value: "user", label: "Participant", color: "info" },
             ],
         },
         {
@@ -174,6 +164,7 @@ const UserList = () => {
             type: "date",
             sortable: true,
             width: 110,
+            hideBelow: "lg",
             render: ({ created_at }) => (
                 <div>
                     {created_at ? moment(created_at).format("MM/DD/YYYY") : "-"}
@@ -185,6 +176,7 @@ const UserList = () => {
             title: "Actions",
             type: "actions",
             sortable: false,
+            width: 150,
             textAlignment: "center",
             actions: [
                 {
@@ -203,13 +195,48 @@ const UserList = () => {
         },
     ];
 
-    const tableQuery = userTypeFilter
-        ? { user_type: userTypeFilter }
-        : {};
+    const tableQuery: Record<string, string> = {};
+    if (userTypeFilter) tableQuery.user_type = userTypeFilter;
+    if (statusFilter) tableQuery.status = statusFilter;
 
     return (
         <div>
             <Breadcrumb items={breadcrumbItems} />
+
+            <StatusFilterBar
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as StatusFilter)}
+                options={[
+                    { value: "", label: "All" },
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Inactive" },
+                    { value: "suspended", label: "Suspended" },
+                ]}
+                extra={
+                    <div className="flex flex-wrap gap-2">
+                        {(
+                            [
+                                { value: "", label: "All types" },
+                                { value: "admin", label: "Admin" },
+                                { value: "user", label: "Participant" },
+                            ] as { value: UserTypeFilter; label: string }[]
+                        ).map((option) => (
+                            <button
+                                key={option.label}
+                                type="button"
+                                className={`btn btn-sm ${
+                                    userTypeFilter === option.value
+                                        ? "btn-primary"
+                                        : "btn-outline-primary"
+                                }`}
+                                onClick={() => setUserTypeFilter(option.value)}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                }
+            />
 
             <DataTableWithSidebar<IUser>
                 title="User Table"
@@ -226,7 +253,7 @@ const UserList = () => {
                     name: "Users",
                     formats: ["csv", "excel", "pdf"],
                 }}
-                className="mt-5"
+                className="mt-0"
                 bulkActions={[
                     {
                         label: "Delete Selected",
@@ -236,61 +263,14 @@ const UserList = () => {
                     },
                 ]}
                 buttons={
-                    <div className="flex gap-2 items-center">
-                        <div className="filter-dropdown relative" ref={filterRef}>
-                            <button
-                                type="button"
-                                className={`px-3 py-2 rounded-lg border flex items-center gap-2 text-sm ${
-                                    userTypeFilter
-                                        ? "bg-primary text-white border-primary"
-                                        : "border-gray-300 bg-white text-gray-700 dark:bg-[#1b2e4b] dark:border-[#1b2e4b] dark:text-white-light"
-                                }`}
-                                onClick={() => setShowTypeDropdown((v) => !v)}
-                            >
-                                <Filter size={16} />
-                                <span>
-                                    {userTypeFilter === "admin"
-                                        ? "Admin"
-                                        : userTypeFilter === "user"
-                                          ? "Participant"
-                                          : "All types"}
-                                </span>
-                            </button>
-                            {showTypeDropdown && (
-                                <div className="absolute right-0 z-20 mt-2 w-44 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-[#1b2e4b] dark:bg-[#0e1726]">
-                                    {[
-                                        { value: "" as UserTypeFilter, label: "All types" },
-                                        { value: "admin" as UserTypeFilter, label: "Admin" },
-                                        { value: "user" as UserTypeFilter, label: "Participant" },
-                                    ].map((option) => (
-                                        <button
-                                            key={option.label}
-                                            type="button"
-                                            className={`block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-[#1b2e4b] ${
-                                                userTypeFilter === option.value
-                                                    ? "text-primary font-medium"
-                                                    : "text-gray-700 dark:text-white-light"
-                                            }`}
-                                            onClick={() => {
-                                                setUserTypeFilter(option.value);
-                                                setShowTypeDropdown(false);
-                                            }}
-                                        >
-                                            {option.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        <button
-                            type="button"
-                            className="btn btn-primary gap-2"
-                            onClick={openCreateModal}
-                        >
-                            <Plus size={16} />
-                            Add New
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        className="btn btn-primary gap-2"
+                        onClick={openCreateModal}
+                    >
+                        <Plus size={16} />
+                        Add New
+                    </button>
                 }
                 showSidebar={showSidebar}
                 sidebarTitle="User Details"

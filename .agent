@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-17 (DemoDataSeeder: dummy organizers/events/tickets so Admin + Web App catalogs are not empty)
+Last updated: 2026-08-17 (Admin UI polish: readable table type/status pills, action buttons no longer open view, balanced column widths)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -46,7 +46,7 @@ Every meaningful change to the codebase must also update this file.
   - After Prompt 13/14/15 permissions: reseed `RolePermissionSeeder` when needed (`view/manage invitation templates` already exist)
   - **FormCombobox / pickers:** Headless UI calls `displayValue(null)` when nothing is selected — formatters and `FormCombobox` must treat null as `""`. Avoid Unicode middle-dot (`·`) in template literals on Windows/Vite Babel (use ASCII ` - ` instead).
   - **Ownership (Prompt 13):** Admin = platform owner; Organizer = event owner. Event-operation actions (manual pay, QR check-in, Waafi charge) reject `admin-panel` tokens with `403` + `error_code: action_requires_organizer_scope` via `RejectsAdminPanelOrganizerActions`.
-  - **Event Detail is the hub** for all event-scoped sub-resources (tickets, participants, payments+refunds, gallery upload, invitation preview, add-ons, analytics, finance).
+  - **Event hub is a full page** (`/events/:id`) with lazy-loaded tabs for all event-scoped sub-resources (tickets, participants, payments+refunds, gallery upload, invitation preview, add-ons, analytics, finance). List row-click navigates; do not reopen this hub in a side panel.
   - **Invitation designer / generation / overlay editor = Web App Phase 2** — Admin only manages system template library + read-only event preview.
 
 ## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
@@ -194,17 +194,20 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 3. **Page folder** — `resources/js/src/pages/<name>/`
    ```
    pages/<name>/
-     index.tsx                 # list page (DataTableWithSidebar, breadcrumbs, bulk actions)
+     index.tsx                 # list page (Breadcrumb, StatusFilterBar, DataTableWithSidebar, bulk actions)
+     show.tsx                  # ONLY if data-volume rule says full page (Events, Organizers, Payouts, Certificates, Feedback)
      components/
-       <Name>Detail.tsx        # sidebar detail pane
+       <Name>Detail.tsx        # side panel OR reused inside show.tsx
        <Name>Form.tsx          # create/edit form
        <Name>Modal.tsx         # GenericModal wrapper around Form
    ```
-4. **index.tsx pattern** (see `pages/user/index.tsx`):
+4. **index.tsx pattern** (see `pages/user/index.tsx` for side-panel lists; `pages/event/index.tsx` for full-page details):
    - React Query mutations via `<name>Api`
-   - `useSidebarDetail` for detail sidebar
+   - `StatusFilterBar` between breadcrumb and table when the resource has statuses
+   - Compact columns: `hideBelow: "lg"` for secondary cols; `formatMoney` + right-align for amounts
+   - Side-panel lists: `useSidebarDetail` + `DataTableWithSidebar` sidebar
+   - Full-page details: no sidebar; `onRowClick` / view → `navigate("/{resource}/:id")`
    - `useConfirmDialog` for deletes
-   - `DataTableWithSidebar` + column configs
    - Modal open state + entity-to-edit state
    - Toast via `sonner`
 5. **Modal** wraps Form in `GenericModal` (see `UserModal.tsx` / `RoleModal.tsx`)
@@ -216,18 +219,18 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Organizer auth** — `OrganizerAuthController` + `organizer-auth.php` (API only; no Web UI yet)
 - **Organizer Admin** — identity edit + suspend/reactivate + trash. Password not admin-editable. No admin "create organizer" form (register via organizer-auth).
 - **Organizer subscriptions** — Admin **oversight** only (`OrganizerSubscriptionController`): history list, assign, cancel — **not** full CRUD and not Web App self-serve
-- **Events Admin Form** — **moderation** only (featured / capacity / status transition / title). **`monetized` is derived from paid ticket types**. Status changes **must** use `POST /events/{id}/transition`. Full event create UI remains Web App (API create exists).
-- **Ticket types Admin (Prompt 12)** — Full create/edit/soft-delete + disable/enable sales from Event Detail (`TicketTypeModal`). Force-delete blocked if `quantity_sold > 0`.
-- **Discount codes Admin (Prompt 12)** — Full create/edit/soft-delete/activate from Event Detail (`DiscountCodeModal`).
-- **Participations Admin (Prompt 12/13)** — Add (user combobox), promote waitlist, cancel with optional reason. **Manual cash payment UI removed** (organizer-scoped; API still exists but rejects admin-panel tokens).
-- **Event form fields Admin (Prompt 12)** — Add/edit/reorder/deactivate-or-delete in Event Detail (`FormFieldOversight`). Key immutable on update; deactivate-if-answers rule still applies.
-- **Invitation templates Admin (Prompt 13)** — Read-only preview on Event Detail (`InvitationTemplatePreview`). Ops store/update API remains; **no designer/edit UI** in Admin (Web App).
-- **QR Scan History Admin** — list + Event Detail check-in stats (keep). **No scanner UI was ever built** in Admin. `POST /qr-scan-logs/validate` rejects admin-panel tokens (`action_requires_organizer_scope`).
-- **Payments / Payouts Admin** — Platform `/payments` list ✅; Event Detail payments+refunds ✅; Payout workflow UI + finance panel + Settings commission. Charge UI **never built**; charge/manual reject admin-panel tokens.
-- **Event add-ons Admin** — Announcements compose+send; Sponsors/Speakers/Sessions CRUD; Certificates re-issue (Event Detail + platform `/certificates`); Event Detail feedback aggregates.
-- **Feedback Admin (Prompt 13)** — Top-level `pages/feedback/` ✅ (not rebuilt in Prompt 14). Soft-hide via `hidden`.
-- **Gallery Admin (Prompt 14)** — List + upload + delete on Event Detail ✅.
-- **Subscriptions Admin (Prompt 14)** — Platform `/subscriptions` overview ✅; assign/cancel remain on Organizer Detail.
+- **Events Admin Form** — **moderation** only (featured / capacity / status transition / title). **`monetized` is derived from paid ticket types**. Status changes **must** use `POST /events/{id}/transition`. Full event create UI remains Web App (API create exists). Event **hub** is `pages/event/show.tsx` (`/events/:id`), not a sidebar.
+- **Ticket types Admin (Prompt 12)** — Full create/edit/soft-delete + disable/enable sales from Event hub Ticket Types tab (`TicketTypeModal`). Force-delete blocked if `quantity_sold > 0`.
+- **Discount codes Admin (Prompt 12)** — Full create/edit/soft-delete/activate from Event hub Ticket Types tab (`DiscountCodeModal`).
+- **Participations Admin (Prompt 12/13)** — Add (user combobox), promote waitlist, cancel with optional reason on Event hub Registrations tab. **Manual cash payment UI removed** (organizer-scoped; API still exists but rejects admin-panel tokens).
+- **Event form fields Admin (Prompt 12)** — Add/edit/reorder/deactivate-or-delete on Event hub Form Fields tab (`FormFieldOversight`). Key immutable on update; deactivate-if-answers rule still applies.
+- **Invitation templates Admin (Prompt 13)** — Read-only preview on Event hub Invitation tab (`InvitationTemplatePreview`). Ops store/update API remains; **no designer/edit UI** in Admin (Web App).
+- **QR Scan History Admin** — list + side panel + Event hub Overview check-in stats (keep). **No scanner UI was ever built** in Admin. `POST /qr-scan-logs/validate` rejects admin-panel tokens (`action_requires_organizer_scope`).
+- **Payments / Payouts Admin** — Platform `/payments` list + **side panel**; Event hub Payments tab + refunds; Payout list + **full page** `/payouts/:id`; finance on Event Overview; Settings commission. Charge UI **never built**; charge/manual reject admin-panel tokens.
+- **Event add-ons Admin** — Announcements / Speakers / Sessions / Sponsors as lazy Event hub tabs (`EventAddOnOversight` `only` prop). Certificates re-issue on platform `/certificates/:id`; Event hub no longer dumps all add-ons at once.
+- **Feedback Admin (Prompt 13)** — Top-level `pages/feedback/` list + **full page** `/feedback/:id`. Soft-hide via `hidden`.
+- **Gallery Admin (Prompt 14)** — List + upload + delete on Event hub Gallery tab.
+- **Subscriptions Admin (Prompt 14)** — Platform `/subscriptions` overview + **side panel**; assign/cancel remain on Organizer **full page** `/organizers/:id`.
 - **Share Event (spec 12.3 MUST):** **explicitly deferred to Web App pack**.
 - **Dashboard** — stats aggregates (`view dashboard`).
 - **Organization** — profile/settings style under Settings.
@@ -289,7 +292,7 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 | Dashboard | `/dashboard` | `view dashboard` |
 | Users | `/users` | `view users` |
 | Organizers | `/organizers` | `view organizers` |
-| Events | `/events` | `view events` |
+| Events | `/events` (list), `/events/:id` (hub) | `view events` |
 | Payouts | `/payouts` | `view payouts` |
 | Payments | `/payments` | `view payments` |
 | Subscriptions | `/subscriptions` | `view organizer subscriptions` |
@@ -303,7 +306,7 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 | QR Scan History | `/qr-scan-logs` | `view qr scan logs` |
 | Trash | `/trash/*` | `view trash items` |
 
-**Event Detail is the hub** for event-scoped sub-resources (sections, not separate top-level routes): overview/moderation, analytics, financial summary, **payments list + refunds**, check-in stats, participations, form fields, ticket types, discount codes, content & engagement (announcements/certificates/feedback aggregates/sponsors/speakers/sessions), **invitation template preview**, **gallery (list + upload + delete)**.
+**Event hub is a full page** (`/events/:id`, `pages/event/show.tsx`) — not a side panel. Tabs (lazy: fetch only the active tab): Overview, Ticket Types, Registrations, Payments, Speakers, Sessions, Sponsors, Announcements, Form Fields, Gallery, Invitation, Analytics. Overview: event fields, status transition buttons, registered / revenue / check-in stats. List row-click and view action navigate here.
 
 ### Domain services (non-controller)
 `MailService`, `LocationService`, `CommonServices`, `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`, `EventQuota`, `ParticipationService`, `FormFieldValidationService`, `EventFormFieldService`, `QrTokenService`, `QrValidationService`, `WaafiPayService`, `PaymentService`, `PayoutService`, `EventFinanceService`, `CommissionSettings`, `EventAnalyticsService`, `CertificateIssuanceService` (issue + **reissue**), `EventFeedbackService`, `SomaliPhoneNormalizer`.
@@ -459,7 +462,7 @@ Enum order: `draft → published → registration_open → sold_out → registra
 
 | Concern | Detail |
 |--------|--------|
-| Events | `EventController`, `routes/api/v1/events.php`, `pages/event/` (index+Detail+moderation Form/Modal), `services/event.ts`, `types/event.ts`. Permissions: `view/create/edit/delete events` on **write/search/nested**. `GET /` and `GET /{id}` are HMAC-only public (Admin Bearer still unfiltered). Trash `/trash/events`. |
+| Events | `EventController`, `routes/api/v1/events.php`, `pages/event/` (list + **`show.tsx` hub** + moderation Form/Modal), `services/event.ts`, `types/event.ts`. Permissions: `view/create/edit/delete events` on **write/search/nested**. `GET /` and `GET /{id}` are HMAC-only public (Admin Bearer still unfiltered). Trash `/trash/events`. |
 | Categories | `EventCategoryController`, `event-categories.php`, Settings `pages/settings/event-categories/`, `services/eventCategory.ts`. Permissions: `view/create/edit/delete event categories` on write/search/show. **`GET /` is HMAC-only public** (filter list for Web App). |
 
 ### Tests
@@ -836,22 +839,22 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Auth | `User` | `AuthController` | `auth.php` | login / profile / lock | `auth.ts` | `auth.ts` |
 | Roles | `Role` | `RoleController` | `roles.php` | `pages/settings/roles/` + trash | `role.ts` | `role.ts` |
 | Organizations | `Organization` | `OrganizationController` | `organizations.php` | `pages/organization/` (Settings) | `organization.ts` | (service) |
-| Organizers | `Organizer` | `OrganizerController` | `organizers.php` | `pages/organizer/` + trash | `organizer.ts` | `organizer.ts` |
+| Organizers | `Organizer` | `OrganizerController` | `organizers.php` | `pages/organizer/` list + **`show.tsx`** + trash | `organizer.ts` | `organizer.ts` |
 | Organizer auth | `Organizer` | `OrganizerAuthController` | `organizer-auth.php` | API only (Web App later) | — | — |
 | Packages | `Package` | `PackageController` | `packages.php` | `pages/settings/packages/` | `package.ts` | `package.ts` |
-| Events | `Event`, `EventImage` | `EventController` | `events.php` (`GET /` + `GET /{id}` **HMAC-only public**; rest Admin) | `pages/event/` + trash | `event.ts` | `event.ts` |
+| Events | `Event`, `EventImage` | `EventController` | `events.php` (`GET /` + `GET /{id}` **HMAC-only public**; rest Admin) | `pages/event/` list + **`show.tsx` hub** + trash | `event.ts` | `event.ts` |
 | Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` (`GET /` **HMAC-only public**; rest Admin) | Settings + trash | `eventCategory.ts` | `event.ts` |
-| Ticket types | `TicketType` | `TicketTypeController` | `ticket-types.php` + nested | Event Detail + `TicketTypeModal` | `event.ts` | `event.ts` |
-| Discount codes | `DiscountCode` | `DiscountCodeController` | `ticket-types.php` + nested | Event Detail + `DiscountCodeModal` | `event.ts` | `event.ts` |
-| Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event Detail (add/promote/cancel; **no manual pay**) | `event.ts` | `event.ts` |
-| Event form fields | `EventFormField` | `EventFormFieldController` | `event-form-fields.php` + nested | Event Detail (CRUD + reorder) | `event.ts` | `event.ts` |
-| Payments | `Payment` (+ `gateway`) | `PaymentController` | `payments.php` | **`pages/payment/`** + Event Detail `EventPaymentsPanel` (refunds) | `payment.ts` | `payment.ts` |
-| Payout requests | `PayoutRequest` | `PayoutRequestController` | `payout-requests.php` | `pages/payout/` | `payout.ts` | `payment.ts` |
-| Certificates | `Certificate` | `CertificateController` + EventAddOn | `certificates.php` + nested | **`pages/certificate/`** + Event Detail re-issue | `certificate.ts` | `certificate.ts` |
-| Feedback | `EventFeedback` (+ `hidden`) | `FeedbackController` + EventAddOn | `feedback.php` + nested + POST event-feedback | `pages/feedback/` + Event Detail aggregates | `feedback.ts` | `feedback.ts` |
-| Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested `organizers.php` | **`pages/subscription/`** + Organizer Detail assign/cancel | `subscription.ts` / `organizerSubscription.ts` | `package.ts` |
-| Event add-ons | Announcement, Sponsor, Speaker, Session | `EventAddOnController` | nested `events.php` | Event Detail CRUD/send | `event.ts` | `event.ts` |
-| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | nested + resource | Event Detail **read-only preview** (modes) ✅ | `event.ts` (`getInvitationTemplate`) | `invitationTemplate.ts` |
+| Ticket types | `TicketType` | `TicketTypeController` | `ticket-types.php` + nested | Event hub Ticket Types tab + `TicketTypeModal` | `event.ts` | `event.ts` |
+| Discount codes | `DiscountCode` | `DiscountCodeController` | `ticket-types.php` + nested | Event hub Ticket Types tab + `DiscountCodeModal` | `event.ts` | `event.ts` |
+| Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event hub Registrations tab (add/promote/cancel; **no manual pay**) | `event.ts` | `event.ts` |
+| Event form fields | `EventFormField` | `EventFormFieldController` | `event-form-fields.php` + nested | Event hub Form Fields tab | `event.ts` | `event.ts` |
+| Payments | `Payment` (+ `gateway`) | `PaymentController` | `payments.php` | **`pages/payment/`** (side panel) + Event hub Payments tab (refunds) | `payment.ts` | `payment.ts` |
+| Payout requests | `PayoutRequest` | `PayoutRequestController` | `payout-requests.php` | `pages/payout/` list + **`show.tsx`** | `payout.ts` | `payment.ts` |
+| Certificates | `Certificate` | `CertificateController` + EventAddOn | `certificates.php` + nested | **`pages/certificate/`** list + **`show.tsx`** (re-issue) | `certificate.ts` | `certificate.ts` |
+| Feedback | `EventFeedback` (+ `hidden`) | `FeedbackController` + EventAddOn | `feedback.php` + nested + POST event-feedback | `pages/feedback/` list + **`show.tsx`** | `feedback.ts` | `feedback.ts` |
+| Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested `organizers.php` | **`pages/subscription/`** (side panel) + Organizer full page assign/cancel | `subscription.ts` / `organizerSubscription.ts` | `package.ts` |
+| Event add-ons | Announcement, Sponsor, Speaker, Session | `EventAddOnController` | nested `events.php` | Event hub lazy tabs (`EventAddOnOversight` `only`) | `event.ts` | `event.ts` |
+| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | nested + resource | Event hub Invitation tab **read-only preview** | `event.ts` (`getInvitationTemplate`) | `invitationTemplate.ts` |
 | Invitation system templates | `InvitationSystemTemplate` | `InvitationSystemTemplateController` | `invitation-system-templates.php` | **Settings → Invitation Templates** CRUD ✅ | `invitationSystemTemplate.ts` | `invitationTemplate.ts` |
 | QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` history only | `qrScanLog.ts` | `qrScan.ts` |
 | Settings | `Settings` | `SettingsController` | `settings.php` | mail + commission | `mail.ts` / `payout.ts` | `mail.ts` / `payment.ts` |
@@ -874,7 +877,9 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Entry: `main.tsx`, `App.tsx`
 - Router: `router/routes.tsx`, `router/index.tsx` (lazy + `permissions`)
 - Sidebar: `lib/sidebar.ts` + `filterMenuByPermissions` / `cleanEmptySections`
-- Shared list UX: `DataTableWithSidebar`, `GenericModal`, `GenericSidebar`, `DetailSidebar`
+- Shared list UX: `DataTableWithSidebar` (sidebar optional), `StatusFilterBar`, `DetailPageHeader`, `DetailTabs`, `GenericModal`, `GenericSidebar`, `DetailSidebar`
+- Amount helper: `utils/money.ts` `formatMoney` → `"15.00 USD"`
+- Column extras: `hideBelow`, `minWidth` on `ColumnConfig`
 - Hooks: `useSidebarDetail`, `useConfirmDialog`, `usePermission`, `useAuth`, `useAuthInit`
 - Store: `authSlice`, `organizationSlice`, `themeConfigSlice`
 - Axios Bearer from storage/Redux + **HMAC headers** (`utils/axios.ts` + `utils/apiClientSignature.ts`; env `VITE_WEBAPP_API_PUBLIC_KEY` / `VITE_WEBAPP_API_SECRET`)
@@ -889,8 +894,8 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Organizers | yes | yes |
 | Events | yes | yes |
 | Event categories | yes | yes |
-| Ticket types | yes | no (Event Detail / force rules) |
-| Discount codes | yes | no (Event Detail soft-delete) |
+| Ticket types | yes | no (Event hub Ticket Types tab / force rules) |
+| Discount codes | yes | no (Event hub Ticket Types tab soft-delete) |
 | Organizations | yes | no (single profile) |
 | Packages / payments / payouts / participations / add-ons | no soft-delete trash UI | — |
 
@@ -946,15 +951,24 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 4. New API routes go in `routes/api/v1/<name>.php` and are imported from `routes/api.php`.
 5. Add/update TypeScript types and re-export from `types/index.ts`.
 6. **UI must stay consistent, modern, and compact** — follow `.cursor/rules/ui-consistency-compact-data.mdc`:
-   - Reuse theme components (`panel`, `btn`, forms, `DataTableWithSidebar`, `GenericModal`, etc.)
-   - Tables = important scannable fields only
-   - Details = complete useful fields, dense layout, light+dark
+   - Reuse theme components (`panel`, `btn`, forms, `DataTableWithSidebar`, `StatusFilterBar`, `GenericModal`, etc.)
+   - Tables = important scannable fields only; no truncated headers; amounts via `formatMoney`
+   - Details = complete useful fields; **side panel vs full page** by data volume (see UI conventions)
+   - Status filters = `StatusFilterBar` pills between breadcrumb and table
 7. Update this `.agent` in the same session with **complete standalone context** (not terse notes): living sections + Change Log must fully brief the next agent — see `.cursor/rules/agent-context-completeness.mdc`.
 8. Work is incomplete until code **and** `.agent` match, and a new chat could continue correctly from `.agent` alone.
 
 ## UI / UX Conventions (Mandatory)
 - Visual language comes from existing admin theme (`theme.config.tsx`, Tailwind primary/secondary, `panel`, shared components) — do not invent a parallel look.
-- List pages: compact tables with high-signal columns; detail sidebars carry the full useful dataset.
+- List pages: compact tables with high-signal columns; wrap tables in overflow-x-auto; **`table-layout: auto`** (not fixed — fixed dumped leftover space into Title/Event and squeezed Capacity/Paid/Actions into `Capac...` / `P...` / `Actio...`). Give every column an explicit `width`; Actions min ~44px per icon. Cell text is `text-sm`, not `text-xs`.
+- Status / type pills use `statusBadgeClass` (`bg-primary/10 text-primary`, Participant = `info`). **Never** theme `.badge` (that class forces `text-white` — Participant was invisible on white).
+- Row-click to a full page must ignore clicks on `button` / `a` / `.btn`. Action icons `stopPropagation` so Edit/Delete do not open View.
+- Amount/currency cells: right-aligned, full `"15.00 USD"` via `formatMoney`, min width so they never clip.
+- **Status filters:** `StatusFilterBar` (filled active pill) sits between breadcrumb and table on Events, Organizers, Users, Payments, Payouts, Certificates, Feedback, Subscriptions, QR Scan History. Extra pickers (dates, comboboxes) go in `extra`. Switching pills resets the table to page 1.
+- **Side panel vs full page (data volume):**
+  - Side panel (~8 fields, no nested lists): Users, Payments, Subscriptions, QR Scan History, Roles, Packages, Categories, Invitation templates, API clients, Logs.
+  - Full page `pages/<resource>/show.tsx` + `/{resource}/:id` + back button + row-click: **Events** (tabbed hub), **Organizers**, **Payouts**, **Certificates**, **Feedback**.
+- Event hub tabs (lazy, in order): Overview, Ticket Types, Registrations, Payments, Speakers, Sessions, Sponsors, Announcements, Form Fields, Gallery, Invitation, Analytics. `EventAddOnOversight` accepts `only` so unused add-on queries do not fire.
 - Forms/modals: shared `components/form/*` + `GenericModal`; CTAs use `btn btn-primary` patterns.
 - Dense spacing in admin surfaces; avoid sparse “marketing” whitespace in sidebars/tables.
 - New UI must include `dark:` variants consistent with neighboring screens.
@@ -997,6 +1011,24 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-17 - Admin UI polish: badges, actions, column widths
+- **Edit/Delete opened View:** row-click on Events/Organizers/Payouts/Certificates/Feedback ignored clicks on buttons; action cells `stopPropagation`.
+- **Participant type invisible:** `.badge` forces white text. Status/type pills now use `statusBadgeClass` (Participant = `info` blue on light blue).
+- **Uneven columns / truncated headers:** `table-layout: auto`, explicit widths on every column, Actions wide enough for icons, cell font `text-sm` (stop shrinking with `text-xs`).
+- **Event Overview:** finance/check-in use `panel` metric cards (`EventMetricCard`) instead of thin 10px-label boxes.
+- Files: `utils/columns.ts`, `utils/statusBadge.ts`, `assets/css/datatables.css`, `components/datatable/index.tsx`, list pages (event/user/feedback/payment/organizer/payout/certificate/subscription/qr-scan-log), `pages/event/components/{EventField,EventOverviewTab,EventFinancePanel,CheckInStatsPanel}.tsx`, `.agent`
+- Migration/config/env impact: none
+- Verification: lints clean on edited TS/TSX; PHP suite unchanged from prior 163/3
+
+### 2026-08-17 - Admin UI: responsive tables, full-page hubs, status pills
+- **Tables:** `hideBelow` / `minWidth` on column configs; datatable CSS `table-layout: fixed` + `.admin-table-scroll`; headers no longer ellipsis-truncate; amount cells use `formatMoney` (`15.00 USD`) right-aligned.
+- **Side panel vs full page:** Users / Payments / Subscriptions / QR / Roles / Packages / Categories / Invitation templates / API clients / Logs stay side panel. Events, Organizers, Payouts, Certificates, Feedback navigate to `/{resource}/:id` (`pages/*/show.tsx`, `DetailPageHeader`).
+- **Events hub:** `/events/:id` tabbed page with lazy tab content (Overview → Analytics). `EventAddOnOversight` `only` prop so Speakers/Sessions/Sponsors/Announcements do not fetch unused kinds. Removed sidebar `EventDetail.tsx`.
+- **Status filters:** shared `StatusFilterBar` between breadcrumb and table on Events, Organizers, Users, Payments, Payouts, Certificates, Feedback, Subscriptions, QR Scan History.
+- Files: `components/StatusFilterBar.tsx`, `DetailPageHeader.tsx`, `DetailTabs.tsx`, `datatable/index.tsx`, `DataTableWithSidebar.tsx`, `utils/columns.ts`, `utils/money.ts`, `assets/css/datatables.css`, `pages/event/{index,show,components/*Tab*}`, `pages/{organizer,payout,certificate,feedback}/{index,show}.tsx`, list pages for user/payment/subscription/qr-scan-log/settings/*, `router/routes.tsx`, `.cursor/rules/ui-consistency-compact-data.mdc`, `.agent`
+- Migration/config/env impact: none (FE-only)
+- Verification: `composer test` (expect 163 passed / 3 pre-existing ExceptionHandlerTest failures)
 
 ### 2026-08-17 - Demo data seeder (non-empty Admin + Web App)
 - **`DemoDataSeeder`** fills local DB so catalogs are not empty: 3 packages, 3 organizers (active subscriptions), 10 participant users, 10 events (7 public: published/open/sold_out/closed/ongoing + draft/cancelled/completed for Admin), ticket types, speakers, sponsors, sessions, form fields, discount `DEMO10`, gallery URLs, announcements, invitation templates, participations/payments, QR scans, certificates, feedback, one payout request, organization profile.

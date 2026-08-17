@@ -1,21 +1,23 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import moment from "moment";
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import Breadcrumb from "../../components/Breadcrumb";
 import DataTableWithSidebar from "../../components/DataTableWithSidebar";
-import { useConfirmDialog, useSidebarDetail } from "../../hooks";
+import StatusFilterBar from "../../components/StatusFilterBar";
+import { useConfirmDialog } from "../../hooks";
 import { payoutRequestApi } from "../../services/payout";
 import { ColumnConfig } from "../../types/columns";
 import { IPayoutRequest } from "../../types/payment";
-import PayoutDetail from "./components/PayoutDetail";
+import { formatMoney } from "../../utils/money";
 import PayoutRequestModal from "./components/PayoutRequestModal";
 
 const PayoutList = () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [statusFilter, setStatusFilter] = useState("");
     const [modalOpen, setModalOpen] = useState(false);
-    const { selectedId, showSidebar, openSidebar, closeSidebar } = useSidebarDetail();
     const { confirmAction } = useConfirmDialog();
 
     const createMut = useMutation({
@@ -29,12 +31,15 @@ const PayoutList = () => {
         onError: (e: Error) => toast.error(e.message),
     });
 
+    const openDetail = (id: number) => navigate(`/payouts/${id}`);
+
     const columns: ColumnConfig<IPayoutRequest>[] = [
         {
             accessor: "event",
             title: "Event",
             type: "custom",
             sortable: false,
+            width: 220,
             render: (r) => (
                 <span className="font-medium">{r.event?.title ?? `#${r.event_id}`}</span>
             ),
@@ -44,15 +49,20 @@ const PayoutList = () => {
             title: "Amount",
             type: "custom",
             sortable: true,
-            width: 90,
-            render: (r) => Number(r.requested_amount).toFixed(2),
+            width: 130,
+            minWidth: 120,
+            textAlignment: "right",
+            render: (r) => (
+                <span className="whitespace-nowrap">{formatMoney(r.requested_amount)}</span>
+            ),
         },
         {
             accessor: "commission_rate",
             title: "Rate %",
             type: "custom",
             sortable: true,
-            width: 70,
+            width: 80,
+            hideBelow: "lg",
             render: (r) => Number(r.commission_rate).toFixed(1),
         },
         {
@@ -60,9 +70,9 @@ const PayoutList = () => {
             title: "Status",
             type: "text",
             sortable: true,
-            width: 100,
+            width: 110,
             render: ({ status }) => (
-                <span className="text-xs capitalize">{String(status).replace(/_/g, " ")}</span>
+                <span className="capitalize">{String(status).replace(/_/g, " ")}</span>
             ),
         },
         {
@@ -71,6 +81,7 @@ const PayoutList = () => {
             type: "date",
             sortable: true,
             width: 110,
+            hideBelow: "lg",
             render: ({ created_at }) =>
                 created_at ? moment(created_at).format("MM/DD/YYYY") : "—",
         },
@@ -79,8 +90,9 @@ const PayoutList = () => {
             title: "Actions",
             type: "actions",
             sortable: false,
+            width: 80,
             textAlignment: "center",
-            actions: [{ type: "view", onClick: (r) => openSidebar(r.id) }],
+            actions: [{ type: "view", onClick: (r) => openDetail(r.id) }],
         },
     ];
 
@@ -95,6 +107,18 @@ const PayoutList = () => {
                 ]}
             />
 
+            <StatusFilterBar
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                    { value: "", label: "All" },
+                    { value: "requested", label: "Requested" },
+                    { value: "approved", label: "Approved" },
+                    { value: "paid", label: "Paid" },
+                    { value: "rejected", label: "Rejected" },
+                ]}
+            />
+
             <DataTableWithSidebar<IPayoutRequest>
                 title="Payout Request Table"
                 columns={columns}
@@ -104,33 +128,17 @@ const PayoutList = () => {
                 query={tableQuery}
                 rowSelectionEnabled={false}
                 searchable
-                className="mt-5"
+                className="mt-0"
+                onRowClick={(r) => openDetail(r.id)}
                 buttons={
-                    <div className="flex flex-wrap items-center gap-2">
-                        <select
-                            className="form-select form-select-sm w-auto"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                            <option value="">All statuses</option>
-                            <option value="requested">Requested</option>
-                            <option value="approved">Approved</option>
-                            <option value="paid">Paid</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                        <button
-                            type="button"
-                            className="btn btn-primary gap-2"
-                            onClick={() => setModalOpen(true)}
-                        >
-                            New payout request
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        className="btn btn-primary gap-2"
+                        onClick={() => setModalOpen(true)}
+                    >
+                        New payout request
+                    </button>
                 }
-                showSidebar={showSidebar}
-                sidebarTitle="Payout Detail"
-                onCloseSidebar={closeSidebar}
-                sidebarContent={<PayoutDetail payoutId={selectedId} />}
             />
 
             <PayoutRequestModal

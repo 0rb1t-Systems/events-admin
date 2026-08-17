@@ -1,18 +1,66 @@
 import { DataTableColumn } from "mantine-datatable";
-import { ColumnConfig, StatusOption } from "../types/columns";
+import { ColumnConfig } from "../types/columns";
 import { Eye, Edit, Trash2, RotateCcw, Shield } from "lucide-react";
 import React from "react";
 import ToggleSwitch from "../components/ToggleSwitch";
+import { clsx } from "clsx";
+import { statusBadgeClass } from "./statusBadge";
+
+function responsiveCellClass(config: ColumnConfig<any>): string | undefined {
+    const hide =
+        config.hideBelow === "md"
+            ? "hidden md:table-cell"
+            : config.hideBelow === "lg"
+              ? "hidden lg:table-cell"
+              : config.hideBelow === "xl"
+                ? "hidden xl:table-cell"
+                : undefined;
+    return clsx(hide, config.cellsClassName) || undefined;
+}
+
+function responsiveTitleClass(config: ColumnConfig<any>): string | undefined {
+    const hide =
+        config.hideBelow === "md"
+            ? "hidden md:table-cell"
+            : config.hideBelow === "lg"
+              ? "hidden lg:table-cell"
+              : config.hideBelow === "xl"
+                ? "hidden xl:table-cell"
+                : undefined;
+    return (
+        clsx("whitespace-nowrap !overflow-visible", hide, config.headerClassName) ||
+        undefined
+    );
+}
 
 export function createColumn<T>(config: ColumnConfig<T>): DataTableColumn<T> {
-    const baseColumn: DataTableColumn<T> = {
+    const actionWidth =
+        config.type === "actions"
+            ? config.width ?? Math.max(96, (config.actions?.length ?? 1) * 44)
+            : config.width;
+
+    const baseColumn = {
         accessor: config.accessor,
         title: config.title,
         sortable: config.sortable ?? true,
-        width: config.width,
+        width: actionWidth,
         textAlignment: config.textAlignment,
         hidden: config.hidden,
-    };
+        titleClassName: responsiveTitleClass(config),
+        cellsClassName: responsiveCellClass(config),
+    } as DataTableColumn<T>;
+
+    const minWidth = config.minWidth ?? (config.type === "actions" ? actionWidth : undefined);
+    if (minWidth) {
+        (baseColumn as DataTableColumn<T> & { cellsStyle?: React.CSSProperties }).cellsStyle = {
+            minWidth,
+        };
+        (baseColumn as DataTableColumn<T> & { titleStyle?: React.CSSProperties }).titleStyle = {
+            minWidth,
+            whiteSpace: "nowrap",
+            overflow: "visible",
+        };
+    }
 
     if (config.type === "text") {
         return {
@@ -118,11 +166,7 @@ export function createColumn<T>(config: ColumnConfig<T>): DataTableColumn<T> {
                 return React.createElement(
                     "span",
                     {
-                        className: `badge badge-outline-${statusData.color}`,
-                        style: {
-                            color: statusData.value === 'inactive' ? '#dc2626' : '',
-                            borderColor: statusData.value === 'inactive' ? '#dc2626' : ''
-                        }
+                        className: statusBadgeClass(statusData.color),
                     },
                     statusData.label
                 );
@@ -181,7 +225,14 @@ export function createColumn<T>(config: ColumnConfig<T>): DataTableColumn<T> {
                                 className: `btn btn-sm ${buttonVariant} p-1.5 rounded-md hover:shadow-sm ${
                                     action.className || ""
                                 }`,
-                                onClick: () => action.onClick(record),
+                                onMouseDown: (event: React.MouseEvent) => {
+                                    event.stopPropagation();
+                                },
+                                onClick: (event: React.MouseEvent) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    action.onClick(record);
+                                },
                                 title: action.label || action.type,
                             },
                             icon
@@ -191,7 +242,11 @@ export function createColumn<T>(config: ColumnConfig<T>): DataTableColumn<T> {
 
                 return React.createElement(
                     "div",
-                    { className: "flex items-center justify-center space-x-2" },
+                    {
+                        className: "flex items-center justify-center gap-1.5",
+                        onMouseDown: (event: React.MouseEvent) => event.stopPropagation(),
+                        onClick: (event: React.MouseEvent) => event.stopPropagation(),
+                    },
                     actions
                 );
             },

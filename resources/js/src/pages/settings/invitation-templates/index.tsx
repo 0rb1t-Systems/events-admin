@@ -60,6 +60,7 @@ const InvitationTemplatesPage = () => {
             type: "text",
             sortable: true,
             width: 140,
+            hideBelow: "lg",
             render: ({ slug }) => (
                 <code className="text-xs text-gray-600 dark:text-gray-300">{slug}</code>
             ),
@@ -86,6 +87,7 @@ const InvitationTemplatesPage = () => {
             type: "date",
             sortable: true,
             width: 110,
+            hideBelow: "lg",
             render: ({ created_at }) =>
                 created_at ? moment(created_at).format("MM/DD/YYYY") : "—",
         },

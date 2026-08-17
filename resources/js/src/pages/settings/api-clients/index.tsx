@@ -59,6 +59,7 @@ const ApiClientList = () => {
             title: "Updated",
             type: "date",
             sortable: true,
+            hideBelow: "lg",
             render: ({ updated_at }) => (
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                     {moment(updated_at).format("MMM DD, YYYY")}
