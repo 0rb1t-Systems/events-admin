@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-17 (Public Web App catalog: GET events index/show + GET event-categories are HMAC-only; admin Bearer still sees all statuses)
+Last updated: 2026-08-17 (DemoDataSeeder: dummy organizers/events/tickets so Admin + Web App catalogs are not empty)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -42,6 +42,7 @@ Every meaningful change to the codebase must also update this file.
   - Full suite: **163 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
   - Run `php artisan migrate` for invitation system templates + event_invitation_templates mode columns (Prompt 15)
   - Seed: `InvitationSystemTemplateSeeder` (4 placeholder designs) via DatabaseSeeder
+  - **Demo data:** `DemoDataSeeder` (called from `DatabaseSeeder`). Idempotent. Fills packages, 3 organizers, 10 participant users, 10 events (7 public catalog + draft/cancelled/completed for Admin), tickets/speakers/sponsors/sessions/payments/feedback. Re-run: `php artisan db:seed --class=DemoDataSeeder`. Demo passwords: `password`. Organizer logins: `horn.events@example.com`, `culture.hub@example.com`, `sahil.sports@example.com`. Participants: `ayaan.mohamed@example.com` (and 9 peers).
   - After Prompt 13/14/15 permissions: reseed `RolePermissionSeeder` when needed (`view/manage invitation templates` already exist)
   - **FormCombobox / pickers:** Headless UI calls `displayValue(null)` when nothing is selected — formatters and `FormCombobox` must treat null as `""`. Avoid Unicode middle-dot (`·`) in template literals on Windows/Vite Babel (use ASCII ` - ` instead).
   - **Ownership (Prompt 13):** Admin = platform owner; Organizer = event owner. Event-operation actions (manual pay, QR check-in, Waafi charge) reject `admin-panel` tokens with `403` + `error_code: action_requires_organizer_scope` via `RejectsAdminPanelOrganizerActions`.
@@ -133,6 +134,7 @@ These were decided during Admin Prompts 1–11. Confirm or correct before Web Ap
 ## Run Commands
 - Install: `composer install`; `pnpm install` (or `npm install`)
 - Env: `.env.example` → `.env`; `php artisan key:generate`; DB config; `php artisan migrate`; `php artisan db:seed`
+- Demo catalog: `php artisan db:seed --class=DemoDataSeeder` (idempotent; included in full `db:seed`)
 - Primary dev: `composer run dev` / `composer run dev:windows`
 - Tests: `composer test` / `php artisan test`
 - Hook once: `powershell -ExecutionPolicy Bypass -File .\install-agent-hook.ps1`
@@ -866,6 +868,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Jobs: `ExpirePendingPayments`; Events/Listeners: `ParticipationCheckedIn` → `IssueAttendanceCertificate`.
 - Route files under `routes/api/v1/` imported from `routes/api.php`.
 - Factories under `database/factories/` for all major models used in tests.
+- Seeders: `RolePermissionSeeder`, `ApiClientSeeder`, `SettingsSeeder`, `EventCategorySeeder`, `InvitationSystemTemplateSeeder`, **`DemoDataSeeder`** (dummy catalog; idempotent).
 
 ## Frontend Structure Notes
 - Entry: `main.tsx`, `App.tsx`
@@ -994,6 +997,14 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-17 - Demo data seeder (non-empty Admin + Web App)
+- **`DemoDataSeeder`** fills local DB so catalogs are not empty: 3 packages, 3 organizers (active subscriptions), 10 participant users, 10 events (7 public: published/open/sold_out/closed/ongoing + draft/cancelled/completed for Admin), ticket types, speakers, sponsors, sessions, form fields, discount `DEMO10`, gallery URLs, announcements, invitation templates, participations/payments, QR scans, certificates, feedback, one payout request, organization profile.
+- Wired into `DatabaseSeeder` after invitation templates. Standalone: `php artisan db:seed --class=DemoDataSeeder` (idempotent; also re-runs category + invitation template seeders).
+- Demo password: `password`. Organizers: `horn.events@example.com`, `culture.hub@example.com`, `sahil.sports@example.com`. Sample participant: `ayaan.mohamed@example.com`.
+- Files: `database/seeders/DemoDataSeeder.php`, `database/seeders/DatabaseSeeder.php`, `.agent`
+- Migration/config/env impact: none (seed only)
+- Verification: seeder ran on local MySQL `eventdb` — 10 events (7 public), 3 organizers, 3 packages, 11 users, 51 participations, 47 payments
 
 ### 2026-08-17 - Public HMAC-only event catalog (Web App)
 - **Public (HMAC only, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. `verify.api.client` still wraps all `/api/*`.
