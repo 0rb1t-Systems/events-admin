@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'webapp_api' => [
+        'public_key' => env('WEBAPP_API_PUBLIC_KEY'),
+        'secret' => env('WEBAPP_API_SECRET'),
+    ],
+
 ];

@@ -3,15 +3,16 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/ping', function () {
-    return response()->json([
-        'message' => 'API is working ✅',
-        'time' => now(),
-    ]);
-});
+Route::middleware('verify.api.client')->group(function () {
+    Route::get('/ping', function () {
+        return response()->json([
+            'message' => 'API is working ✅',
+            'time' => now(),
+        ]);
+    });
 
-// API Version 1 Routes
-Route::prefix('v1')->group(function () {
+    // API Version 1 Routes
+    Route::prefix('v1')->group(function () {
     // Auth routes
     Route::prefix('auth')->group(base_path('routes/api/v1/auth.php'));
 
@@ -82,4 +83,8 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', 'admin.panel'])->put('/auth/profile', [\App\Http\Controllers\Api\AuthController::class, 'updateProfile']);
     Route::middleware(['auth:sanctum', 'admin.panel'])->post('/auth/profile-picture', [\App\Http\Controllers\Api\AuthController::class, 'updateProfilePicture']);
     Route::middleware(['auth:sanctum', 'admin.panel'])->post('/auth/change-password', [\App\Http\Controllers\Api\AuthController::class, 'changePassword']);
+
+    // API clients (read-only Settings oversight)
+    Route::prefix('api-clients')->group(base_path('routes/api/v1/api-clients.php'));
+    });
 });

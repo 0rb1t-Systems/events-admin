@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'admin.panel' => \App\Http\Middleware\EnsureAdminPanelAccess::class,
             'organizer.web' => \App\Http\Middleware\EnsureOrganizerWebAccess::class,
+            'verify.api.client' => \App\Http\Middleware\VerifyApiClientSignature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

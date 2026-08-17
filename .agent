@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-16 (Prompt 15: invitation system templates library + event template modes + canvas standard)
+Last updated: 2026-08-17 (Prompt 3b: HMAC API client auth middleware + api_clients read-only Settings list)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -30,13 +30,15 @@ Every meaningful change to the codebase must also update this file.
 - DB: MySQL `eventdb` (local); tests use SQLite `:memory:`
 - Known gotchas:
   - Windows `dev:windows` uses port **8002**, not 8000
+  - **HMAC API client auth (Prompt 3b):** All `/api/*` routes require `X-API-Key`, `X-API-Timestamp`, `X-API-Signature` (`verify.api.client` on `routes/api.php`). Signature: `HMAC-SHA256("{METHOD}:{PATH}:{TIMESTAMP}:{SHA256(body)}")` with `hash_equals`. Errors: `missing_api_headers`, `invalid_api_key`, `request_expired` (±300s), `invalid_signature`. Secrets stored **bcrypt-hashed** in `api_clients.secret`; plain secret for verification comes from env `WEBAPP_API_SECRET` matched to `WEBAPP_API_PUBLIC_KEY`. **Multipart uploads:** body hash uses empty string (client + server). Admin SPA axios signs via `VITE_WEBAPP_API_*`; Web App uses same keys in its `.env.local`. Rotate keys by updating env + `php artisan db:seed --class=ApiClientSeeder`.
+  - **Vite must be running** for Admin SPA (`@vite` in `app.blade.php`). If Vite dies, Laravel throws `ViteManifestNotFoundException` (`public/build/manifest.json` missing — we do not commit a production build). Symptom: Internal Server Error on `http://localhost:8002`. Fix: restart `composer run dev:windows` (or `npm run dev`). Cause seen: `.env` change restarts Vite, then `laravel-vite-plugin@1.3.0` crashes (`Cannot read properties of null (reading 'family')`). Mitigated in `vite.config.js`: `server.host=127.0.0.1`, ignore `**/.env`.
   - Lockfile is **pnpm** (`pnpm-lock.yaml`); npm also works
   - Queue/cache/session default to **database** — migrate before first run
   - Organizations logo columns: create migration includes `logo_dark_url`/`icon_url`; alter is `2025_08_24_090000_...` (never `2025_01_27_...` before create)
   - Do not commit `.env` or secrets
   - Organization is effectively **single-tenant profile** (not a full CRUD list page like Users)
   - After permission changes: reseed `RolePermissionSeeder` (or sync admin role) so gates match routes
-  - Full suite: **149 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
+  - Full suite: **156 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
   - Run `php artisan migrate` for invitation system templates + event_invitation_templates mode columns (Prompt 15)
   - Seed: `InvitationSystemTemplateSeeder` (4 placeholder designs) via DatabaseSeeder
   - After Prompt 13/14/15 permissions: reseed `RolePermissionSeeder` when needed (`view/manage invitation templates` already exist)
@@ -846,6 +848,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Invitation system templates | `InvitationSystemTemplate` | `InvitationSystemTemplateController` | `invitation-system-templates.php` | **Settings → Invitation Templates** CRUD ✅ | `invitationSystemTemplate.ts` | `invitationTemplate.ts` |
 | QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` history only | `qrScanLog.ts` | `qrScan.ts` |
 | Settings | `Settings` | `SettingsController` | `settings.php` | mail + commission | `mail.ts` / `payout.ts` | `mail.ts` / `payment.ts` |
+| API clients | `ApiClient` | `ApiClientController` | `api-clients.php` | **Settings → API Clients** read-only ✅ | `apiClient.ts` | `apiClient.ts` |
 | Logs | Activity log | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
 | Trash | soft-deleted rows | per-resource trash endpoints | users/roles/organizers/events/event-categories | `pages/trash/` | BaseApi trash methods | — |
 
@@ -866,7 +869,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Shared list UX: `DataTableWithSidebar`, `GenericModal`, `GenericSidebar`, `DetailSidebar`
 - Hooks: `useSidebarDetail`, `useConfirmDialog`, `usePermission`, `useAuth`, `useAuthInit`
 - Store: `authSlice`, `organizationSlice`, `themeConfigSlice`
-- Axios Bearer from storage/Redux (`utils/axios.ts`, `utils/storage.ts`, `utils/auth.ts`)
+- Axios Bearer from storage/Redux + **HMAC headers** (`utils/axios.ts` + `utils/apiClientSignature.ts`; env `VITE_WEBAPP_API_PUBLIC_KEY` / `VITE_WEBAPP_API_SECRET`)
 
 ## Data + Domain Conventions
 
@@ -884,6 +887,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Packages / payments / payouts / participations / add-ons | no soft-delete trash UI | — |
 
 ### Auth & identity
+- **Machine clients (Prompt 3b):** `api_clients` table + `VerifyApiClientSignature` middleware on all `/api/*`. Web App client seeded from `WEBAPP_API_PUBLIC_KEY` / `WEBAPP_API_SECRET`. Admin Settings → **API Clients** read-only list (`view api clients`).
 - `User.user_type`: `admin` | `user`. Admin UI type is **read-only**. Admin creates force `admin`.
 - Organizers are **not** Users — separate table, Sanctum ability `organizer-web`, email unique only on organizers table. Admin may **edit** identity (`edit organizers` / PATCH); password not admin-writable.
 - Spatie permissions gate Admin Panel; FE mirrors with route + sidebar `permissions`.
@@ -915,7 +919,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Activity log on all Admin write paths.
 
 ## Known Risks / Watchouts
-- Full suite: **132 passed / 3 failed** — only `ExceptionHandlerTest` (pre-existing SPA catch-all).
+- Full suite: **156 passed / 3 failed** — only `ExceptionHandlerTest` (pre-existing SPA catch-all).
 - **Refund-after-payout** and Share Event still need client awareness; refund UI not built.
 - **WaafiPay:** never call production from CI; mock HTTP; never log apiKey; production PHP/web timeout must allow 180s.
 - Run scheduler so `ExpirePendingPayments` runs; queue worker for announcement emails.
@@ -981,6 +985,16 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-17 - Prompt 3b: HMAC API client authentication
+- **Backend:** `api_clients` migration + `ApiClient` model (bcrypt `secret`); `VerifyApiClientSignature` middleware (`missing_api_headers`, `invalid_api_key`, `request_expired`, `invalid_signature`); alias `verify.api.client` in `bootstrap/app.php`; wraps entire `routes/api.php`; `App\Support\ApiClientSignature` helper; `ApiClientSeeder` from `WEBAPP_API_PUBLIC_KEY` / `WEBAPP_API_SECRET`; `config/services.php` → `webapp_api`
+- **Admin UI:** Settings → **API Clients** read-only list + detail (`pages/settings/api-clients/`); permission `view api clients`
+- **Admin axios:** signs all `/api/v1` requests via `utils/apiClientSignature.ts` + `VITE_WEBAPP_API_*` env
+- **Tests:** `ApiClientSignatureTest` (7); `Tests\Concerns\SignsApiClientRequests` auto-signs Feature tests — suite **156 passed / 3 ExceptionHandlerTest failed**
+- **Env:** `.env.example` + local `.env` seeded with generated key pair; multipart body hash = empty string (documented)
+- **Web App handoff keys** (add to Web App `.env.local`):
+  - `WEBAPP_API_PUBLIC_KEY=09e3ce6dc6fb8c748ddba8bff2b24497eb61c3b3`
+  - `WEBAPP_API_SECRET=9b48c57975f5a4e55c2f6d0e22a5bbaf8fa504050f4ae3b43b9ffb74b9865718`
 
 ### 2026-08-16 - Prompt 15: Invitation system templates & event modes
 - **Part 1:** `invitation_system_templates` table + `InvitationSystemTemplate` model (soft deletes); `InvitationSystemTemplateController` CRUD with image upload; routes `invitation-system-templates.php`; Settings FE `pages/settings/invitation-templates/`; seeder 4 placeholders (Modern Blue, Festive Gold, Minimal Dark, Classic Cream)

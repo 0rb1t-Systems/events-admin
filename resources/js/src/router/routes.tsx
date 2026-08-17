@@ -30,6 +30,7 @@ const SettingsInvitationTemplates = lazy(
     () => import("../pages/settings/invitation-templates")
 );
 const SettingsCommission = lazy(() => import("../pages/settings/commission"));
+const SettingsApiClients = lazy(() => import("../pages/settings/api-clients"));
 
 // Organization (Configuration)
 const Organization = lazy(() => import("../pages/organization"));
@@ -195,6 +196,7 @@ export const protectedRoutes: RouteConfig[] = [
             "view event categories",
             "view invitation templates",
             "view organizations",
+            "view api clients",
         ],
         children: [
             {
@@ -232,6 +234,12 @@ export const protectedRoutes: RouteConfig[] = [
                 element: <SettingsCommission />,
                 layout: "default",
                 permissions: ["manage settings"],
+            },
+            {
+                path: "api-clients",
+                element: <SettingsApiClients />,
+                layout: "default",
+                permissions: ["view api clients"],
             },
             {
                 path: "organization",

@@ -118,6 +118,9 @@ class RolePermissionSeeder extends Seeder
             // logs
             'view logs',
 
+            // api clients (read-only Settings list)
+            'view api clients',
+
             // dashboard (API + FE)
             'view dashboard',
 

@@ -1,4 +1,4 @@
-import { Mail, Shield, Building2, Package, Tags, Percent, LayoutTemplate } from "lucide-react";
+import { Mail, Shield, Building2, Package, Tags, Percent, LayoutTemplate, KeyRound } from "lucide-react";
 import React, { Suspense } from "react";
 import { useLocation, NavLink, Outlet, useNavigate } from "react-router-dom";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -36,6 +36,12 @@ const settingsItems = [
         title: "Commission",
         icon: <Percent className="w-5 h-5" />,
         path: "/settings/commission",
+    },
+    {
+        id: "api-clients",
+        title: "API Clients",
+        icon: <KeyRound className="w-5 h-5" />,
+        path: "/settings/api-clients",
     },
     {
         id: "mail",

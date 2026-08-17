@@ -4,6 +4,11 @@ import axios, {
     InternalAxiosRequestConfig,
 } from "axios";
 import { storageUtil } from "./storage";
+import {
+    buildApiClientHeaders,
+    resolveApiRequestBody,
+    resolveApiRequestPath,
+} from "./apiClientSignature";
 
 // Determine base URL - use relative path for same-origin API
 const API_BASE_URL = "/api/v1";
@@ -36,7 +41,7 @@ export const setReduxStoreGetter = (storeGetter: () => any) => {
 
 // Request interceptor
 axiosInstance.interceptors.request.use(
-    (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
+    async (config: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> => {
         // Get CSRF token from the meta tag if it exists (for non-GET requests)
         const csrfToken = document
             .querySelector('meta[name="csrf-token"]')
@@ -44,6 +49,24 @@ axiosInstance.interceptors.request.use(
 
         if (csrfToken && config.headers) {
             config.headers["X-CSRF-TOKEN"] = csrfToken;
+        }
+
+        const publicKey = import.meta.env.VITE_WEBAPP_API_PUBLIC_KEY as string | undefined;
+        const secret = import.meta.env.VITE_WEBAPP_API_SECRET as string | undefined;
+
+        if (publicKey && secret && config.headers) {
+            const method = (config.method ?? "get").toUpperCase();
+            const path = resolveApiRequestPath(config.baseURL, config.url);
+            const body = resolveApiRequestBody(config.data);
+            const signatureHeaders = await buildApiClientHeaders(
+                method,
+                path,
+                body,
+                publicKey,
+                secret
+            );
+
+            Object.assign(config.headers, signatureHeaders);
         }
 
         // Get auth token from Redux store first, then fallback to storage
