@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-18 (API client auth: X-API-Key only — HMAC signature removed)
+Last updated: 2026-08-18 (Prompt 0: participant + organizer Web API surface)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -31,7 +31,8 @@ Every meaningful change to the codebase must also update this file.
 - Known gotchas:
   - Windows `dev:windows` uses port **8002**, not 8000
   - **API client auth (Prompt 3b, simplified 2026-08-18):** All `/api/*` routes require `X-API-Key` (`verify.api.client` / `VerifyApiClientSignature` on `routes/api.php`). Lookup: `api_clients` where `public_key` matches and `active = true`. Errors: `missing_api_key` (header absent/empty), `invalid_api_key` (unknown or inactive). **No** `X-API-Timestamp` / `X-API-Signature` — HMAC was removed because the Web App is a Vite SPA with no server to hide `WEBAPP_API_SECRET`. `api_clients.secret` column remains in DB unused by verification. Admin SPA axios sends `X-API-Key` from `VITE_WEBAPP_API_PUBLIC_KEY`. Web App sends the same public key. Rotate by updating env `WEBAPP_API_PUBLIC_KEY` + `php artisan db:seed --class=ApiClientSeeder`.
-  - **Public API-key-only catalog (Web App, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. `X-API-Key` still required. No `auth:sanctum` / `admin.panel`. Without an `admin-panel` Bearer, events are filtered to `published|registration_open|sold_out|registration_closed|ongoing` (`Event::scopePublicCatalog` / `EventStatus::publicCatalogValues()`). Draft, cancelled, and completed are omitted; public show of those returns **404**. Admin-panel Bearer (Admin SPA) still returns **all** statuses including draft/cancelled. Public payloads hide organizer `email` / `phone` / `contact_name` (only `id` + `business_name`) and do not load `discountCodes`. Public show eager-loads ticket types, speakers, sponsors, sessions, category, images. All other event/category routes remain API-key + Sanctum + `admin.panel` + permissions.
+  - **Public API-key-only catalog (Web App, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`, `GET /api/v1/events/{id}/form-fields`. `X-API-Key` still required. No `auth:sanctum` / `admin.panel`. Without an `admin-panel` Bearer, events are filtered to `published|registration_open|sold_out|registration_closed|ongoing` (`Event::scopePublicCatalog` / `EventStatus::publicCatalogValues()`). Draft, cancelled, and completed are omitted; public show of those returns **404**. Admin-panel Bearer (Admin SPA) still returns **all** statuses including draft/cancelled. Public payloads hide organizer `email` / `phone` / `contact_name` (only `id` + `business_name`) and do not load `discountCodes`. Public show eager-loads ticket types, speakers, sponsors, sessions, category, images. **Form-fields** (`PublicEventFormFieldController`): public callers get **active** fields only; admin-panel Bearer + `view event form fields` still gets the full admin payload (inactive included). All other Admin event/category routes remain API-key + Sanctum + `admin.panel` + permissions.
+  - **Web App HTTP surface (Prompt 0):** explicit `/api/v1/participant/*` (`participant.web`) and `/api/v1/organizer/*` (`organizer.web`). Do **not** reuse Admin routes for Web tokens. Admin SPA routes/permissions unchanged. Domain services reused (ParticipationService, PaymentService, EventStatusMachine, EventQuota, QrValidationService, etc.).
   - **Vite must be running** for Admin SPA (`@vite` in `app.blade.php`). If Vite dies, Laravel throws `ViteManifestNotFoundException` (`public/build/manifest.json` missing — we do not commit a production build). Symptom: Internal Server Error on `http://localhost:8002`. Fix: restart `composer run dev:windows` (or `npm run dev`). Cause seen: `.env` change restarts Vite, then `laravel-vite-plugin@1.3.0` crashes (`Cannot read properties of null (reading 'family')`). Mitigated in `vite.config.js`: `server.host=127.0.0.1`, ignore `**/.env`.
   - Lockfile is **pnpm** (`pnpm-lock.yaml`); npm also works
   - Queue/cache/session default to **database** — migrate before first run
@@ -39,7 +40,7 @@ Every meaningful change to the codebase must also update this file.
   - Do not commit `.env` or secrets
   - Organization is effectively **single-tenant profile** (not a full CRUD list page like Users)
   - After permission changes: reseed `RolePermissionSeeder` (or sync admin role) so gates match routes
-  - Full suite: **161 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
+  - Full suite: **199 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
   - Run `php artisan migrate` for invitation system templates + event_invitation_templates mode columns (Prompt 15)
   - Seed: `InvitationSystemTemplateSeeder` (4 placeholder designs) via DatabaseSeeder
   - **Demo data:** `DemoDataSeeder` (called from `DatabaseSeeder`). Idempotent. Fills packages, 3 organizers, 10 participant users, 10 events (7 public catalog + draft/cancelled/completed for Admin), tickets/speakers/sponsors/sessions/payments/feedback. Re-run: `php artisan db:seed --class=DemoDataSeeder`. Demo passwords: `password`. Organizer logins: `horn.events@example.com`, `culture.hub@example.com`, `sahil.sports@example.com`. Participants: `ayaan.mohamed@example.com` (and 9 peers).
@@ -75,7 +76,7 @@ These were decided during Admin Prompts 1–12. Confirm or correct before Web Ap
 21. **Prompt 12 Admin write expansion** — Platform admins have write/override on ticket types, discount codes, form fields, announcements, sponsors/speakers/sessions, and participation add/cancel-with-reason. **Manual cash payment was removed from Admin in Prompt 13** (organizer-scoped).
 22. **Manual payments** — Service `PaymentService::recordManual` kept for Web App. `POST /payments/manual` **rejects admin-panel tokens** (`action_requires_organizer_scope`). Historical activity logs retained.
 23. **Full Event create UI** — Still moderation-focused in Admin (no full organizer-style create form). API `POST /events` exists; gallery upload API exists but FE remains delete-focused. **BY DESIGN** unless product asks for admin create.
-24. **Ownership boundary (Prompt 13)** — Admin = platform owner; Organizer = event owner. QR scanner UI was **never built** in Admin (only QR Scan History). Waafi charge UI was **never built** in Admin. Both `POST /qr-scan-logs/validate` and `POST /payments/charge` are scope-blocked for admin-panel tokens. Invitation designer / feedback submit / live charge / door scanning remain Web App.
+24. **Ownership boundary (Prompt 13 / Prompt 0)** — Admin = platform owner; Organizer = event owner. QR scanner UI and Waafi charge UI were **never built** in Admin. Admin `POST /qr-scan-logs/validate` and `POST /payments/charge` remain scope-blocked for admin-panel tokens. **Web API now exists:** participant charge, organizer QR validate, organizer invitation designer endpoints. Invitation PDF compositing and Share Event remain deferred.
 25. **Certificate re-issue (Prompt 13)** — Admin can force re-issue via `POST /certificates/{participation_id}/reissue` (`reissue certificates`). Requires `checked_in`; fails safely without deleting old row on generation error.
 26. **Feedback moderation (Prompt 13)** — Platform-wide `/feedback` list + hide/show (`event_feedback.hidden`). Soft-hide only. **Web App MUST filter `where hidden = false`** on any public/organizer feedback query.
 27. **Invitation preview (Prompt 13/14)** — Read-only `InvitationTemplatePreview` on Event Detail; uses `GET /events/{id}/invitation-template` + `eventApi.getInvitationTemplate`.
@@ -167,7 +168,7 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
    - Override `store`/`update`/etc. **only** for domain-specific logic (password hash, role sync, file upload) — still use `$this->successResponse` / `$this->createdResponse` / `$this->notFoundResponse` from traits
    - Inherited from `BaseController`: `index`, `search`, `store`, `show`, `update`, `destroy`, `trashed`, `restore`, `forceDestroy`, `bulkDelete`, `bulkRestore`, `bulkForceDelete`, activity logging
 5. **API v1 route file** — `routes/api/v1/<resource>.php`
-   - Wrap in `Route::middleware(['auth:sanctum', 'admin.panel'])` **except** the API-key-only public catalog: `GET /events`, `GET /events/{id}`, `GET /event-categories` (still behind `verify.api.client` on `routes/api.php`)
+   - Wrap in `Route::middleware(['auth:sanctum', 'admin.panel'])` **except** (1) the API-key-only public catalog: `GET /events`, `GET /events/{id}`, `GET /event-categories`, `GET /events/{id}/form-fields`; (2) Web App groups `/participant/*` and `/organizer/*` which use `participant.web` / `organizer.web` instead — never `admin.panel`.
    - Permission middleware per action (`permission:view …`, `create`, `edit`, `delete`) — not applied to those three public GETs
    - Standard shape (see Users):
      - `GET /` index, `POST /` store, `GET /{id}` show, `PATCH /{id}` update, `DELETE /{id}` destroy
@@ -236,7 +237,8 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Organization** — profile/settings style under Settings.
 - **Logs** — read-only; `permission:view logs` on all routes.
 - **Settings mail / commission** — forms + test; activity via `activity('settings')`.
-- **Public API-key-only catalog** — `GET /events`, `GET /events/{id}`, `GET /event-categories` omit `auth:sanctum` / `admin.panel` / permissions. Do **not** copy this for other resources. Admin Bearer on those URLs still returns unfiltered events.
+- **Public API-key-only catalog** — `GET /events`, `GET /events/{id}`, `GET /event-categories`, `GET /events/{id}/form-fields` omit `auth:sanctum` / `admin.panel` / permissions. Do **not** copy this for other resources. Admin Bearer on those URLs still returns unfiltered events / full form schema.
+- **Web App API (Prompt 0)** — separate route files + `app/Http/Controllers/Api/Web/*`. Do not put organizer/participant Web endpoints on Admin controllers behind `admin.panel`.
 
 ### D) Searchable entity picker standard (Prompt 12 — MANDATORY for FK fields)
 
@@ -280,11 +282,61 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 ```
 
 ### Request / auth flow
-- Middleware: `EnsureJsonResponse` on API; **`verify.api.client` (`X-API-Key` lookup) on all `/api/*`**; Sanctum `auth:sanctum`; Spatie `permission:`; **`admin.panel`** (`EnsureAdminPanelAccess`: `UserType::ADMIN` + token ability `admin-panel`) on Admin resource routes; **`organizer.web`** for organizer-auth me routes.
-- **API-key-only (no Bearer) public catalog:** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. `EventController` still detects an optional Sanctum `admin-panel` token via `$request->user('sanctum')` so the Admin SPA (API key + Bearer) keeps unfiltered index/show.
-- **API key + Bearer (`auth:sanctum` + `admin.panel` + permissions):** every other Admin resource route (event search/write/nested, category show/write, users, payments, etc.).
-- Traits on `BaseController`: `ApiResponseTrait`, `ApiFilterTrait`.
+- Middleware: `EnsureJsonResponse` on API; **`verify.api.client` (`X-API-Key` lookup) on all `/api/*`**; Sanctum `auth:sanctum`; Spatie `permission:`; **`admin.panel`** (`EnsureAdminPanelAccess`: `UserType::ADMIN` + token ability `admin-panel`) on Admin resource routes; **`participant.web`** (`EnsureParticipantWebAccess`: `User` + token ability `web-participant` — admin *users* allowed if the token is web-participant); **`organizer.web`** (`EnsureOrganizerWebAccess`: `Organizer` + `organizer-web`; suspended → 403 `organizer_suspended`).
+- **API-key-only (no Bearer) public catalog:** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`, `GET /api/v1/events/{id}/form-fields`. `EventController` still detects an optional Sanctum `admin-panel` token via `$request->user('sanctum')` so the Admin SPA (API key + Bearer) keeps unfiltered index/show.
+- **API key + Bearer (`auth:sanctum` + `admin.panel` + permissions):** every Admin resource route (event search/write/nested, category show/write, users, payments, etc.). Organizer/participant tokens must **not** pass `admin.panel`.
+- **API key + Bearer (`auth:sanctum` + `participant.web`):** `/api/v1/participant/*` — see Web API surface below.
+- **API key + Bearer (`auth:sanctum` + `organizer.web`):** `/api/v1/organizer/*` and `organizer-auth` me/profile/password.
+- Traits on `BaseController`: `ApiResponseTrait`, `ApiFilterTrait`. Web controllers: `WebController` and/or `ResolvesOrganizerEvent`.
 - Sanctum abilities: `admin-panel`, `web-participant`, `organizer-web` (plus legacy lock flag string `'locked'` on token JSON — not Spatie).
+
+### Web API surface (Prompt 0 — not Admin SPA)
+
+**Do not change Admin SPA routes or permissions.** Web uses explicit groups. Ownership: never accept `user_id` / `organizer_id` as an ownership selector from Web input. Participant: `$request->user()` (`User`); cross-user → **404**. Organizer: `$request->user()` (`Organizer`); `event.organizer_id` must match; nested resources via `ResolvesOrganizerEvent`; cross-organizer → **404**.
+
+**New Web envelope** (do not rewrite old Admin/public envelopes): `{ success, message, data, status_code }`. Paginated Web lists: `data.items` + `data.pagination: { current_page, last_page, per_page, total }`. Domain errors use `errors.error_code` arrays when a stable code exists.
+
+**Payment distinction:** Participant checkout is `POST /api/v1/participant/payments/charge` (`PaymentService::charge`). Admin `POST /payments/charge` and `POST /payments/manual` remain for historical/ops compatibility but **reject admin-panel** (`action_requires_organizer_scope`). Organizer door cash is **not** yet on `/organizer/*` (gap: `POST /organizer/payments/manual`). QR validate for organizers is `POST /api/v1/organizer/qr-scan-logs/validate` (scanner organizer derived from token; foreign event → `invalid`, no check-in). Admin `POST /qr-scan-logs/validate` still rejects admin-panel.
+
+**Invitation distinction:** Admin Event hub preview stays read-only `GET /events/{id}/invitation-template`. Organizer designer: `GET/POST/PATCH /organizer/events/{event}/invitation-template` (+ optional `.../background` multipart `background`). Participant ticket: `GET /participant/participations/{id}/invitation` (200 with `invitation: null` if none; canvas 800×1100; **no PDF generation**).
+
+**Route files:** `routes/api/v1/participant-web.php`, `organizer-web-core.php`, `organizer-web-content.php`, `organizer-web-ops.php`; required from `routes/api.php` inside v1. Public form-fields registered in `events.php` next to catalog GETs.
+
+**Participant routes** (`auth:sanctum` + `participant.web`):
+| Method | Path |
+|--------|------|
+| GET | `/participant/participations` (`page`, `per_page`, `status`) |
+| POST | `/participant/participations` `{ event_id, ticket_type_id?, custom_field_answers? }` — join via `ParticipationService` |
+| GET | `/participant/participations/{participation}` |
+| POST | `/participant/participations/{participation}/cancel` |
+| GET | `/participant/participations/{participation}/invitation` |
+| GET | `/participant/participations/{participation}/certificate` `{ available, certificate }` |
+| GET | `/participant/participations/{participation}/feedback` (own row even if hidden) |
+| POST | `/participant/event-feedback` `{ participation_id, rating, comment? }` |
+| POST | `/participant/payments/charge` `{ participation_id, payer_phone }` |
+
+**Organizer routes** (`auth:sanctum` + `organizer.web`), prefix `/organizer`:
+| Area | Methods / paths |
+|------|-----------------|
+| Dashboard | `GET /dashboard` |
+| Events | `GET/POST /events`, `GET/PATCH/DELETE /events/{event}`, `POST /events/{event}/transition` `{ status }` — create is **draft**; no featured/monetized/organizer_id/status on PATCH |
+| Ticket types | `GET/POST /events/{event}/ticket-types`, `PATCH/DELETE /ticket-types/{ticketType}`, `PATCH /ticket-types/{ticketType}/sales` `{ sales_enabled }` |
+| Discount codes | `GET/POST /events/{event}/discount-codes`, `PATCH/DELETE /discount-codes/{discountCode}`, `PATCH /discount-codes/{discountCode}/active` `{ active }` |
+| Form fields | `GET/POST /events/{event}/form-fields`, `PATCH/DELETE /form-fields/{field}`, `PATCH /events/{event}/form-fields/reorder` `{ ordered_ids }` |
+| Speakers / sponsors / sessions | `GET/POST /events/{event}/{speakers\|sponsors\|sessions}`, `PATCH/DELETE /{speakers\|sponsors\|sessions}/{id}` |
+| Gallery | `GET/POST /events/{event}/images` multipart field **`image`**, `GET/DELETE /events/{event}/images/{image}` |
+| Announcements | `GET/POST /events/{event}/announcements` |
+| Participations | `GET /events/{event}/participations`, `GET /participations/{id}`, `POST .../promote`, `POST .../cancel` `{ reason? }` |
+| Analytics / finance | `GET /events/{event}/analytics`, `GET /events/{event}/finance` |
+| Payouts (per-event only) | `GET /payout-requests`, `GET/POST /events/{event}/payout-requests`, `GET /payout-requests/{id}` — **no** approve/reject/record-payment |
+| QR | `POST /qr-scan-logs/validate` `{ token, gate? }`, `GET /events/{event}/qr-scan-logs`, `GET /events/{event}/check-in-stats` |
+| Invitation | `GET /invitation-system-templates` (active), `GET/POST/PATCH /events/{event}/invitation-template`, `POST .../background` |
+| Packages | `GET /packages` (active catalog), `GET /subscription`, `GET /quota` — **no** purchase |
+| Auth extras | `PATCH /organizer-auth/profile`, `POST /organizer-auth/change-password` |
+
+**Tests:** `EnsureParticipantWebAccessTest`, `ParticipantWebApiTest`, `OrganizerWebCoreApiTest`, `OrganizerWebContentApiTest`, `OrganizerWebOpsApiTest`.
+
+**Consciously deferred:** invitation PDF compositing; organizer `payments/manual` Web route; organizer self-charge; package purchase/billing; Share Event; Admin SPA Web UI.
 
 ### Admin navigation (permission-gated)
 | Nav | Path | Permission(s) |
@@ -859,6 +911,8 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` history only | `qrScanLog.ts` | `qrScan.ts` |
 | Settings | `Settings` | `SettingsController` | `settings.php` | mail + commission | `mail.ts` / `payout.ts` | `mail.ts` / `payment.ts` |
 | API clients | `ApiClient` | `ApiClientController` | `api-clients.php` | **Settings → API Clients** read-only ✅ | `apiClient.ts` | `apiClient.ts` |
+| Participant Web | User + Participation | `Api\Web\Participant*` | `participant-web.php` | **Web App only** (no Admin SPA) | — | — |
+| Organizer Web | Organizer + Event hub domain | `Api\Web\Organizer*` | `organizer-web-core/content/ops.php` | **Web App only** | — | — |
 | Logs | Activity log | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
 | Trash | soft-deleted rows | per-resource trash endpoints | users/roles/organizers/events/event-categories | `pages/trash/` | BaseApi trash methods | — |
 
@@ -883,7 +937,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Column extras: `hideBelow`, `minWidth` on `ColumnConfig`
 - Hooks: `useSidebarDetail`, `useConfirmDialog`, `usePermission`, `useAuth`, `useAuthInit`
 - Store: `authSlice`, `organizationSlice`, `themeConfigSlice`
-- Axios Bearer from storage/Redux + **`X-API-Key`** (`utils/axios.ts`; env `VITE_WEBAPP_API_PUBLIC_KEY`). HMAC signing was removed (Vite SPA cannot hide a secret).
+- Axios Bearer from storage/Redux + **`X-API-Key`** (`utils/axios.ts`; env `VITE_WEBAPP_API_PUBLIC_KEY`). HMAC signing was removed (Vite SPA cannot hide a secret). Web App should send the same `X-API-Key` plus `web-participant` or `organizer-web` Bearer on `/participant/*` and `/organizer/*`.
 
 ## Data + Domain Conventions
 
@@ -902,9 +956,9 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 
 ### Auth & identity
 - **Machine clients (Prompt 3b):** `api_clients` table + `VerifyApiClientSignature` middleware on all `/api/*`. Verification is **`X-API-Key` only** (active `public_key` lookup). `api_clients.secret` is unused by middleware (column kept). Seeded from `WEBAPP_API_PUBLIC_KEY`. Admin Settings → **API Clients** read-only list (`view api clients`).
-- **Public vs authenticated API:** `X-API-Key` is always required. Bearer (`admin-panel`) is required for Admin writes and most reads. **Exceptions (API-key-only, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. Participant `web-participant` tokens do **not** unlock drafts — treated as public catalog.
-- `User.user_type`: `admin` | `user`. Admin UI type is **read-only**. Admin creates force `admin`.
-- Organizers are **not** Users — separate table, Sanctum ability `organizer-web`, email unique only on organizers table. Admin may **edit** identity (`edit organizers` / PATCH); password not admin-writable.
+- **Public vs authenticated API:** `X-API-Key` is always required. Bearer (`admin-panel`) is required for Admin writes and most reads. **Exceptions (API-key-only, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`, `GET /api/v1/events/{id}/form-fields`. Participant `web-participant` tokens do **not** unlock drafts — treated as public catalog. Web participant/organizer surfaces use dedicated groups (see Web API surface).
+- `User.user_type`: `admin` | `user`. Admin UI type is **read-only**. Admin creates force `admin`. An admin user **with a web-participant token** may use `/participant/*`.
+- Organizers are **not** Users — separate table, Sanctum ability `organizer-web`, email unique only on organizers table. Admin may **edit** identity (`edit organizers` / PATCH). Organizer self-service: `PATCH /organizer-auth/profile` + `POST /organizer-auth/change-password` (current password required).
 - Spatie permissions gate Admin Panel; FE mirrors with route + sidebar `permissions`.
 
 ### Events & registration
@@ -936,7 +990,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Activity log on all Admin write paths.
 
 ## Known Risks / Watchouts
-- Full suite: **161 passed / 3 failed** — only `ExceptionHandlerTest` (pre-existing SPA catch-all). HMAC tests dropped with API-key-only auth (was 163).
+- Full suite: **199 passed / 3 failed** — only `ExceptionHandlerTest` (pre-existing SPA catch-all).
 - **Public catalog vs Admin list:** API-key-only `GET /events` hides draft/cancelled/completed. Admin SPA must keep sending `admin-panel` Bearer or the Events table will look empty of drafts.
 - **Refund-after-payout** and Share Event still need client awareness; refund UI not built.
 - **WaafiPay:** never call production from CI; mock HTTP; never log apiKey; production PHP/web timeout must allow 180s.
@@ -1013,6 +1067,16 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-18 - Prompt 0: participant + organizer Web API
+- Explicit Web HTTP surface without weakening Admin `admin.panel` / SPA permissions. `participant.web` middleware (`unauthenticated` / `wrong_ability`). Organizer ownership via `ResolvesOrganizerEvent` (404 cross-tenant).
+- Public: `GET /events/{id}/form-fields` (active schema; dual-access for Admin Bearer + `view event form fields`).
+- Participant: join/list/show/cancel, invitation, certificate read, feedback, Waafi `POST /participant/payments/charge`.
+- Organizer: dashboard, event CRUD+transition, tickets/discounts/forms, speakers/sponsors/sessions/gallery/announcements, registrations promote/cancel, analytics/finance, per-event payouts, QR validate+logs+stats, invitation upsert, packages/subscription/quota, profile/password.
+- Admin `POST /payments/charge`, `/payments/manual`, `/qr-scan-logs/validate` still reject admin-panel (`action_requires_organizer_scope`). Organizer QR + participant charge are the live Web replacements; organizer manual pay is still a gap.
+- Files: `EnsureParticipantWebAccess.php`, `bootstrap/app.php`, `routes/api.php`, `routes/api/v1/{participant-web,organizer-web-core,organizer-web-content,organizer-web-ops,events,organizer-auth}.php`, `app/Http/Controllers/Api/Web/*`, `OrganizerAuthController`, tests `EnsureParticipantWebAccessTest`, `ParticipantWebApiTest`, `OrganizerWebCoreApiTest`, `OrganizerWebContentApiTest`, `OrganizerWebOpsApiTest`, `.agent`
+- Migration/config/env impact: none
+- Verification: `composer test` — **199 passed / 3 pre-existing ExceptionHandlerTest failures**
 
 ### 2026-08-18 - API client auth: drop HMAC, keep X-API-Key
 - Web App is a Vite SPA (no server), so `WEBAPP_API_SECRET` could not be kept private. `VerifyApiClientSignature` now only requires `X-API-Key`, looks up `api_clients` by `public_key` where `active = true`. Errors: `missing_api_key`, `invalid_api_key`. Timestamp/signature checks removed. `api_clients.secret` column kept unused.

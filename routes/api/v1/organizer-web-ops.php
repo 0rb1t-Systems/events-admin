@@ -1,0 +1,38 @@
+<?php
+
+use App\Http\Controllers\Api\Web\OrganizerInvitationController;
+use App\Http\Controllers\Api\Web\OrganizerPackageController;
+use App\Http\Controllers\Api\Web\OrganizerPayoutController;
+use App\Http\Controllers\Api\Web\OrganizerQrController;
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Organizer Web App ops (payouts, QR, invitations, packages)
+|--------------------------------------------------------------------------
+|
+| Loaded under /api/v1 (see routes/api.php). Prefix organizer → /api/v1/organizer/...
+| Cross-organizer resources return 404. No approve/reject/record-payment. No package purchase.
+|
+*/
+
+Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group(function () {
+    Route::get('/payout-requests', [OrganizerPayoutController::class, 'index']);
+    Route::get('/payout-requests/{payoutRequest}', [OrganizerPayoutController::class, 'show']);
+    Route::get('/events/{event}/payout-requests', [OrganizerPayoutController::class, 'forEvent']);
+    Route::post('/events/{event}/payout-requests', [OrganizerPayoutController::class, 'storeForEvent']);
+
+    Route::post('/qr-scan-logs/validate', [OrganizerQrController::class, 'validateScan']);
+    Route::get('/events/{event}/qr-scan-logs', [OrganizerQrController::class, 'forEvent']);
+    Route::get('/events/{event}/check-in-stats', [OrganizerQrController::class, 'checkInStats']);
+
+    Route::get('/invitation-system-templates', [OrganizerInvitationController::class, 'systemTemplates']);
+    Route::post('/events/{event}/invitation-template/background', [OrganizerInvitationController::class, 'uploadBackground']);
+    Route::get('/events/{event}/invitation-template', [OrganizerInvitationController::class, 'show']);
+    Route::post('/events/{event}/invitation-template', [OrganizerInvitationController::class, 'storeForEvent']);
+    Route::patch('/events/{event}/invitation-template', [OrganizerInvitationController::class, 'update']);
+
+    Route::get('/packages', [OrganizerPackageController::class, 'packages']);
+    Route::get('/subscription', [OrganizerPackageController::class, 'subscription']);
+    Route::get('/quota', [OrganizerPackageController::class, 'quota']);
+});

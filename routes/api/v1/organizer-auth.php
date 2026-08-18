@@ -18,4 +18,6 @@ Route::post('/login', [OrganizerAuthController::class, 'login']);
 Route::middleware(['auth:sanctum', 'organizer.web'])->group(function () {
     Route::post('/logout', [OrganizerAuthController::class, 'logout']);
     Route::get('/me', [OrganizerAuthController::class, 'me']);
+    Route::patch('/profile', [OrganizerAuthController::class, 'updateProfile']);
+    Route::post('/change-password', [OrganizerAuthController::class, 'changePassword']);
 });

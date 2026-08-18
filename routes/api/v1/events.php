@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\EventController;
+use App\Http\Controllers\Api\Web\PublicEventFormFieldController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,8 +34,7 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     Route::get('/{id}/participations', [\App\Http\Controllers\Api\ParticipationController::class, 'forEvent'])
         ->middleware('permission:view participations');
 
-    Route::get('/{id}/form-fields', [\App\Http\Controllers\Api\EventFormFieldController::class, 'forEvent'])
-        ->middleware('permission:view event form fields');
+    // GET /{id}/form-fields is dual-access on the public catalog (see bottom of this file).
 
     Route::get('/{id}/check-in-stats', [\App\Http\Controllers\Api\QrScanLogController::class, 'checkInStats'])
         ->middleware('permission:view qr scan logs');
@@ -104,6 +104,9 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
 /*
 | API-key-only public catalog (verify.api.client from routes/api.php).
 | Admin Bearer with admin-panel ability still receives the full unfiltered payload.
+| Form-fields: dual-access via PublicEventFormFieldController (admin-panel + permission
+| still gets the full admin payload including inactive fields).
 */
 Route::get('/', [EventController::class, 'index']);
+Route::get('/{id}/form-fields', [PublicEventFormFieldController::class, 'show']);
 Route::get('/{id}', [EventController::class, 'show']);

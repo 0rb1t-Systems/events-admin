@@ -123,6 +123,71 @@ class OrganizerAuthController extends Controller
         ]);
     }
 
+    /**
+     * Self-service identity update. Status is not writable here.
+     */
+    public function updateProfile(Request $request)
+    {
+        /** @var Organizer $organizer */
+        $organizer = $request->user();
+
+        $validated = $request->validate([
+            'business_name' => 'sometimes|required|string|max:255',
+            'contact_name' => 'sometimes|required|string|max:255',
+            'email' => 'sometimes|required|string|email|max:255|unique:organizers,email,'.$organizer->id,
+            'phone' => 'nullable|string|max:30',
+        ]);
+
+        unset($validated['password'], $validated['status']);
+
+        $old = $organizer->getOriginal();
+        $organizer->update($validated);
+
+        activity('organizer')
+            ->causedBy($organizer)
+            ->performedOn($organizer)
+            ->withProperties(['old' => $old, 'attributes' => $organizer->getAttributes()])
+            ->event('updated')
+            ->log('Organizer profile was updated');
+
+        return $this->successResponse([
+            'organizer' => $this->organizerPayload($organizer->fresh()),
+        ], 'Profile updated successfully');
+    }
+
+    /**
+     * Self-service password change — current_password + password confirmed.
+     */
+    public function changePassword(Request $request)
+    {
+        /** @var Organizer $organizer */
+        $organizer = $request->user();
+
+        $request->validate([
+            'current_password' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if (! Hash::check($request->current_password, $organizer->password)) {
+            return $this->badRequestResponse('Current password is incorrect');
+        }
+
+        $organizer->password = $request->password;
+        $organizer->save();
+
+        activity('organizer')
+            ->causedBy($organizer)
+            ->performedOn($organizer)
+            ->event('updated')
+            ->log('Organizer password was changed');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password changed successfully',
+            'status_code' => 200,
+        ]);
+    }
+
     private function revokeOrganizerWebTokens(Organizer $organizer): void
     {
         $organizer->tokens()->get()->each(function ($token) {
