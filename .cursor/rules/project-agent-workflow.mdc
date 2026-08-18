@@ -34,7 +34,7 @@ Follow this order for every task:
 - Reuse `DataTableWithSidebar`, `useSidebarDetail`, `useConfirmDialog`, React Query, sonner toasts.
 
 ### Exceptions
-Only Auth, Organization profile, Logs (read-only), Settings mail, Trash, and the HMAC-only public catalog (`GET /events`, `GET /events/{id}`, `GET /event-categories`) may deviate — see `.agent`. Do not treat deviations as a new default.
+Only Auth, Organization profile, Logs (read-only), Settings mail, Trash, and the API-key-only public catalog (`GET /events`, `GET /events/{id}`, `GET /event-categories`) may deviate — see `.agent`. Do not treat deviations as a new default.
 
 ## Consistency Rules
 

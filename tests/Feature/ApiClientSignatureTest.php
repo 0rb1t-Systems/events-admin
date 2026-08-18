@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\ApiClient;
-use App\Support\ApiClientSignature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
@@ -16,59 +15,25 @@ class ApiClientSignatureTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_ping_requires_api_signature_headers(): void
+    public function test_ping_requires_api_key(): void
     {
         $this->withoutApiClientSigning()
             ->getJson('/api/ping')
             ->assertUnauthorized()
-            ->assertJsonPath('errors.error_code.0', 'missing_api_headers');
+            ->assertJsonPath('errors.error_code.0', 'missing_api_key');
     }
 
     public function test_invalid_api_key_is_rejected(): void
     {
-        $timestamp = time();
-        $path = '/api/ping';
-        $signature = ApiClientSignature::sign('GET', $path, '', $timestamp, $this->testApiSecret);
-
         $this->withoutApiClientSigning()
             ->withHeaders([
                 'X-API-Key' => 'unknown-public-key',
-                'X-API-Timestamp' => (string) $timestamp,
-                'X-API-Signature' => $signature,
             ])->getJson('/api/ping')
             ->assertUnauthorized()
             ->assertJsonPath('errors.error_code.0', 'invalid_api_key');
     }
 
-    public function test_expired_timestamp_is_rejected(): void
-    {
-        $timestamp = time() - 600;
-        $path = '/api/ping';
-        $signature = ApiClientSignature::sign('GET', $path, '', $timestamp, $this->testApiSecret);
-
-        $this->withoutApiClientSigning()
-            ->withHeaders([
-                'X-API-Key' => $this->testApiPublicKey,
-                'X-API-Timestamp' => (string) $timestamp,
-                'X-API-Signature' => $signature,
-            ])->getJson('/api/ping')
-            ->assertUnauthorized()
-            ->assertJsonPath('errors.error_code.0', 'request_expired');
-    }
-
-    public function test_invalid_signature_is_rejected(): void
-    {
-        $this->withoutApiClientSigning()
-            ->withHeaders([
-                'X-API-Key' => $this->testApiPublicKey,
-                'X-API-Timestamp' => (string) time(),
-                'X-API-Signature' => 'invalid-signature',
-            ])->getJson('/api/ping')
-            ->assertUnauthorized()
-            ->assertJsonPath('errors.error_code.0', 'invalid_signature');
-    }
-
-    public function test_valid_signature_allows_api_ping(): void
+    public function test_valid_api_key_allows_api_ping(): void
     {
         $this->getJson('/api/ping')
             ->assertOk()

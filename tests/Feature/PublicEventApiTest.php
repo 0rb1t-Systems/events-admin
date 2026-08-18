@@ -202,7 +202,7 @@ class PublicEventApiTest extends TestCase
         $this->assertFalse($ids->contains($draft->id));
     }
 
-    public function test_public_event_routes_still_require_hmac_client_signature(): void
+    public function test_public_event_routes_still_require_api_key(): void
     {
         Event::factory()->published()->create();
         EventCategory::factory()->create();
@@ -210,11 +210,11 @@ class PublicEventApiTest extends TestCase
         $this->withoutApiClientSigning()
             ->getJson('/api/v1/events')
             ->assertUnauthorized()
-            ->assertJsonPath('errors.error_code.0', 'missing_api_headers');
+            ->assertJsonPath('errors.error_code.0', 'missing_api_key');
 
         $this->withoutApiClientSigning()
             ->getJson('/api/v1/event-categories')
             ->assertUnauthorized()
-            ->assertJsonPath('errors.error_code.0', 'missing_api_headers');
+            ->assertJsonPath('errors.error_code.0', 'missing_api_key');
     }
 }

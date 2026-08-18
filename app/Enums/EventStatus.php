@@ -24,7 +24,7 @@ enum EventStatus: string
     }
 
     /**
-     * Catalog statuses for HMAC-only public Web App reads.
+     * Catalog statuses for API-key-only public Web App reads.
      * Draft, cancelled, and completed are never public.
      *
      * @return list<string>

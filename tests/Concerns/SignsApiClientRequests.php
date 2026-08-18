@@ -3,7 +3,6 @@
 namespace Tests\Concerns;
 
 use App\Models\ApiClient;
-use App\Support\ApiClientSignature;
 use Illuminate\Support\Facades\Schema;
 
 trait SignsApiClientRequests
@@ -18,7 +17,6 @@ trait SignsApiClientRequests
     {
         config([
             'services.webapp_api.public_key' => $this->testApiPublicKey,
-            'services.webapp_api.secret' => $this->testApiSecret,
         ]);
 
         if (! Schema::hasTable('api_clients')) {
@@ -49,18 +47,7 @@ trait SignsApiClientRequests
     public function call($method, $uri, $parameters = [], $cookies = [], $files = [], $server = [], $content = null)
     {
         if ($this->apiClientSigningEnabled && $this->shouldSignApiRequest($uri)) {
-            [$path, $body] = $this->resolveApiSigningInput($method, $uri, $parameters, $content);
-            $headers = ApiClientSignature::headers(
-                $this->testApiPublicKey,
-                $this->testApiSecret,
-                $method,
-                $path,
-                $body
-            );
-
-            foreach ($headers as $name => $value) {
-                $server['HTTP_'.str_replace('-', '_', strtoupper($name))] = $value;
-            }
+            $server['HTTP_X_API_KEY'] = $this->testApiPublicKey;
         }
 
         return parent::call($method, $uri, $parameters, $cookies, $files, $server, $content);
@@ -71,27 +58,5 @@ trait SignsApiClientRequests
         $path = str_starts_with($uri, '/') ? $uri : '/'.$uri;
 
         return str_starts_with($path, '/api');
-    }
-
-    /**
-     * @param  array<string, mixed>  $parameters
-     * @return array{0: string, 1: string}
-     */
-    protected function resolveApiSigningInput(string $method, string $uri, array $parameters, ?string $content): array
-    {
-        $path = parse_url($uri, PHP_URL_PATH) ?? $uri;
-        if (! str_starts_with($path, '/')) {
-            $path = '/'.$path;
-        }
-
-        if ($content !== null) {
-            return [$path, $content];
-        }
-
-        if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH', 'DELETE'], true) && $parameters !== []) {
-            return [$path, json_encode($parameters, JSON_THROW_ON_ERROR)];
-        }
-
-        return [$path, ''];
     }
 }

@@ -85,9 +85,8 @@ const ApiClientDetail: React.FC<ApiClientDetailProps> = ({ clientId }) => {
             </div>
 
             <p className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                Secrets are never shown in Admin. Rotate keys by updating{" "}
-                <code className="font-mono">WEBAPP_API_PUBLIC_KEY</code> and{" "}
-                <code className="font-mono">WEBAPP_API_SECRET</code>, then reseed.
+                Secrets are never shown in Admin. Rotate the public key by updating{" "}
+                <code className="font-mono">WEBAPP_API_PUBLIC_KEY</code>, then reseed.
             </p>
         </div>
     );

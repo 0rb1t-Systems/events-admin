@@ -126,7 +126,7 @@ class EventController extends BaseController
     }
 
     /**
-     * Admin-panel Sanctum ability sees all statuses; HMAC-only (or other tokens) get the public catalog.
+     * Admin-panel Sanctum ability sees all statuses; API-key-only (or other tokens) get the public catalog.
      */
     private function isAdminPanelCaller(Request $request): bool
     {

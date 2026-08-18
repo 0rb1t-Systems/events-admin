@@ -102,7 +102,7 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
 });
 
 /*
-| HMAC-only public catalog (verify.api.client from routes/api.php).
+| API-key-only public catalog (verify.api.client from routes/api.php).
 | Admin Bearer with admin-panel ability still receives the full unfiltered payload.
 */
 Route::get('/', [EventController::class, 'index']);

@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-17 (Event hub Invitation tab: table + preview instead of raw overlay dump)
+Last updated: 2026-08-18 (API client auth: X-API-Key only — HMAC signature removed)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -30,8 +30,8 @@ Every meaningful change to the codebase must also update this file.
 - DB: MySQL `eventdb` (local); tests use SQLite `:memory:`
 - Known gotchas:
   - Windows `dev:windows` uses port **8002**, not 8000
-  - **HMAC API client auth (Prompt 3b):** All `/api/*` routes require `X-API-Key`, `X-API-Timestamp`, `X-API-Signature` (`verify.api.client` on `routes/api.php`). Signature: `HMAC-SHA256("{METHOD}:{PATH}:{TIMESTAMP}:{SHA256(body)}")` with `hash_equals`. Errors: `missing_api_headers`, `invalid_api_key`, `request_expired` (±300s), `invalid_signature`. Secrets stored **bcrypt-hashed** in `api_clients.secret`; plain secret for verification comes from env `WEBAPP_API_SECRET` matched to `WEBAPP_API_PUBLIC_KEY`. **Multipart uploads:** body hash uses empty string (client + server). Admin SPA axios signs via `VITE_WEBAPP_API_*`; Web App uses same keys in its `.env.local`. Rotate keys by updating env + `php artisan db:seed --class=ApiClientSeeder`.
-  - **Public HMAC-only catalog (Web App, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. HMAC still required. No `auth:sanctum` / `admin.panel`. Without an `admin-panel` Bearer, events are filtered to `published|registration_open|sold_out|registration_closed|ongoing` (`Event::scopePublicCatalog` / `EventStatus::publicCatalogValues()`). Draft, cancelled, and completed are omitted; public show of those returns **404**. Admin-panel Bearer (Admin SPA) still returns **all** statuses including draft/cancelled. Public payloads hide organizer `email` / `phone` / `contact_name` (only `id` + `business_name`) and do not load `discountCodes`. Public show eager-loads ticket types, speakers, sponsors, sessions, category, images. All other event/category routes remain HMAC + Sanctum + `admin.panel` + permissions.
+  - **API client auth (Prompt 3b, simplified 2026-08-18):** All `/api/*` routes require `X-API-Key` (`verify.api.client` / `VerifyApiClientSignature` on `routes/api.php`). Lookup: `api_clients` where `public_key` matches and `active = true`. Errors: `missing_api_key` (header absent/empty), `invalid_api_key` (unknown or inactive). **No** `X-API-Timestamp` / `X-API-Signature` — HMAC was removed because the Web App is a Vite SPA with no server to hide `WEBAPP_API_SECRET`. `api_clients.secret` column remains in DB unused by verification. Admin SPA axios sends `X-API-Key` from `VITE_WEBAPP_API_PUBLIC_KEY`. Web App sends the same public key. Rotate by updating env `WEBAPP_API_PUBLIC_KEY` + `php artisan db:seed --class=ApiClientSeeder`.
+  - **Public API-key-only catalog (Web App, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. `X-API-Key` still required. No `auth:sanctum` / `admin.panel`. Without an `admin-panel` Bearer, events are filtered to `published|registration_open|sold_out|registration_closed|ongoing` (`Event::scopePublicCatalog` / `EventStatus::publicCatalogValues()`). Draft, cancelled, and completed are omitted; public show of those returns **404**. Admin-panel Bearer (Admin SPA) still returns **all** statuses including draft/cancelled. Public payloads hide organizer `email` / `phone` / `contact_name` (only `id` + `business_name`) and do not load `discountCodes`. Public show eager-loads ticket types, speakers, sponsors, sessions, category, images. All other event/category routes remain API-key + Sanctum + `admin.panel` + permissions.
   - **Vite must be running** for Admin SPA (`@vite` in `app.blade.php`). If Vite dies, Laravel throws `ViteManifestNotFoundException` (`public/build/manifest.json` missing — we do not commit a production build). Symptom: Internal Server Error on `http://localhost:8002`. Fix: restart `composer run dev:windows` (or `npm run dev`). Cause seen: `.env` change restarts Vite, then `laravel-vite-plugin@1.3.0` crashes (`Cannot read properties of null (reading 'family')`). Mitigated in `vite.config.js`: `server.host=127.0.0.1`, ignore `**/.env`.
   - Lockfile is **pnpm** (`pnpm-lock.yaml`); npm also works
   - Queue/cache/session default to **database** — migrate before first run
@@ -39,7 +39,7 @@ Every meaningful change to the codebase must also update this file.
   - Do not commit `.env` or secrets
   - Organization is effectively **single-tenant profile** (not a full CRUD list page like Users)
   - After permission changes: reseed `RolePermissionSeeder` (or sync admin role) so gates match routes
-  - Full suite: **163 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
+  - Full suite: **161 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
   - Run `php artisan migrate` for invitation system templates + event_invitation_templates mode columns (Prompt 15)
   - Seed: `InvitationSystemTemplateSeeder` (4 placeholder designs) via DatabaseSeeder
   - **Demo data:** `DemoDataSeeder` (called from `DatabaseSeeder`). Idempotent. Fills packages, 3 organizers, 10 participant users, 10 events (7 public catalog + draft/cancelled/completed for Admin), tickets/speakers/sponsors/sessions/payments/feedback. Re-run: `php artisan db:seed --class=DemoDataSeeder`. Demo passwords: `password`. Organizer logins: `horn.events@example.com`, `culture.hub@example.com`, `sahil.sports@example.com`. Participants: `ayaan.mohamed@example.com` (and 9 peers).
@@ -81,7 +81,7 @@ These were decided during Admin Prompts 1–12. Confirm or correct before Web Ap
 27. **Invitation preview (Prompt 13/14)** — Read-only `InvitationTemplatePreview` on Event Detail; uses `GET /events/{id}/invitation-template` + `eventApi.getInvitationTemplate`.
 28. **Prompt 14 UI completeness** — Platform `/payments`, `/certificates`, `/subscriptions`; Event Detail payments+refunds + gallery upload. **Item 7 (rebuild Feedback) skipped** — Feedback already complete from Prompt 13; do not regress.
 29. **Invitation system (Prompt 15)** — Platform library `invitation_system_templates` (Admin CRUD under Settings). Event configs support `mode=template|custom`. Designer/generation/compositing = **Web App Phase 2**. Canvas locked at **800×1100px portrait**.
-30. **Public event catalog (Web App)** — `GET /events`, `GET /events/{id}`, `GET /event-categories` are HMAC-only (no participant Bearer). Public statuses: `published`, `registration_open`, `sold_out`, `registration_closed`, `ongoing`. Admin-panel Bearer keeps full unfiltered Admin list/detail.
+30. **Public event catalog (Web App)** — `GET /events`, `GET /events/{id}`, `GET /event-categories` are API-key-only (no participant Bearer). Public statuses: `published`, `registration_open`, `sold_out`, `registration_closed`, `ongoing`. Admin-panel Bearer keeps full unfiltered Admin list/detail.
 ## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
 These were decided during Admin Prompts 1–11. Confirm or correct before Web App work:
 
@@ -167,7 +167,7 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
    - Override `store`/`update`/etc. **only** for domain-specific logic (password hash, role sync, file upload) — still use `$this->successResponse` / `$this->createdResponse` / `$this->notFoundResponse` from traits
    - Inherited from `BaseController`: `index`, `search`, `store`, `show`, `update`, `destroy`, `trashed`, `restore`, `forceDestroy`, `bulkDelete`, `bulkRestore`, `bulkForceDelete`, activity logging
 5. **API v1 route file** — `routes/api/v1/<resource>.php`
-   - Wrap in `Route::middleware(['auth:sanctum', 'admin.panel'])` **except** the HMAC-only public catalog: `GET /events`, `GET /events/{id}`, `GET /event-categories` (still behind `verify.api.client` on `routes/api.php`)
+   - Wrap in `Route::middleware(['auth:sanctum', 'admin.panel'])` **except** the API-key-only public catalog: `GET /events`, `GET /events/{id}`, `GET /event-categories` (still behind `verify.api.client` on `routes/api.php`)
    - Permission middleware per action (`permission:view …`, `create`, `edit`, `delete`) — not applied to those three public GETs
    - Standard shape (see Users):
      - `GET /` index, `POST /` store, `GET /{id}` show, `PATCH /{id}` update, `DELETE /{id}` destroy
@@ -236,7 +236,7 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Organization** — profile/settings style under Settings.
 - **Logs** — read-only; `permission:view logs` on all routes.
 - **Settings mail / commission** — forms + test; activity via `activity('settings')`.
-- **Public HMAC-only catalog** — `GET /events`, `GET /events/{id}`, `GET /event-categories` omit `auth:sanctum` / `admin.panel` / permissions. Do **not** copy this for other resources. Admin Bearer on those URLs still returns unfiltered events.
+- **Public API-key-only catalog** — `GET /events`, `GET /events/{id}`, `GET /event-categories` omit `auth:sanctum` / `admin.panel` / permissions. Do **not** copy this for other resources. Admin Bearer on those URLs still returns unfiltered events.
 
 ### D) Searchable entity picker standard (Prompt 12 — MANDATORY for FK fields)
 
@@ -280,9 +280,9 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 ```
 
 ### Request / auth flow
-- Middleware: `EnsureJsonResponse` on API; **`verify.api.client` (HMAC) on all `/api/*`**; Sanctum `auth:sanctum`; Spatie `permission:`; **`admin.panel`** (`EnsureAdminPanelAccess`: `UserType::ADMIN` + token ability `admin-panel`) on Admin resource routes; **`organizer.web`** for organizer-auth me routes.
-- **HMAC-only (no Bearer) public catalog:** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. `EventController` still detects an optional Sanctum `admin-panel` token via `$request->user('sanctum')` so the Admin SPA (HMAC + Bearer) keeps unfiltered index/show.
-- **HMAC + Bearer (`auth:sanctum` + `admin.panel` + permissions):** every other Admin resource route (event search/write/nested, category show/write, users, payments, etc.).
+- Middleware: `EnsureJsonResponse` on API; **`verify.api.client` (`X-API-Key` lookup) on all `/api/*`**; Sanctum `auth:sanctum`; Spatie `permission:`; **`admin.panel`** (`EnsureAdminPanelAccess`: `UserType::ADMIN` + token ability `admin-panel`) on Admin resource routes; **`organizer.web`** for organizer-auth me routes.
+- **API-key-only (no Bearer) public catalog:** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. `EventController` still detects an optional Sanctum `admin-panel` token via `$request->user('sanctum')` so the Admin SPA (API key + Bearer) keeps unfiltered index/show.
+- **API key + Bearer (`auth:sanctum` + `admin.panel` + permissions):** every other Admin resource route (event search/write/nested, category show/write, users, payments, etc.).
 - Traits on `BaseController`: `ApiResponseTrait`, `ApiFilterTrait`.
 - Sanctum abilities: `admin-panel`, `web-participant`, `organizer-web` (plus legacy lock flag string `'locked'` on token JSON — not Spatie).
 
@@ -345,7 +345,7 @@ EventHub participants are **Users** distinguished by `users.user_type` (`App\Enu
 | Admin login | `POST /api/v1/auth/admin/login` — **only** `user_type=admin`. Issues token ability `admin-panel`. Participant with correct password → **403** + `errors.error_code: participant_admin_login_forbidden` (distinct from 401 Invalid credentials). |
 | Web login | `POST /api/v1/auth/login` — allowed for **both** `user` and `admin` (admins may later use Web App as participants). Issues `web-participant`. No Web App UI yet. |
 | Token coexistence | Admin may hold **both** `admin-panel` and `web-participant` tokens. Login rotates **only** same-scope tokens (by ability + known token names). Logout deletes **current** token only. |
-| Admin API guard | Middleware alias `admin.panel` requires authenticated `UserType::ADMIN` **and** token `can('admin-panel')`. Applied to Admin resource route files **except** HMAC-only public `GET /events`, `GET /events/{id}`, `GET /event-categories` (those still honor an optional admin-panel Bearer inside `EventController`). Auth login/logout/me/lock remain `auth:sanctum` only. |
+| Admin API guard | Middleware alias `admin.panel` requires authenticated `UserType::ADMIN` **and** token `can('admin-panel')`. Applied to Admin resource route files **except** API-key-only public `GET /events`, `GET /events/{id}`, `GET /event-categories` (those still honor an optional admin-panel Bearer inside `EventController`). Auth login/logout/me/lock remain `auth:sanctum` only. |
 | Public register | Sets `user_type=user` (participants). |
 | Admin Users CRUD | Creates always force `user_type=admin`. **Updates ignore `user_type`** (read-only in Admin UI — no permission-gated write yet). |
 | Admin UI | Users table: Type + Status columns; Type filter (All / Admin / Participant). Detail sidebar shows full useful fields including read-only type. |
@@ -462,12 +462,12 @@ Enum order: `draft → published → registration_open → sold_out → registra
 
 | Concern | Detail |
 |--------|--------|
-| Events | `EventController`, `routes/api/v1/events.php`, `pages/event/` (list + **`show.tsx` hub** + moderation Form/Modal), `services/event.ts`, `types/event.ts`. Permissions: `view/create/edit/delete events` on **write/search/nested**. `GET /` and `GET /{id}` are HMAC-only public (Admin Bearer still unfiltered). Trash `/trash/events`. |
-| Categories | `EventCategoryController`, `event-categories.php`, Settings `pages/settings/event-categories/`, `services/eventCategory.ts`. Permissions: `view/create/edit/delete event categories` on write/search/show. **`GET /` is HMAC-only public** (filter list for Web App). |
+| Events | `EventController`, `routes/api/v1/events.php`, `pages/event/` (list + **`show.tsx` hub** + moderation Form/Modal), `services/event.ts`, `types/event.ts`. Permissions: `view/create/edit/delete events` on **write/search/nested**. `GET /` and `GET /{id}` are API-key-only public (Admin Bearer still unfiltered). Trash `/trash/events`. |
+| Categories | `EventCategoryController`, `event-categories.php`, Settings `pages/settings/event-categories/`, `services/eventCategory.ts`. Permissions: `view/create/edit/delete event categories` on write/search/show. **`GET /` is API-key-only public** (filter list for Web App). |
 
 ### Tests
 - `tests/Feature/EventModuleTest.php` — transition table, invalid transition 400, dual gates, lat/lng pair, quota block, cancelled force-delete block, gallery file unlink, category CRUD.
-- `tests/Feature/PublicEventApiTest.php` — HMAC-only catalog (no Bearer): public statuses only; draft/cancelled omitted + show 404; organizer contact hidden; Admin Bearer still sees drafts; HMAC still required.
+- `tests/Feature/PublicEventApiTest.php` — API-key-only catalog (no Bearer): public statuses only; draft/cancelled omitted + show 404; organizer contact hidden; Admin Bearer still sees drafts; `X-API-Key` still required.
 
 ## Ticket Types & Discount Codes (Phase 4b)
 
@@ -842,8 +842,8 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Organizers | `Organizer` | `OrganizerController` | `organizers.php` | `pages/organizer/` list + **`show.tsx`** + trash | `organizer.ts` | `organizer.ts` |
 | Organizer auth | `Organizer` | `OrganizerAuthController` | `organizer-auth.php` | API only (Web App later) | — | — |
 | Packages | `Package` | `PackageController` | `packages.php` | `pages/settings/packages/` | `package.ts` | `package.ts` |
-| Events | `Event`, `EventImage` | `EventController` | `events.php` (`GET /` + `GET /{id}` **HMAC-only public**; rest Admin) | `pages/event/` list + **`show.tsx` hub** + trash | `event.ts` | `event.ts` |
-| Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` (`GET /` **HMAC-only public**; rest Admin) | Settings + trash | `eventCategory.ts` | `event.ts` |
+| Events | `Event`, `EventImage` | `EventController` | `events.php` (`GET /` + `GET /{id}` **API-key-only public**; rest Admin) | `pages/event/` list + **`show.tsx` hub** + trash | `event.ts` | `event.ts` |
+| Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` (`GET /` **API-key-only public**; rest Admin) | Settings + trash | `eventCategory.ts` | `event.ts` |
 | Ticket types | `TicketType` | `TicketTypeController` | `ticket-types.php` + nested | Event hub Ticket Types tab + `TicketTypeModal` | `event.ts` | `event.ts` |
 | Discount codes | `DiscountCode` | `DiscountCodeController` | `ticket-types.php` + nested | Event hub Ticket Types tab + `DiscountCodeModal` | `event.ts` | `event.ts` |
 | Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event hub Registrations tab (add/promote/cancel; **no manual pay**) | `event.ts` | `event.ts` |
@@ -883,7 +883,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Column extras: `hideBelow`, `minWidth` on `ColumnConfig`
 - Hooks: `useSidebarDetail`, `useConfirmDialog`, `usePermission`, `useAuth`, `useAuthInit`
 - Store: `authSlice`, `organizationSlice`, `themeConfigSlice`
-- Axios Bearer from storage/Redux + **HMAC headers** (`utils/axios.ts` + `utils/apiClientSignature.ts`; env `VITE_WEBAPP_API_PUBLIC_KEY` / `VITE_WEBAPP_API_SECRET`)
+- Axios Bearer from storage/Redux + **`X-API-Key`** (`utils/axios.ts`; env `VITE_WEBAPP_API_PUBLIC_KEY`). HMAC signing was removed (Vite SPA cannot hide a secret).
 
 ## Data + Domain Conventions
 
@@ -901,8 +901,8 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Packages / payments / payouts / participations / add-ons | no soft-delete trash UI | — |
 
 ### Auth & identity
-- **Machine clients (Prompt 3b):** `api_clients` table + `VerifyApiClientSignature` middleware on all `/api/*`. Web App client seeded from `WEBAPP_API_PUBLIC_KEY` / `WEBAPP_API_SECRET`. Admin Settings → **API Clients** read-only list (`view api clients`).
-- **Public vs authenticated API:** HMAC is always required. Bearer (`admin-panel`) is required for Admin writes and most reads. **Exceptions (HMAC-only):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. Participant `web-participant` tokens do **not** unlock drafts — treated as public catalog.
+- **Machine clients (Prompt 3b):** `api_clients` table + `VerifyApiClientSignature` middleware on all `/api/*`. Verification is **`X-API-Key` only** (active `public_key` lookup). `api_clients.secret` is unused by middleware (column kept). Seeded from `WEBAPP_API_PUBLIC_KEY`. Admin Settings → **API Clients** read-only list (`view api clients`).
+- **Public vs authenticated API:** `X-API-Key` is always required. Bearer (`admin-panel`) is required for Admin writes and most reads. **Exceptions (API-key-only, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`. Participant `web-participant` tokens do **not** unlock drafts — treated as public catalog.
 - `User.user_type`: `admin` | `user`. Admin UI type is **read-only**. Admin creates force `admin`.
 - Organizers are **not** Users — separate table, Sanctum ability `organizer-web`, email unique only on organizers table. Admin may **edit** identity (`edit organizers` / PATCH); password not admin-writable.
 - Spatie permissions gate Admin Panel; FE mirrors with route + sidebar `permissions`.
@@ -936,8 +936,8 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Activity log on all Admin write paths.
 
 ## Known Risks / Watchouts
-- Full suite: **163 passed / 3 failed** — only `ExceptionHandlerTest` (pre-existing SPA catch-all).
-- **Public catalog vs Admin list:** HMAC-only `GET /events` hides draft/cancelled/completed. Admin SPA must keep sending `admin-panel` Bearer or the Events table will look empty of drafts.
+- Full suite: **161 passed / 3 failed** — only `ExceptionHandlerTest` (pre-existing SPA catch-all). HMAC tests dropped with API-key-only auth (was 163).
+- **Public catalog vs Admin list:** API-key-only `GET /events` hides draft/cancelled/completed. Admin SPA must keep sending `admin-panel` Bearer or the Events table will look empty of drafts.
 - **Refund-after-payout** and Share Event still need client awareness; refund UI not built.
 - **WaafiPay:** never call production from CI; mock HTTP; never log apiKey; production PHP/web timeout must allow 180s.
 - Run scheduler so `ExpirePendingPayments` runs; queue worker for announcement emails.
@@ -1013,6 +1013,14 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-18 - API client auth: drop HMAC, keep X-API-Key
+- Web App is a Vite SPA (no server), so `WEBAPP_API_SECRET` could not be kept private. `VerifyApiClientSignature` now only requires `X-API-Key`, looks up `api_clients` by `public_key` where `active = true`. Errors: `missing_api_key`, `invalid_api_key`. Timestamp/signature checks removed. `api_clients.secret` column kept unused.
+- Env: removed `WEBAPP_API_SECRET` / `VITE_WEBAPP_API_SECRET` from `.env` and `.env.example`. Keep `WEBAPP_API_PUBLIC_KEY` / `VITE_WEBAPP_API_PUBLIC_KEY`. Admin axios sends `X-API-Key` only (`utils/apiClientSignature.ts` deleted).
+- Tests: `ApiClientSignatureTest` covers missing key + invalid key + valid key + inactive; `SignsApiClientRequests` attaches `X-API-Key` only; `PublicEventApiTest` expects `missing_api_key`.
+- Files: `app/Http/Middleware/VerifyApiClientSignature.php`, `tests/Feature/ApiClientSignatureTest.php`, `tests/Concerns/SignsApiClientRequests.php`, `tests/Feature/PublicEventApiTest.php`, `database/seeders/ApiClientSeeder.php`, `config/services.php`, `.env`, `.env.example`, `resources/js/src/utils/axios.ts`, `pages/settings/api-clients/components/ApiClientDetail.tsx`, `routes/api/v1/events.php`, `app/Enums/EventStatus.php`, `EventController`, `.cursor/rules/project-agent-workflow.mdc`, `.agent`
+- Migration/config/env impact: remove `WEBAPP_API_SECRET` / `VITE_WEBAPP_API_SECRET`; no DB migration
+- Verification: `composer test` — **161 passed / 3 pre-existing ExceptionHandlerTest failures**
 
 ### 2026-08-17 - Event hub Invitation tab: professional preview
 - Invitation tab was a raw dump (mode/id, file paths, hex codes, overlay as `qr_code: x=300, y=820, w=200, h=200`). Now: thumbnail/color preview, `EventField` customizations with color swatches, overlay positions as `SimpleAdminTable` (Element, X, Y, Width, Height, Font size). Still read-only (designer is Web App).
