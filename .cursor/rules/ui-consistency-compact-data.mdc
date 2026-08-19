@@ -36,7 +36,7 @@ Tables are for **scanning**. Keep them dense and high-signal.
 - Prefer short labels, tight widths, and compact cell renders (`font-medium` for the primary label).
 - Format dates compactly (e.g. `MM/DD/YYYY` or `MMM DD, YYYY`) — avoid noisy timestamps in table cells unless time is critical.
 - Status / type fields should use clear badges or concise text consistent with nearby screens.
-- Keep action columns icon-based via existing datatable action types (`view` / `edit` / `delete`).
+- Keep action columns icon-based via existing datatable action types (`view` / `edit` / `delete` / `restore` / `permissions` / `status`). Do not reuse `edit` for a status/suspend action.
 - Avoid huge empty columns, multi-line essay cells, and decorative-only columns.
 - Never truncate headers (`Am...` is forbidden). Widen, shorten the label, or hide the column below `lg` (`hideBelow: "lg"` → `hidden lg:table-cell`).
 - On medium screens keep ~3–4 essential columns; hide method / created / IDs / secondary relations below `lg`.

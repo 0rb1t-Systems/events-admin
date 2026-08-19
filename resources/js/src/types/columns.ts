@@ -9,7 +9,13 @@ export type ColumnType =
     | "status"
     | "toggle";
 
-export type ActionType = "view" | "edit" | "delete" | "restore" | "permissions";
+export type ActionType =
+    | "view"
+    | "edit"
+    | "delete"
+    | "restore"
+    | "permissions"
+    | "status";
 
 export interface ActionConfig<T = any> {
     type: ActionType;

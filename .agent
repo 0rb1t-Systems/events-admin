@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-19 (Waafi HTTP 401 detection + real failure-message root-cause)
+Last updated: 2026-08-19 (Organizer list: distinct Status vs Edit action icons)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -1041,6 +1041,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - List pages: compact tables with high-signal columns; wrap tables in overflow-x-auto; **`table-layout: auto`** (not fixed — fixed dumped leftover space into Title/Event and squeezed Capacity/Paid/Actions into `Capac...` / `P...` / `Actio...`). Give every column an explicit `width`; Actions min ~44px per icon. Cell text is `text-sm`, not `text-xs`.
 - Status / type pills use `statusBadgeClass` (`bg-primary/10 text-primary`, Participant = `info`). **Never** theme `.badge` (that class forces `text-white` — Participant was invisible on white).
 - Row-click to a full page must ignore clicks on `button` / `a` / `.btn`. Action icons `stopPropagation` so Edit/Delete do not open View.
+- Datatable row actions (`utils/columns.ts` + `ActionType`): **`view`** (eye), **`edit`** (pencil), **`delete`** (trash), **`restore`**, **`permissions`**, **`status`** (UserCog — suspend/reactivate). Organizer list uses `status` for the status modal; do **not** copy `type: "edit"` for that button (same pencil icon).
 - Amount/currency cells: right-aligned, full `"15.00 USD"` via `formatMoney`, min width so they never clip.
 - **Status filters:** `StatusFilterBar` (filled active pill) sits between breadcrumb and table on Events, Organizers, Users, Payments, Payouts, Certificates, Feedback, Subscriptions, QR Scan History. Extra pickers (dates, comboboxes) go in `extra`. Switching pills resets the table to page 1.
 - **Side panel vs full page (data volume):**
@@ -1090,6 +1091,12 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-19 - Organizer list Status vs Edit icons
+- Cause: Organizer actions used `type: "edit"` twice (identity edit + suspend/reactivate), so both buttons rendered the Lucide pencil.
+- Fix: added `ActionType` `"status"` with `UserCog` icon + warning outline; Organizer list status action uses it.
+- Files: `types/columns.ts`, `utils/columns.ts`, `pages/organizer/index.tsx`, `.cursor/rules/ui-consistency-compact-data.mdc`, `.agent`.
+- Verification: lints on edited TS/TSX.
 
 ### 2026-08-19 - Waafi HTTP 401 detection (real root cause)
 - **Root cause confirmed from logs:** All real Waafi calls returned HTTP 401. Waafi 401 body is null, so `$response->json()` returned `[]`, and `extractFailureReason([])` correctly fell through to `"Payment was not approved."` — the extraction logic was fine, the underlying problem is missing/invalid credentials.

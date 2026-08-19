@@ -1,6 +1,6 @@
 import { DataTableColumn } from "mantine-datatable";
 import { ColumnConfig } from "../types/columns";
-import { Eye, Edit, Trash2, RotateCcw, Shield } from "lucide-react";
+import { Eye, Edit, Trash2, RotateCcw, Shield, UserCog } from "lucide-react";
 import React from "react";
 import ToggleSwitch from "../components/ToggleSwitch";
 import { clsx } from "clsx";
@@ -184,6 +184,7 @@ export function createColumn<T>(config: ColumnConfig<T>): DataTableColumn<T> {
                     delete: React.createElement(Trash2, { size: 18 }),
                     restore: React.createElement(RotateCcw, { size: 18 }),
                     permissions: React.createElement(Shield, { size: 18 }),
+                    status: React.createElement(UserCog, { size: 18 }),
                 };
 
                 const getButtonVariant = (type: string) => {
@@ -197,6 +198,8 @@ export function createColumn<T>(config: ColumnConfig<T>): DataTableColumn<T> {
                         case "view":
                             return "btn-outline-primary";
                         case "permissions":
+                            return "btn-outline-warning";
+                        case "status":
                             return "btn-outline-warning";
                         default:
                             return "btn-outline-secondary";

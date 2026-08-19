@@ -144,7 +144,7 @@ const OrganizerList = () => {
                     },
                 },
                 {
-                    type: "edit",
+                    type: "status",
                     label: "Status",
                     onClick: (record) => {
                         setOrganizerForStatus(record);
