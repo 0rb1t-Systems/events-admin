@@ -15,6 +15,30 @@ class ParticipantPaymentController extends WebController
 {
     public function __construct(private PaymentService $payments) {}
 
+    /**
+     * Serialize a Payment to the Web API shape, always including failure fields
+     * so the frontend can display the exact provider decline message.
+     *
+     * @return array<string, mixed>
+     */
+    private function serializePayment(Payment $payment): array
+    {
+        return [
+            'id' => $payment->id,
+            'status' => $payment->status?->value ?? $payment->status,
+            'amount' => $payment->amount,
+            'currency' => $payment->currency,
+            'reference_id' => $payment->reference_id,
+            'gateway' => $payment->gateway,
+            'waafi_transaction_id' => $payment->waafi_transaction_id,
+            'failure_code' => $payment->failure_code,
+            'failure_reason' => $payment->failure_reason,
+            'expires_at' => $payment->expires_at?->toISOString(),
+            'created_at' => $payment->created_at?->toISOString(),
+            'updated_at' => $payment->updated_at?->toISOString(),
+        ];
+    }
+
     public function charge(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -47,8 +71,10 @@ class ParticipantPaymentController extends WebController
             return $this->errorResponse($e->getMessage(), [], 502);
         }
 
+        $payment = $payment->fresh(['participation', 'ticketType']);
+
         return $this->successResponse(
-            $payment->fresh(['participation', 'ticketType']),
+            $this->serializePayment($payment),
             'Payment processed.'
         );
     }

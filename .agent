@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-19 (participant auth: reset-code expiry + mail setting lookup fix)
+Last updated: 2026-08-19 (Waafi HTTP 401 detection + real failure-message root-cause)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -116,6 +116,9 @@ These were decided during Admin Prompts 1–11. Confirm or correct before Web Ap
 - Location: stevebauman/location
 - Queue: `SendEmailJob`, `MailService`, **`ExpirePendingPayments`** (scheduled every 5 min). Default queue connection: **`database`** (`QUEUE_CONNECTION`); `composer run dev` / `dev:windows` starts `php artisan queue:listen`.
 - **Payments (Phase 6):** WaafiPay Hormuud EVC via `WaafiPayService` → `POST {WAAFI_BASE_URL}` (default `https://api.waafipay.net/asm`), credentials in `config/waafipay.php` / `.env` (`WAAFI_MERCHANT_UID`, `WAAFI_API_USER_ID`, `WAAFI_API_KEY`). **HTTP timeout 180s**. Currency **USD**. Never log `apiKey`. Tests mock HTTP.
+  - **Waafi failure-message pipeline:** `WaafiPayService::interpretResponse()` first checks HTTP status — **HTTP 401 returns `failure_code: gateway_auth_error`** (`"Payment service configuration error. Please contact support."`) before JSON decode. For HTTP 200 business declines: `extractFailureReason(array $body)` derives `failure_reason` using priority: **(1) `params.description`** (Waafi human-readable field, Somali or English, verbatim) → **(2) mapped English phrase** when `responseMsg` is a known technical code (see `ERROR_FALLBACK_REASON`) → **(3) `responseMsg` itself** when non-empty and not a pure `UPPERCASE_IDENTIFIER` → **(4) stable fallback `"Payment was not approved."`**. `failure_code` from `resolveFailureCode($responseMsg)` using `ERROR_CODE_MAP`. `sanitizeCustomerMessage()` strips `"Error: "`-style prefixes and rejects identifiers. Never translates; never exposes credentials/stack traces.
+  - **Real production root-cause (2026-08-19):** All real Waafi calls returned **HTTP 401** — API credentials not configured/invalid in `.env` (`WAAFI_MERCHANT_UID`, `WAAFI_API_USER_ID`, `WAAFI_API_KEY`). Waafi 401 response has null/empty body so all previous extraction fallback reached `"Payment was not approved."` instead of surfacing the auth problem. Fixed by HTTP status check before body inspection.
+  - **Participant payment API (`POST /api/v1/participant/payments/charge`):** response explicitly serializes `failure_code` + `failure_reason` via `serializePayment()` in `ParticipantPaymentController`. Business declines: HTTP 200 + `data.status=failed` + populated failure fields. Server/transport errors: HTTP 502.
 
 ### Frontend
 - React 18 + TypeScript, Vite 5, `laravel-vite-plugin`
@@ -1087,6 +1090,20 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-19 - Waafi HTTP 401 detection (real root cause)
+- **Root cause confirmed from logs:** All real Waafi calls returned HTTP 401. Waafi 401 body is null, so `$response->json()` returned `[]`, and `extractFailureReason([])` correctly fell through to `"Payment was not approved."` — the extraction logic was fine, the underlying problem is missing/invalid credentials.
+- Added temporary expanded diagnostic logging in `interpretResponse` (safe fields only), read logs, confirmed HTTP 401 with null body. Removed diagnostic logging afterward.
+- Added HTTP 401 early-return in `interpretResponse`: `failure_code: gateway_auth_error`, `failure_reason: "Payment service configuration error. Please contact support."` — distinguishes a server-side config problem from a customer decline.
+- Files: `WaafiPayService.php` (HTTP 401 path), `WaafiPayFailureMessageTest.php` (regression test `test_http_401_from_waafi_produces_gateway_auth_error`), `.agent`.
+- Verification: 16 new tests passed; full suite **223 passed / 3 pre-existing ExceptionHandlerTest failures**.
+- **Action required:** Configure valid Waafi credentials in `.env` (`WAAFI_MERCHANT_UID`, `WAAFI_API_USER_ID`, `WAAFI_API_KEY`) to resolve real payment failures.
+
+### 2026-08-19 - Waafi failure-message extraction + participant payment API fix
+- **Root cause:** `WaafiPayService::failureResult()` called `mapFailure($responseMsg)` which only looked at `responseMsg` and never read `params.description` from the Waafi body. When `responseMsg` was a technical code not in the static map, `failure_reason` became `"Payment failed: {technicalCode}"` or `"Payment failed."`. The participant API also returned the entire Eloquent model (serialized via `toArray()`) which does expose `failure_reason` on the model — so for known codes it would have worked, but the extraction didn't surface the actual Waafi human message.
+- **Fix:** Added `extractFailureReason(array $body)`, `resolveFailureCode(?string)`, `sanitizeCustomerMessage(string)` to `WaafiPayService`. `failureResult()` now uses `extractFailureReason` with the full response body. `ParticipantPaymentController` now returns an explicit `serializePayment()` array with `failure_code` + `failure_reason` always present.
+- Files: `WaafiPayService.php`, `ParticipantPaymentController.php`, `WaafiPayFailureMessageTest.php`, `.agent`.
+- Verification: 15 new tests passed; full suite **222 passed / 3 pre-existing ExceptionHandlerTest failures**.
 
 ### 2026-08-19 - Participant auth: reset-code expiry + mail setting lookup
 - **Password reset expiry:** migration `2026_08_19_100000_add_reset_code_expires_at_to_users_table.php` adds nullable `users.reset_code_expires_at`. `POST /auth/forgot-password` sets `reset_code_expires_at = now()->addMinutes(30)`. `POST /auth/reset-password` rejects expired codes (400, stable message); success clears code + expiry and revokes all User tokens (unchanged).

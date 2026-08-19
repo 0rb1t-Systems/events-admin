@@ -29,7 +29,44 @@ use Throwable;
 class WaafiPayService
 {
     /**
-     * Lookup table: Waafi responseMsg → [failure_code, user_facing_message]
+     * Lookup table: Waafi responseMsg → failure_code (stable domain code).
+     * The mapped code is always used as `failure_code`.
+     * The human-readable `failure_reason` is derived separately via
+     * extractFailureReason() which prefers params.description > responseMsg fallback.
+     *
+     * @var array<string, string>
+     */
+    public const ERROR_CODE_MAP = [
+        'RCS_NO_ROUTE_FOUND' => 'no_route',
+        'RCS_USER_REJECTED' => 'user_rejected',
+        'Invalid_PIN' => 'invalid_pin',
+        'RCS_INSUFFICIENT_BALANCE' => 'insufficient_balance',
+        'RCS_ACCOUNT_BLOCKED' => 'account_blocked',
+        'RCS_TRANSACTION_LIMIT_EXCEEDED' => 'limit_exceeded',
+        'RCS_SERVICE_UNAVAILABLE' => 'service_unavailable',
+        'RCS_TIMEOUT' => 'timeout',
+    ];
+
+    /**
+     * Fallback English reasons used ONLY when params.description is absent AND
+     * responseMsg is a known technical code (i.e. not itself human-readable).
+     *
+     * @var array<string, string>
+     */
+    public const ERROR_FALLBACK_REASON = [
+        'RCS_NO_ROUTE_FOUND' => 'Payment route unavailable. Check the phone number.',
+        'RCS_USER_REJECTED' => 'Payment was rejected on the phone.',
+        'Invalid_PIN' => 'Incorrect PIN entered.',
+        'RCS_INSUFFICIENT_BALANCE' => 'Insufficient mobile money balance.',
+        'RCS_ACCOUNT_BLOCKED' => 'The mobile money account is blocked.',
+        'RCS_TRANSACTION_LIMIT_EXCEEDED' => 'Transaction limit exceeded.',
+        'RCS_SERVICE_UNAVAILABLE' => 'Payment service temporarily unavailable.',
+        'RCS_TIMEOUT' => 'Payment timed out waiting for approval.',
+    ];
+
+    /**
+     * @deprecated Use ERROR_CODE_MAP + ERROR_FALLBACK_REASON instead.
+     *             Kept for backward compatibility with callers using the old array shape.
      *
      * @var array<string, array{0: string, 1: string}>
      */
@@ -139,6 +176,8 @@ class WaafiPayService
 
     /**
      * @return array{0: string, 1: string} [failure_code, failure_reason]
+     * @deprecated Use extractFailureReason() + failure code lookup directly.
+     *             Kept for legacy callers that only have responseMsg.
      */
     public function mapFailure(?string $responseMsg): array
     {
@@ -147,7 +186,85 @@ class WaafiPayService
             return self::ERROR_MAP[$key];
         }
 
-        return ['unknown', $responseMsg ? "Payment failed: {$responseMsg}" : 'Payment failed.'];
+        return ['unknown', $responseMsg ? "Payment failed: {$responseMsg}" : 'Payment was not approved.'];
+    }
+
+    /**
+     * Derive stable failure_code from responseMsg.
+     *
+     * Returns a stable domain code (e.g. 'user_rejected') when responseMsg is a
+     * known Waafi technical code, or 'unknown' otherwise.
+     */
+    public function resolveFailureCode(?string $responseMsg): string
+    {
+        return self::ERROR_CODE_MAP[$responseMsg ?? ''] ?? 'unknown';
+    }
+
+    /**
+     * Extract a customer-safe failure reason using priority:
+     *   1. params.description  — Waafi's own human-readable field (may be Somali or English)
+     *   2. responseMsg fallback — if responseMsg is a known technical code, use mapped English phrase
+     *   3. responseMsg itself   — if non-empty but not a known code (might be human-readable from Waafi)
+     *   4. stable fallback      — "Payment was not approved."
+     *
+     * Does NOT translate. Does NOT expose technical codes as failure_reason.
+     *
+     * @param  array<string, mixed>  $body  Full decoded Waafi response body
+     */
+    public function extractFailureReason(array $body): string
+    {
+        $description = data_get($body, 'params.description');
+        if ($description !== null && $description !== '') {
+            $sanitized = $this->sanitizeCustomerMessage((string) $description);
+            if ($sanitized !== '') {
+                return $sanitized;
+            }
+        }
+
+        $responseMsg = isset($body['responseMsg']) ? (string) $body['responseMsg'] : null;
+
+        if ($responseMsg !== null && $responseMsg !== '') {
+            if (isset(self::ERROR_FALLBACK_REASON[$responseMsg])) {
+                return self::ERROR_FALLBACK_REASON[$responseMsg];
+            }
+
+            $sanitized = $this->sanitizeCustomerMessage($responseMsg);
+            if ($sanitized !== '') {
+                return $sanitized;
+            }
+        }
+
+        return 'Payment was not approved.';
+    }
+
+    /**
+     * Sanitize a gateway customer message for safe display.
+     *
+     * - Trims whitespace
+     * - Strips obvious technical wrappers (e.g. "Error: ", "Exception: " prefixes)
+     * - Preserves meaningful Somali or English wallet messages verbatim
+     * - Does NOT translate
+     * - Returns empty string if nothing useful remains
+     */
+    public function sanitizeCustomerMessage(string $raw): string
+    {
+        $cleaned = trim($raw);
+
+        // Strip common technical prefixes that add no customer value
+        $cleaned = preg_replace('/^(Error|Exception|Fault|Failure):\s*/i', '', $cleaned) ?? $cleaned;
+        $cleaned = trim((string) $cleaned);
+
+        if ($cleaned === '') {
+            return '';
+        }
+
+        // If the result is purely an uppercase_UNDERSCORE_IDENTIFIER (e.g. RCS_USER_REJECTED)
+        // it's a technical code, not a customer message — return empty so caller falls through
+        if (preg_match('/^[A-Z][A-Z0-9_]+$/', $cleaned)) {
+            return '';
+        }
+
+        return $cleaned;
     }
 
     /**
@@ -166,6 +283,28 @@ class WaafiPayService
      */
     private function interpretResponse(Response $response, string $requestId, string $referenceId): array
     {
+        // HTTP 401 means our API credentials were rejected by Waafi — not a customer decline.
+        // The response body is typically empty or non-JSON on 401, so handle before JSON decode.
+        if ($response->status() === 401) {
+            $this->logSafe('WaafiPay authentication failure (HTTP 401)', [
+                'request_id' => $requestId,
+                'reference_id' => $referenceId,
+            ]);
+
+            return [
+                'success' => false,
+                'request_id' => $requestId,
+                'response_code' => null,
+                'response_msg' => null,
+                'state' => null,
+                'transaction_id' => null,
+                'issuer_transaction_id' => null,
+                'failure_code' => 'gateway_auth_error',
+                'failure_reason' => 'Payment service configuration error. Please contact support.',
+                'raw' => null,
+            ];
+        }
+
         $body = $response->json() ?? [];
         $responseCode = isset($body['responseCode']) ? (string) $body['responseCode'] : null;
         $responseMsg = isset($body['responseMsg']) ? (string) $body['responseMsg'] : null;
@@ -225,7 +364,14 @@ class WaafiPayService
         ?string $state,
         ?array $raw
     ): array {
-        [$code, $reason] = $this->mapFailure($responseMsg);
+        $bodyForExtraction = $raw ?? [];
+        // Ensure responseMsg is available for fallback even when raw was partially missing
+        if ($responseMsg !== null && ! isset($bodyForExtraction['responseMsg'])) {
+            $bodyForExtraction['responseMsg'] = $responseMsg;
+        }
+
+        $code = $this->resolveFailureCode($responseMsg);
+        $reason = $this->extractFailureReason($bodyForExtraction);
 
         return [
             'success' => false,
