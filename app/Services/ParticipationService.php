@@ -33,13 +33,14 @@ class ParticipationService
         User $user,
         ?int $ticketTypeId = null,
         ?array $customFieldAnswers = null,
-        bool $allowWaitlist = true
+        bool $allowWaitlist = true,
+        ?string $discountCode = null
     ): Participation {
         // Validate against current active schema at submission time only
         // (schema changes never retroactively invalidate stored answers).
         app(FormFieldValidationService::class)->validateOrFail($event, $customFieldAnswers);
 
-        return DB::transaction(function () use ($event, $user, $ticketTypeId, $customFieldAnswers, $allowWaitlist) {
+        return DB::transaction(function () use ($event, $user, $ticketTypeId, $customFieldAnswers, $allowWaitlist, $discountCode) {
             /** @var Event $event */
             $event = Event::query()->whereKey($event->id)->lockForUpdate()->firstOrFail();
 
@@ -61,20 +62,22 @@ class ParticipationService
             $registered = $this->countSeatOccupying($event->id);
             $capacityReached = $event->capacity !== null && $registered >= $event->capacity;
 
+            $discountAttrs = $this->resolveDiscountAttributes($event, $ticketTypeId, $discountCode);
+
             // Event capacity full → waitlist (no ticket quantity claim yet)
             if ($capacityReached) {
                 if (! $allowWaitlist) {
                     throw new InvalidArgumentException('Event capacity reached.');
                 }
 
-                $participation = Participation::create([
+                $participation = Participation::create(array_merge([
                     'user_id' => $user->id,
                     'event_id' => $event->id,
                     'ticket_type_id' => $ticketTypeId,
                     'status' => ParticipationStatus::WAITLISTED,
                     'payment_status' => ParticipationPaymentStatus::NOT_REQUIRED,
                     'custom_field_answers' => $customFieldAnswers,
-                ]);
+                ], $discountAttrs));
 
                 $this->syncEventRegistrationCount($event);
 
@@ -101,14 +104,14 @@ class ParticipationService
                 // Atomic claim — same transaction as insert below
                 if (! TicketType::claimQuantityAtomically($ticketType->id, 1)) {
                     if ($allowWaitlist) {
-                        $participation = Participation::create([
+                        $participation = Participation::create(array_merge([
                             'user_id' => $user->id,
                             'event_id' => $event->id,
                             'ticket_type_id' => $ticketTypeId,
                             'status' => ParticipationStatus::WAITLISTED,
                             'payment_status' => ParticipationPaymentStatus::NOT_REQUIRED,
                             'custom_field_answers' => $customFieldAnswers,
-                        ]);
+                        ], $discountAttrs));
                         $this->syncEventRegistrationCount($event);
 
                         return $participation->fresh(['user', 'ticketType']);
@@ -117,26 +120,75 @@ class ParticipationService
                     throw new RuntimeException('Ticket type quantity exhausted.');
                 }
 
-                $paymentStatus = $ticketType->isPaid()
-                    ? ParticipationPaymentStatus::PENDING
-                    : ParticipationPaymentStatus::NOT_REQUIRED;
+                $final = $discountAttrs['final_amount'] ?? $ticketType->price;
+                if ($ticketType->isPaid() && (float) $final > 0) {
+                    $paymentStatus = ParticipationPaymentStatus::PENDING;
+                } elseif ($ticketType->isPaid() && (float) $final <= 0) {
+                    $paymentStatus = ParticipationPaymentStatus::PAID;
+                } else {
+                    $paymentStatus = ParticipationPaymentStatus::NOT_REQUIRED;
+                }
             }
 
-            $participation = Participation::create([
+            $participation = Participation::create(array_merge([
                 'user_id' => $user->id,
                 'event_id' => $event->id,
                 'ticket_type_id' => $ticketTypeId,
                 'status' => ParticipationStatus::JOINED,
                 'payment_status' => $paymentStatus,
                 'custom_field_answers' => $customFieldAnswers,
-            ]);
+            ], $discountAttrs));
 
             $this->syncEventRegistrationCount($event);
             app(EventStatusMachine::class)->syncSoldOutFromCapacity($event->fresh());
             app(QrTokenService::class)->ensureForConfirmed($participation);
 
+            if ($paymentStatus === ParticipationPaymentStatus::PAID && ($discountAttrs['discount_code_id'] ?? null)) {
+                app(DiscountPricingService::class)->consumeUsageIfNeeded($participation);
+            }
+
             return $participation->fresh(['user', 'ticketType']);
         });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveDiscountAttributes(Event $event, ?int $ticketTypeId, ?string $discountCode): array
+    {
+        if ($discountCode === null || trim($discountCode) === '') {
+            return [];
+        }
+
+        if ($ticketTypeId === null) {
+            throw new InvalidArgumentException('ticket_type_id is required to apply a discount code.');
+        }
+
+        $pricing = app(DiscountPricingService::class);
+        $code = $pricing->findScoped($event, $discountCode);
+        if (! $code) {
+            throw new InvalidArgumentException(DiscountPricingService::ERROR_NOT_FOUND);
+        }
+        $pricing->assertUsable($code);
+
+        $ticket = TicketType::query()
+            ->whereKey($ticketTypeId)
+            ->where('event_id', $event->id)
+            ->first();
+        if (! $ticket) {
+            throw new InvalidArgumentException('Invalid ticket type for this event.');
+        }
+
+        $quote = $pricing->quote($ticket, $code);
+
+        return [
+            'discount_code_id' => $quote['discount_code_id'],
+            'original_amount' => $quote['original_amount'],
+            'discount_amount' => $quote['discount_amount'],
+            'final_amount' => $quote['final_amount'],
+            'discount_code_snapshot' => $pricing->snapshotPayload($quote),
+            'discount_usage_consumed' => false,
+        ];
     }
 
     /**
@@ -178,6 +230,12 @@ class ParticipationService
                 $paymentStatus = $ticketType->isPaid()
                     ? ParticipationPaymentStatus::PENDING
                     : ParticipationPaymentStatus::NOT_REQUIRED;
+
+                if ($participation->final_amount !== null && (float) $participation->final_amount <= 0) {
+                    $paymentStatus = ParticipationPaymentStatus::PAID;
+                } elseif ($participation->final_amount !== null && (float) $participation->final_amount > 0) {
+                    $paymentStatus = ParticipationPaymentStatus::PENDING;
+                }
             }
 
             $participation->status = ParticipationStatus::JOINED;
@@ -187,6 +245,10 @@ class ParticipationService
             $this->syncEventRegistrationCount($event);
             app(EventStatusMachine::class)->syncSoldOutFromCapacity($event->fresh());
             app(QrTokenService::class)->ensureForConfirmed($participation);
+
+            if ($paymentStatus === ParticipationPaymentStatus::PAID) {
+                app(DiscountPricingService::class)->consumeUsageIfNeeded($participation);
+            }
 
             return $participation->fresh(['user', 'ticketType']);
         });

@@ -26,6 +26,7 @@ Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group
     Route::patch('/events/{event}', [OrganizerEventController::class, 'update']);
     Route::delete('/events/{event}', [OrganizerEventController::class, 'destroy']);
     Route::post('/events/{event}/transition', [OrganizerEventController::class, 'transition']);
+    Route::post('/events/{event}/banner', [OrganizerEventController::class, 'uploadBanner']);
 
     Route::get('/events/{event}/ticket-types', [OrganizerTicketTypeController::class, 'index']);
     Route::post('/events/{event}/ticket-types', [OrganizerTicketTypeController::class, 'store']);

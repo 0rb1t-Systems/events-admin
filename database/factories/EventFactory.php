@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\EventMode;
 use App\Enums\EventStatus;
 use App\Models\Event;
 use App\Models\EventCategory;
@@ -27,6 +28,7 @@ class EventFactory extends Factory
             'latitude' => fake()->latitude(),
             'longitude' => fake()->longitude(),
             'banner_path' => null,
+            'event_mode' => EventMode::IN_PERSON,
             'featured' => false,
             'monetized' => false,
             'status' => EventStatus::DRAFT,

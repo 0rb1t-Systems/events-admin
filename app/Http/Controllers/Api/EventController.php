@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EventMode;
 use App\Enums\EventStatus;
 use App\Enums\SanctumAbility;
 use App\Models\Event;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Services\EventMonetization;
 use App\Services\EventRegistrationGate;
 use App\Services\EventStatusMachine;
+use App\Support\EventFieldRules;
 use App\Support\EventQuota;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -151,28 +153,18 @@ class EventController extends BaseController
 
     /**
      * Shared create/update field rules (organizer create + admin seed).
+     *
+     * @return array<string, mixed>
      */
     private function eventFieldRules(bool $isUpdate = false): array
     {
         $req = $isUpdate ? 'sometimes' : 'required';
 
-        return [
+        return array_merge(EventFieldRules::rules($isUpdate, false), [
             'organizer_id' => [$req, 'integer', 'exists:organizers,id'],
-            'event_category_id' => ['nullable', 'integer', 'exists:event_categories,id'],
-            'title' => [$req, 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'city' => ['nullable', 'string', 'max:255'],
-            'address' => ['nullable', 'string', 'max:500'],
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'banner_path' => ['nullable', 'string', 'max:500'],
             'featured' => ['sometimes', 'boolean'],
             'monetized' => ['sometimes', 'boolean'],
-            'capacity' => ['nullable', 'integer', 'min:0'],
-            'registration_deadline' => ['nullable', 'date'],
-            'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
-        ];
+        ]);
     }
 
     /**
@@ -224,7 +216,7 @@ class EventController extends BaseController
 
     public function store(Request $request)
     {
-        $validated = $request->validate($this->eventFieldRules(false));
+        $validated = EventFieldRules::validateRequest($request, $this->eventFieldRules(false));
 
         if ($pairError = $this->validateLatLongPair($validated)) {
             return $this->badRequestResponse($pairError);
@@ -239,6 +231,7 @@ class EventController extends BaseController
         $validated['registrations_count'] = 0;
         $validated['featured'] = $validated['featured'] ?? false;
         $validated['monetized'] = $validated['monetized'] ?? false;
+        $validated['event_mode'] = $validated['event_mode'] ?? EventMode::IN_PERSON->value;
 
         $event = Event::create($validated);
         $event->load($this->relationships);
@@ -270,22 +263,27 @@ class EventController extends BaseController
             );
         }
 
-        $validated = $request->validate([
+        $validated = EventFieldRules::validateRequest($request, [
             'featured' => ['sometimes', 'boolean'],
             'monetized' => ['sometimes', 'boolean'],
             'event_category_id' => ['sometimes', 'nullable', 'integer', 'exists:event_categories,id'],
             'title' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'why_attend' => ['nullable', 'array', 'max:6'],
+            'why_attend.*' => ['nullable', 'string', 'max:200'],
             'city' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
+            'event_mode' => ['sometimes', 'string', Rule::in(EventMode::values())],
+            'online_url' => ['nullable', 'string', 'max:500', 'url'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'banner_path' => ['nullable', 'string', 'max:500'],
             'capacity' => ['nullable', 'integer', 'min:0'],
             'registration_deadline' => ['nullable', 'date'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'registrations_count' => ['sometimes', 'integer', 'min:0'],
-        ]);
+        ], $event);
 
         if ($pairError = $this->validateLatLongPair($validated, $event)) {
             return $this->badRequestResponse($pairError);

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Web\ParticipantDiscountController;
 use App\Http\Controllers\Api\Web\ParticipantFeedbackController;
 use App\Http\Controllers\Api\Web\ParticipantParticipationController;
 use App\Http\Controllers\Api\Web\ParticipantPaymentController;
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::middleware(['auth:sanctum', 'participant.web'])->prefix('participant')->group(function () {
+    Route::post('/events/{event}/discount-codes/validate', [ParticipantDiscountController::class, 'validateForEvent']);
+
     Route::get('/participations', [ParticipantParticipationController::class, 'index']);
     Route::post('/participations', [ParticipantParticipationController::class, 'store']);
     Route::get('/participations/{participation}', [ParticipantParticipationController::class, 'show']);

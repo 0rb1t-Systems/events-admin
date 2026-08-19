@@ -70,11 +70,16 @@ class PaymentService
         }
 
         $timeoutMinutes = (int) config('waafipay.pending_timeout_minutes', 15);
+        $amount = app(DiscountPricingService::class)->chargeAmountFor($participation, $ticketType);
+
+        if ((float) $amount <= 0) {
+            throw new InvalidArgumentException('Nothing to charge for this participation.');
+        }
 
         $payment = Payment::create([
             'participation_id' => $participation->id,
             'ticket_type_id' => $ticketType->id,
-            'amount' => $ticketType->price,
+            'amount' => $amount,
             'currency' => config('waafipay.currency', 'USD'),
             'status' => PaymentStatus::PENDING,
             'reference_id' => 'INV-'.Str::uuid()->toString(),
@@ -123,6 +128,13 @@ class PaymentService
                 $payment->save();
 
                 $this->syncParticipationPaid($payment);
+                $freshParticipation = Participation::query()
+                    ->whereKey($payment->participation_id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($freshParticipation) {
+                    app(DiscountPricingService::class)->consumeUsageIfNeeded($freshParticipation);
+                }
 
                 return $payment->fresh(['participation', 'ticketType']);
             }

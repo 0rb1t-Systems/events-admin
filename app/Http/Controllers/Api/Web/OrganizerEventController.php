@@ -9,6 +9,7 @@ use App\Models\Event;
 use App\Models\Organizer;
 use App\Services\EventMonetization;
 use App\Services\EventStatusMachine;
+use App\Support\EventFieldRules;
 use App\Support\EventQuota;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -60,7 +61,7 @@ class OrganizerEventController extends BaseController
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate($this->eventFieldRules(false));
+        $validated = EventFieldRules::validateRequest($request, EventFieldRules::rules(false, true));
 
         if ($pairError = $this->validateLatLongPair($validated)) {
             return $this->badRequestResponse($pairError);
@@ -121,12 +122,7 @@ class OrganizerEventController extends BaseController
             );
         }
 
-        $validated = $request->validate($this->eventFieldRules(true));
-
-        if (array_key_exists('category_id', $validated) && ! array_key_exists('event_category_id', $validated)) {
-            $validated['event_category_id'] = $validated['category_id'];
-        }
-        unset($validated['category_id']);
+        $validated = EventFieldRules::validateRequest($request, EventFieldRules::rules(true, true), $owned);
 
         if ($pairError = $this->validateLatLongPair($validated, $owned)) {
             return $this->badRequestResponse($pairError);
@@ -205,29 +201,49 @@ class OrganizerEventController extends BaseController
     }
 
     /**
-     * Writable organizer fields. organizer_id / status / featured / monetized are never accepted.
-     *
-     * @return array<string, mixed>
+     * Multipart field: `banner`. Stored under public/assets/images/events/ (same as gallery).
+     * `banner_path` is a site-relative path such as `/assets/images/events/{file}`.
+     * JSON also appends `banner_url` (absolute `url()` for relative paths; passthrough for http(s)).
      */
-    private function eventFieldRules(bool $isUpdate = false): array
+    public function uploadBanner(Request $request, $event): JsonResponse
     {
-        $req = $isUpdate ? 'sometimes' : 'required';
+        $owned = $this->ownedEventOrFail($event);
+        if ($owned instanceof JsonResponse) {
+            return $owned;
+        }
 
-        return [
-            'event_category_id' => ['nullable', 'integer', 'exists:event_categories,id'],
-            'category_id' => ['nullable', 'integer', 'exists:event_categories,id'],
-            'title' => [$req, 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'city' => ['nullable', 'string', 'max:255'],
-            'address' => ['nullable', 'string', 'max:500'],
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'banner_path' => ['nullable', 'string', 'max:500'],
-            'capacity' => ['nullable', 'integer', 'min:0'],
-            'registration_deadline' => ['nullable', 'date'],
-            'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
-        ];
+        $request->validate([
+            'banner' => 'required|file|mimes:jpeg,png,jpg,gif,webp|max:4096',
+        ]);
+
+        $file = $request->file('banner');
+        $filename = 'banner-'.$owned->id.'-'.date('Y-m-d-H-i-s').'-'.uniqid().'.'.$file->getClientOriginalExtension();
+        $relative = 'assets/images/events/'.$filename;
+        $fullPath = public_path($relative);
+        if (! is_dir(dirname($fullPath))) {
+            mkdir(dirname($fullPath), 0755, true);
+        }
+        $file->move(dirname($fullPath), $filename);
+
+        $this->deleteLocalBannerFile($owned->banner_path);
+
+        $owned->banner_path = '/'.$relative;
+        $owned->save();
+
+        return $this->successResponse($owned->fresh($this->relationships), 'Banner uploaded');
+    }
+
+    private function deleteLocalBannerFile(?string $path): void
+    {
+        if (! $path || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return;
+        }
+
+        $normalized = str_replace('\\', '/', public_path(ltrim($path, '/')));
+        $full = public_path(ltrim($path, '/'));
+        if (is_file($full) && str_contains($normalized, '/assets/images/events/')) {
+            unlink($full);
+        }
     }
 
     /**

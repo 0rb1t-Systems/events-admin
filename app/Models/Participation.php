@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ParticipationPaymentStatus;
 use App\Enums\ParticipationStatus;
+use App\Models\DiscountCode;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,8 +19,14 @@ class Participation extends Model
         'user_id',
         'event_id',
         'ticket_type_id',
+        'discount_code_id',
         'status',
         'payment_status',
+        'original_amount',
+        'discount_amount',
+        'final_amount',
+        'discount_code_snapshot',
+        'discount_usage_consumed',
         'custom_field_answers',
         'qr_token',
     ];
@@ -30,6 +37,11 @@ class Participation extends Model
             'status' => ParticipationStatus::class,
             'payment_status' => ParticipationPaymentStatus::class,
             'custom_field_answers' => 'array',
+            'discount_code_snapshot' => 'array',
+            'original_amount' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
+            'final_amount' => 'decimal:2',
+            'discount_usage_consumed' => 'boolean',
         ];
     }
 
@@ -46,6 +58,11 @@ class Participation extends Model
     public function ticketType(): BelongsTo
     {
         return $this->belongsTo(TicketType::class);
+    }
+
+    public function discountCode(): BelongsTo
+    {
+        return $this->belongsTo(DiscountCode::class);
     }
 
     public function payments(): HasMany

@@ -134,6 +134,7 @@ class OrganizerWebCoreApiTest extends TestCase
 
         $response = $this->postJson('/api/v1/organizer/events', [
             'title' => 'My Concert',
+            'event_mode' => 'in_person',
             'organizer_id' => $other->id,
             'status' => EventStatus::PUBLISHED->value,
             'featured' => true,

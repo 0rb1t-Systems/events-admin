@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EventMode;
 use App\Enums\EventStatus;
 use App\Services\EventRegistrationGate;
 use App\Services\ParticipationService;
@@ -22,8 +23,11 @@ class Event extends Model
         'event_category_id',
         'title',
         'description',
+        'why_attend',
         'city',
         'address',
+        'event_mode',
+        'online_url',
         'latitude',
         'longitude',
         'banner_path',
@@ -43,12 +47,15 @@ class Event extends Model
         'registered_count',
         'waitlisted_count',
         'seats_remaining',
+        'banner_url',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => EventStatus::class,
+            'event_mode' => EventMode::class,
+            'why_attend' => 'array',
             'featured' => 'boolean',
             'monetized' => 'boolean',
             'capacity' => 'integer',
@@ -163,6 +170,20 @@ class Event extends Model
         }
 
         return max(0, (int) $this->capacity - $this->registered_count);
+    }
+
+    public function getBannerUrlAttribute(): ?string
+    {
+        $path = $this->banner_path;
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return url('/'.ltrim($path, '/'));
     }
 
     public function isCapacityUnlimited(): bool

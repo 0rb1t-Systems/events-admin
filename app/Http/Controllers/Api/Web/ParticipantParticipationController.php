@@ -41,6 +41,7 @@ class ParticipantParticipationController extends WebController
         $validated = $request->validate([
             'event_id' => 'required|integer|exists:events,id',
             'ticket_type_id' => 'nullable|integer|exists:ticket_types,id',
+            'discount_code' => 'nullable|string|max:64',
             'custom_field_answers' => 'nullable|array',
         ]);
 
@@ -56,11 +57,21 @@ class ParticipantParticipationController extends WebController
                 $event,
                 $user,
                 $validated['ticket_type_id'] ?? null,
-                $validated['custom_field_answers'] ?? null
+                $validated['custom_field_answers'] ?? null,
+                true,
+                $validated['discount_code'] ?? null
             );
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e->errors());
         } catch (InvalidArgumentException $e) {
+            $code = $e->getMessage();
+            if (str_starts_with($code, 'discount_')) {
+                return $this->badRequestResponse(
+                    \App\Services\DiscountPricingService::customerMessage($code),
+                    ['error_code' => [$code]]
+                );
+            }
+
             return $this->badRequestResponse($e->getMessage());
         } catch (RuntimeException $e) {
             return $this->badRequestResponse($e->getMessage());
