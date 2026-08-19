@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-18 (Prompt 0: participant + organizer Web API surface)
+Last updated: 2026-08-19 (participant auth: reset-code expiry + mail setting lookup fix)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -114,7 +114,7 @@ These were decided during Admin Prompts 1–11. Confirm or correct before Web Ap
 - RBAC: spatie/laravel-permission (`permission:` / `role:` middleware aliases in `bootstrap/app.php`)
 - Audit: spatie/laravel-activitylog (via `BaseController::logActivity` or explicit `activity()` for Settings)
 - Location: stevebauman/location
-- Queue: `SendEmailJob`, `MailService`, **`ExpirePendingPayments`** (scheduled every 5 min)
+- Queue: `SendEmailJob`, `MailService`, **`ExpirePendingPayments`** (scheduled every 5 min). Default queue connection: **`database`** (`QUEUE_CONNECTION`); `composer run dev` / `dev:windows` starts `php artisan queue:listen`.
 - **Payments (Phase 6):** WaafiPay Hormuud EVC via `WaafiPayService` → `POST {WAAFI_BASE_URL}` (default `https://api.waafipay.net/asm`), credentials in `config/waafipay.php` / `.env` (`WAAFI_MERCHANT_UID`, `WAAFI_API_USER_ID`, `WAAFI_API_KEY`). **HTTP timeout 180s**. Currency **USD**. Never log `apiKey`. Tests mock HTTP.
 
 ### Frontend
@@ -401,8 +401,28 @@ EventHub participants are **Users** distinguished by `users.user_type` (`App\Enu
 | Public register | Sets `user_type=user` (participants). |
 | Admin Users CRUD | Creates always force `user_type=admin`. **Updates ignore `user_type`** (read-only in Admin UI — no permission-gated write yet). |
 | Admin UI | Users table: Type + Status columns; Type filter (All / Admin / Participant). Detail sidebar shows full useful fields including read-only type. |
-| Tests | `tests/Feature/UserTypeAuthTest.php` — admin/participant login, 403 vs 401, dual tokens, web token blocked from `/users`, logout scope. |
+| Tests | `tests/Feature/UserTypeAuthTest.php` — admin/participant login, 403 vs 401, dual tokens, web token blocked from `/users`, logout scope. `tests/Feature/ParticipantPasswordResetTest.php` — reset-code expiry, invalid/expired codes, token revocation. |
 | Seed | `RolePermissionSeeder` admin user remains `user_type=admin` (`admin@example.com` / `password`). |
+
+### Participant email verification & password reset
+
+Participant auth codes are **4-digit numeric strings** stored on `users` and delivered by **queued email** — never returned in API responses or written to logs/activity properties.
+
+| Flow | Endpoint | DB fields | Expiry |
+|------|----------|-----------|--------|
+| Register verify | `POST /auth/register` → `POST /auth/verify` | `email_verification_code`, `email_verification_expires_at` | 30 minutes |
+| Resend verify | `POST /auth/resend-verification` | same | 30 minutes |
+| Password reset | `POST /auth/forgot-password` → `POST /auth/reset-password` | `reset_code`, `reset_code_expires_at` | 30 minutes |
+
+**Delivery path:** `AuthController` → `MailService::sendEmailQueued()` → `SendEmailJob` (implements `ShouldQueue`) → Blade templates `mail.verification` / `mail.password-reset`. Queue uses the configured **`QUEUE_CONNECTION`** (local default **`database`**); a running queue worker is required for delivery (`php artisan queue:listen` — included in `composer run dev` / `dev:windows`).
+
+**SMTP source (intentional):** Auth/announcement mail does **not** use `.env` `MAIL_MAILER=log`. At send time `MailService::configureMailSettings()` loads the **active** row from `settings` where `setting_type=email` and name matches **`smtp`** (case-insensitive via `Settings::emailSmtp()` scope). Admin saves credentials in **Settings → Mail** (`SettingsController::updateMailConfig`), which sets `status=true` and JSON `details` (`host`, `port`, `encryption`, `username`, `password`, `from_email`, `from_name`). Seeded mail setting (`SettingsSeeder`) is **`name=smtp`**, **`slug=email-smtp`**, **`status=false`**, **`details=null`** — inactive until an administrator configures real SMTP. No credentials in code/seeders.
+
+**Local participant email delivery requires:** (1) administrator-configured active SMTP in Admin Settings, and (2) a running queue worker. Without both, codes exist only in the database.
+
+**Password reset success:** clears `reset_code` + `reset_code_expires_at`, revokes **all** User Sanctum tokens, queues confirmation email (`password_reset_confirmation`).
+
+**Expired reset code:** `POST /auth/reset-password` returns **400** `Reset code has expired` with field error `Reset code has expired. Please request a new one.` (mirrors email verification expiry messaging).
 
 ## Organizers (Phase 2 — separate identity from Users)
 
@@ -1067,6 +1087,12 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-19 - Participant auth: reset-code expiry + mail setting lookup
+- **Password reset expiry:** migration `2026_08_19_100000_add_reset_code_expires_at_to_users_table.php` adds nullable `users.reset_code_expires_at`. `POST /auth/forgot-password` sets `reset_code_expires_at = now()->addMinutes(30)`. `POST /auth/reset-password` rejects expired codes (400, stable message); success clears code + expiry and revokes all User tokens (unchanged).
+- **Mail setting consistency:** `SettingsSeeder` now seeds canonical `name=smtp` / `slug=email-smtp` (inactive, no credentials). `Settings::EMAIL_SMTP_NAME` + `scopeEmailSmtp()` (case-insensitive lookup) used by `MailService`, `SettingsController`. Architecture unchanged: queued mail still reads active DB SMTP, not `MAIL_MAILER=log`.
+- Files: `AuthController.php`, `User.php`, `Settings.php`, `MailService.php`, `SettingsController.php`, `SettingsSeeder.php`, migration, `ParticipantPasswordResetTest.php`, `MailSettingsLookupTest.php`, `.agent`.
+- Verification: `php artisan test --filter=ParticipantPasswordResetTest` (6 passed), `MailSettingsLookupTest` (2 passed); full `composer test` — **207 passed / 3 pre-existing `ExceptionHandlerTest` failures**.
 
 ### 2026-08-18 - Prompt 0: participant + organizer Web API
 - Explicit Web HTTP surface without weakening Admin `admin.panel` / SPA permissions. `participant.web` middleware (`unauthenticated` / `wrong_ability`). Organizer ownership via `ResolvesOrganizerEvent` (404 cross-tenant).

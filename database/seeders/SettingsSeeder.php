@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\Settings;
-use App\Services\CommonServices;
 
 class SettingsSeeder extends Seeder
 {
@@ -17,8 +16,8 @@ class SettingsSeeder extends Seeder
         $settings = [
             [
                 'setting_type' => 'email',
-                'name' => 'SMTP',
-                'slug' => CommonServices::generateSlug('SMTP', Settings::class),
+                'name' => Settings::EMAIL_SMTP_NAME,
+                'slug' => 'email-smtp',
                 'details' => null,
                 'status' => 0,
                 'is_global' => 0,

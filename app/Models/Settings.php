@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Settings extends Model
 {
+    public const EMAIL_SMTP_NAME = 'smtp';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -30,4 +32,13 @@ class Settings extends Model
         'status' => 'boolean',
         'is_global' => 'boolean',
     ];
+
+    /**
+     * Active/inactive email SMTP row (case-insensitive name match).
+     */
+    public function scopeEmailSmtp($query)
+    {
+        return $query->where('setting_type', 'email')
+            ->whereRaw('LOWER(name) = ?', [self::EMAIL_SMTP_NAME]);
+    }
 }

@@ -17,8 +17,7 @@ class MailService
      */
     public function configureMailSettings()
     {
-        $mailSetting = Settings::where('setting_type', 'email')
-            ->where('name', 'smtp')
+        $mailSetting = Settings::emailSmtp()
             ->where('status', true)
             ->first();
 

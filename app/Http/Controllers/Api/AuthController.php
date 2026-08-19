@@ -484,6 +484,7 @@ class AuthController extends Controller
 
         $user->update([
             'reset_code' => $resetCode,
+            'reset_code_expires_at' => now()->addMinutes(30),
         ]);
 
         // Log password reset request
@@ -549,9 +550,28 @@ class AuthController extends Controller
             ], 400);
         }
 
+        if ($user->reset_code_expires_at && now()->isAfter($user->reset_code_expires_at)) {
+            $this->logAuthActivity([
+                'user' => null,
+                'request' => $request,
+                'locationData' => $locationData,
+                'event' => 'reset_password',
+                'message' => 'Failed password reset',
+                'extra' => [
+                    'email' => $request->email,
+                    'reason' => 'Expired reset code',
+                ]
+            ]);
+
+            return $this->errorResponse('Reset code has expired', [
+                'reset_code' => ['Reset code has expired. Please request a new one.']
+            ], 400);
+        }
+
         $user->update([
             'password' => Hash::make($request->password),
             'reset_code' => null,
+            'reset_code_expires_at' => null,
         ]);
 
         // Revoke all existing tokens for this user

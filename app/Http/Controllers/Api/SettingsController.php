@@ -23,9 +23,7 @@ class SettingsController extends Controller
      */
     public function getMailConfig(Request $request)
     {
-        $mailSetting = Settings::where('setting_type', 'email')
-            ->where('name', 'smtp')
-            ->first();
+        $mailSetting = Settings::emailSmtp()->first();
 
         if (! $mailSetting || ! $mailSetting->details) {
             $config = [
@@ -85,7 +83,7 @@ class SettingsController extends Controller
             $setting = Settings::updateOrCreate(
                 [
                     'setting_type' => 'email',
-                    'name' => 'smtp',
+                    'name' => Settings::EMAIL_SMTP_NAME,
                 ],
                 [
                     'slug' => 'email-smtp',
