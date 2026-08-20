@@ -8,8 +8,9 @@
 @section('content')
 <h2>Hello {{ $user_name }},</h2>
 
+{{-- Use $body — Laravel Mail reserves $message for the Message builder --}}
 <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #6366F1;">
-    {!! $message !!}
+    {!! $body !!}
 </div>
 
 @if(isset($action_url) && isset($action_text))

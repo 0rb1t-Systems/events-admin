@@ -37,6 +37,7 @@ class User extends Authenticatable
         'reset_code_expires_at',
         'email_verification_code',
         'email_verification_expires_at',
+        'email_verified_at',
         'fcm_token',
         'provider',
         'status',

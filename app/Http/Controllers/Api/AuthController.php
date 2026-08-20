@@ -136,7 +136,112 @@ class AuthController extends Controller
             return $this->forbiddenResponse('Please verify your email address before logging in.');
         }
 
-        // Revoke only prior web-participant tokens (keep admin-panel tokens intact)
+        if ($user->status === UserStatus::SUSPENDED) {
+            return $this->forbiddenResponse('This account has been suspended.');
+        }
+
+        return $this->issueWebParticipantSession($user, $request, $locationData, 'User logged in (web-participant)');
+    }
+
+    /**
+     * Google sign-in for the Web App (API-key + GIS credential).
+     * Body: { id_token } and/or { access_token }. Issues web-participant token.
+     * Creates a participant user when the Google email is new; Google-verified emails skip OTP.
+     */
+    public function googleLogin(Request $request)
+    {
+        $request->validate([
+            'id_token' => 'nullable|string',
+            'access_token' => 'nullable|string',
+        ]);
+
+        if (! $request->filled('id_token') && ! $request->filled('access_token')) {
+            return $this->validationErrorResponse([
+                'id_token' => ['Provide a Google id_token or access_token.'],
+            ], 'Google credential required');
+        }
+
+        $ip = $request->ip();
+        $locationData = $this->locationService->getLocationData($ip);
+
+        try {
+            $google = app(\App\Services\GoogleTokenVerifier::class)->verify(
+                $request->input('id_token'),
+                $request->input('access_token'),
+            );
+        } catch (\InvalidArgumentException $e) {
+            $this->logAuthActivity([
+                'user' => null,
+                'request' => $request,
+                'locationData' => $locationData,
+                'event' => 'login',
+                'message' => 'Failed Google login',
+                'extra' => ['reason' => $e->getMessage()],
+            ]);
+
+            return $this->unauthorizedResponse($e->getMessage());
+        }
+
+        $user = User::query()->where('email', $google['email'])->first();
+
+        if (! $user) {
+            $user = User::create([
+                'name' => $google['name'],
+                'email' => $google['email'],
+                'password' => Hash::make(\Illuminate\Support\Str::random(40)),
+                'status' => UserStatus::ACTIVE,
+                'user_type' => UserType::USER,
+                'provider' => 'google',
+                'profile_image' => $google['picture'],
+            ]);
+            $user->forceFill(['email_verified_at' => now()])->save();
+
+            $this->logAuthActivity([
+                'user' => $user,
+                'request' => $request,
+                'locationData' => $locationData,
+                'event' => 'register',
+                'message' => 'User registered via Google',
+            ]);
+        } else {
+            if ($user->status === UserStatus::SUSPENDED) {
+                return $this->forbiddenResponse('This account has been suspended.');
+            }
+
+            $updates = [];
+            if ($user->status === UserStatus::INACTIVE) {
+                $updates['status'] = UserStatus::ACTIVE;
+                $updates['email_verified_at'] = $user->email_verified_at ?? now();
+            }
+            if ($user->provider === null || $user->provider === '') {
+                $updates['provider'] = 'google';
+            }
+            if (! $user->profile_image && $google['picture']) {
+                $updates['profile_image'] = $google['picture'];
+            }
+            if ($updates !== []) {
+                $user->update($updates);
+                $user->refresh();
+            }
+        }
+
+        return $this->issueWebParticipantSession(
+            $user,
+            $request,
+            $locationData,
+            'User logged in via Google (web-participant)',
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $locationData
+     */
+    private function issueWebParticipantSession(
+        User $user,
+        Request $request,
+        array $locationData,
+        string $logMessage,
+    ) {
         $this->revokeTokensWithAbility($user, SanctumAbility::WebParticipant);
 
         $token = $user->createToken(
@@ -144,16 +249,15 @@ class AuthController extends Controller
             [SanctumAbility::WebParticipant->value]
         )->plainTextToken;
 
-        // Log successful login
         $this->logAuthActivity([
             'user' => $user,
             'request' => $request,
             'locationData' => $locationData,
             'event' => 'login',
-            'message' => 'User logged in (web-participant)',
+            'message' => $logMessage,
             'extra' => [
                 'token_ability' => SanctumAbility::WebParticipant->value,
-            ]
+            ],
         ]);
 
         return response()->json([
@@ -172,7 +276,7 @@ class AuthController extends Controller
                 ],
                 'token' => $token,
                 'token_ability' => SanctumAbility::WebParticipant->value,
-            ]
+            ],
         ]);
     }
 

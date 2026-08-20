@@ -214,7 +214,7 @@ const OrganizationPage: React.FC = () => {
                             Organization Profile
                         </h5>
                         <p className="text-gray-600 dark:text-gray-400 mt-1">
-                            Manage your organization information
+                            Platform branding for Admin and the Web App — name, light/dark logos, and favicon
                         </p>
                     </div>
 

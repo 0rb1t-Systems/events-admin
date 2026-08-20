@@ -39,4 +39,9 @@ return [
         'public_key' => env('WEBAPP_API_PUBLIC_KEY'),
     ],
 
+    'google' => [
+        // Web client ID (GIS). Same value as VITE_GOOGLE_CLIENT_ID on the Web App.
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+    ],
+
 ];

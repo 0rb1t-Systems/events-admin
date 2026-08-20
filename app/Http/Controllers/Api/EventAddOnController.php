@@ -259,7 +259,7 @@ class EventAddOnController extends BaseController
                     'notification',
                     [
                         'subject' => $validated['subject'],
-                        'message' => $validated['body'],
+                        'body' => $validated['body'],
                         'user_name' => $participation->user->name,
                     ]
                 );

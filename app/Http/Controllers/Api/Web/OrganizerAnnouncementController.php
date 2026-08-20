@@ -77,6 +77,7 @@ class OrganizerAnnouncementController extends BaseController
             ->get();
 
         $mailService = app(MailService::class);
+        $recipientCount = 0;
 
         foreach ($participations as $participation) {
             if ($participation->user) {
@@ -85,14 +86,13 @@ class OrganizerAnnouncementController extends BaseController
                     'notification',
                     [
                         'subject' => $validated['subject'],
-                        'message' => $validated['body'],
+                        'body' => $validated['body'],
                         'user_name' => $participation->user->name,
                     ]
                 );
+                $recipientCount++;
             }
         }
-
-        $recipientCount = $participations->count();
 
         $this->logActivity(
             'Event announcement sent',

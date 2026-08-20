@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-20 (MySQL ENUM for domain status columns)
+Last updated: 2026-08-20 (Fix announcement email Blade collision)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -31,7 +31,7 @@ Every meaningful change to the codebase must also update this file.
 - Known gotchas:
   - Windows `dev:windows` uses port **8002**, not 8000
   - **API client auth (Prompt 3b, simplified 2026-08-18):** All `/api/*` routes require `X-API-Key` (`verify.api.client` / `VerifyApiClientSignature` on `routes/api.php`). Lookup: `api_clients` where `public_key` matches and `active = true`. Errors: `missing_api_key` (header absent/empty), `invalid_api_key` (unknown or inactive). **No** `X-API-Timestamp` / `X-API-Signature` — HMAC was removed because the Web App is a Vite SPA with no server to hide `WEBAPP_API_SECRET`. `api_clients.secret` column remains in DB unused by verification. Admin SPA axios sends `X-API-Key` from `VITE_WEBAPP_API_PUBLIC_KEY`. Web App sends the same public key. Rotate by updating env `WEBAPP_API_PUBLIC_KEY` + `php artisan db:seed --class=ApiClientSeeder`.
-  - **Public API-key-only catalog (Web App, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`, `GET /api/v1/events/{id}/form-fields`. `X-API-Key` still required. No `auth:sanctum` / `admin.panel`. Without an `admin-panel` Bearer, events are filtered to `published|registration_open|sold_out|registration_closed|ongoing` (`Event::scopePublicCatalog` / `EventStatus::publicCatalogValues()`). Draft, cancelled, and completed are omitted; public show of those returns **404**. Admin-panel Bearer (Admin SPA) still returns **all** statuses including draft/cancelled. Public payloads hide organizer `email` / `phone` / `contact_name` (only `id` + `business_name`) and do not load `discountCodes`. Public show eager-loads ticket types, speakers, sponsors, sessions, category, images. **Form-fields** (`PublicEventFormFieldController`): public callers get **active** fields only; admin-panel Bearer + `view event form fields` still gets the full admin payload (inactive included). All other Admin event/category routes remain API-key + Sanctum + `admin.panel` + permissions.
+  - **Public API-key-only catalog (Web App, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`, `GET /api/v1/events/{id}/form-fields`, **`GET /api/v1/platform/branding`**. `X-API-Key` still required. No `auth:sanctum` / `admin.panel`. Without an `admin-panel` Bearer, events are filtered to `published|registration_open|sold_out|registration_closed|ongoing` (`Event::scopePublicCatalog` / `EventStatus::publicCatalogValues()`). Draft, cancelled, and completed are omitted; public show of those returns **404**. Admin-panel Bearer (Admin SPA) still returns **all** statuses including draft/cancelled. Public payloads hide organizer `email` / `phone` / `contact_name` (only `id` + `business_name`) and do not load `discountCodes`. Public show eager-loads ticket types, speakers, sponsors, sessions, category, images. **Form-fields** (`PublicEventFormFieldController`): public callers get **active** fields only; admin-panel Bearer + `view event form fields` still gets the full admin payload (inactive included). **Platform branding** (`PlatformBrandingController`): returns `{ name, logo_url, logo_dark_url, icon_url }` only (nulls when no org row); never email/phone/address. Managed in Admin Settings → Organization. All other Admin event/category routes remain API-key + Sanctum + `admin.panel` + permissions.
   - **Web App HTTP surface (Prompt 0):** explicit `/api/v1/participant/*` (`participant.web`) and `/api/v1/organizer/*` (`organizer.web`). Do **not** reuse Admin routes for Web tokens. Admin SPA routes/permissions unchanged. Domain services reused (ParticipationService, PaymentService, EventStatusMachine, EventQuota, QrValidationService, etc.).
   - **Vite must be running** for Admin SPA (`@vite` in `app.blade.php`). If Vite dies, Laravel throws `ViteManifestNotFoundException` (`public/build/manifest.json` missing — we do not commit a production build). Symptom: Internal Server Error on `http://localhost:8002`. Fix: restart `composer run dev:windows` (or `npm run dev`). Cause seen: `.env` change restarts Vite, then `laravel-vite-plugin@1.3.0` crashes (`Cannot read properties of null (reading 'family')`). Mitigated in `vite.config.js`: `server.host=127.0.0.1`, ignore `**/.env`.
   - Lockfile is **pnpm** (`pnpm-lock.yaml`); npm also works
@@ -240,7 +240,7 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Organization** — profile/settings style under Settings.
 - **Logs** — read-only; `permission:view logs` on all routes.
 - **Settings mail / commission** — forms + test; activity via `activity('settings')`.
-- **Public API-key-only catalog** — `GET /events`, `GET /events/{id}`, `GET /event-categories`, `GET /events/{id}/form-fields` omit `auth:sanctum` / `admin.panel` / permissions. Do **not** copy this for other resources. Admin Bearer on those URLs still returns unfiltered events / full form schema.
+- **Public API-key-only catalog** — `GET /events`, `GET /events/{id}`, `GET /event-categories`, `GET /events/{id}/form-fields`, `GET /platform/branding` omit `auth:sanctum` / `admin.panel` / permissions. Do **not** copy this for other resources without product intent. Admin Bearer on event URLs still returns unfiltered events / full form schema. Branding returns public display fields only.
 - **Web App API (Prompt 0)** — separate route files + `app/Http/Controllers/Api/Web/*`. Do not put organizer/participant Web endpoints on Admin controllers behind `admin.panel`.
 
 ### D) Searchable entity picker standard (Prompt 12 — MANDATORY for FK fields)
@@ -356,7 +356,7 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 | Settings → Mail / Roles / Commission | `/settings/...` | `manage settings` |
 | Settings → Packages | `/settings/packages` | `view packages` |
 | Settings → Event Categories | `/settings/event-categories` | `view event categories` |
-| Settings → Organization | `/settings/organization` | `view organizations` |
+| Settings → Organization | `/settings/organization` | `view organizations` — name + light/dark logos + favicon; drives Admin SPA + Web App via `GET /platform/branding` |
 | Logs | `/logs` | `view logs` |
 | Certificates | `/certificates` | `view certificates` |
 | QR Scan History | `/qr-scan-logs` | `view qr scan logs` |
@@ -1168,6 +1168,24 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-20 - Fix announcement email Blade `$message` collision
+- Files: `resources/views/mail/notification.blade.php`, `OrganizerAnnouncementController`, `EventAddOnController`, `tests/Feature/AnnouncementMailTemplateTest.php`, `.agent`
+- Behavior: Announcement jobs were failing with `Object of class Illuminate\Mail\Message could not be converted to string` because the view used `{!! $message !!}` — Laravel Mail already binds `$message` to the Message builder. Template + controllers now use `$body`.
+- Migration/config/env: none. Ensure queue worker is running and Admin SMTP is active.
+- Verification: `AnnouncementMailTemplateTest` + prior failed_jobs showed this exact exception.
+
+### 2026-08-20 - Continue with Google (participant web-participant)
+- Files: `GoogleTokenVerifier`, `AuthController::googleLogin` (+ shared `issueWebParticipantSession`), `config/services.php` `google.client_id`, `.env.example` `GOOGLE_CLIENT_ID`, `tests/Feature/GoogleLoginTest.php`, `.agent`
+- Behavior: `POST /api/v1/auth/google/login` accepts `id_token` and/or `access_token`; verifies audience against `GOOGLE_CLIENT_ID`; creates active `user_type=user` with `provider=google` (or activates existing inactive); issues `web-participant` token. Suspended rejected.
+- Migration/config/env: set `GOOGLE_CLIENT_ID` (same as Web `VITE_GOOGLE_CLIENT_ID`)
+- Verification: `php artisan test --filter=GoogleLoginTest` — 5 passed
+
+### 2026-08-20 - Public platform branding for Web App
+- Files: `PlatformBrandingController`, `routes/api.php` (`GET /api/v1/platform/branding`), `routes/api/v1/organizations.php` (static paths before `/{id}`), Admin Organization page copy, `tests/Feature/PlatformBrandingApiTest.php`, `.agent`
+- Behavior: API-key-only branding payload `{ name, logo_url, logo_dark_url, icon_url }` for the Web App; Admin Settings → Organization remains the write UI; `GET /organizations/profile` no longer swallowed by `/{id}`
+- Migration/config/env: none
+- Verification: `php artisan test --filter=PlatformBrandingApiTest` — 4 passed
 
 ### 2026-08-20 - MySQL ENUM for domain status / constrained columns
 - Converted VARCHAR status (and related domain choice) columns to native MySQL `ENUM` via `App\Support\EnumColumn` + migration `2026_08_20_153000_convert_status_columns_to_mysql_enums.php`.

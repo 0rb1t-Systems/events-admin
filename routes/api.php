@@ -33,6 +33,9 @@ Route::middleware('verify.api.client')->group(function () {
         // Organizations routes
         Route::prefix('organizations')->group(base_path('routes/api/v1/organizations.php'));
 
+        // Public platform branding (Web App — API-key only, no Bearer)
+        Route::get('/platform/branding', [\App\Http\Controllers\Api\Web\PlatformBrandingController::class, 'show']);
+
         // Organizers (Admin oversight)
         Route::prefix('organizers')->group(base_path('routes/api/v1/organizers.php'));
 
