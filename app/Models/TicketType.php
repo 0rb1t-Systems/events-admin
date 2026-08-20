@@ -16,6 +16,7 @@ class TicketType extends Model
     protected $fillable = [
         'event_id',
         'name',
+        'is_vip',
         'price',
         'quantity_limit',
         'quantity_sold',
@@ -26,6 +27,7 @@ class TicketType extends Model
     protected function casts(): array
     {
         return [
+            'is_vip' => 'boolean',
             'price' => 'decimal:2',
             'quantity_limit' => 'integer',
             'quantity_sold' => 'integer',

@@ -123,7 +123,15 @@ class PublicEventApiTest extends TestCase
             'organizer_id' => $organizer->id,
             'event_category_id' => $category->id,
         ]);
-        TicketType::factory()->create(['event_id' => $event->id, 'name' => 'GA']);
+        TicketType::factory()->create([
+            'event_id' => $event->id,
+            'name' => 'GA',
+            'is_vip' => false,
+        ]);
+        TicketType::factory()->vip()->create([
+            'event_id' => $event->id,
+            'name' => 'General Admission',
+        ]);
         EventSponsor::create(['event_id' => $event->id, 'name' => 'Acme', 'tier' => 'gold']);
         $speaker = EventSpeaker::create(['event_id' => $event->id, 'name' => 'Ada']);
         EventSession::create([
@@ -138,6 +146,9 @@ class PublicEventApiTest extends TestCase
 
         $this->assertSame('Music', $payload['category']['name']);
         $this->assertNotEmpty($payload['ticket_types']);
+        $vipFlags = collect($payload['ticket_types'])->pluck('is_vip', 'name');
+        $this->assertFalse($vipFlags['GA']);
+        $this->assertTrue($vipFlags['General Admission']);
         $this->assertSame('Acme', $payload['sponsors'][0]['name']);
         $this->assertSame('Ada', $payload['speakers'][0]['name']);
         $this->assertSame('Keynote', $payload['sessions'][0]['title']);

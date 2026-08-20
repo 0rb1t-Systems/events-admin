@@ -484,6 +484,8 @@ class DemoDataSeeder extends Seeder
                     'quantity_sold' => 0,
                     'sort_order' => $i,
                     'sales_enabled' => true,
+                    // Demo only: intentionally mark the "VIP" named tier as VIP — not runtime inference.
+                    'is_vip' => $name === 'VIP',
                 ]
             );
         }

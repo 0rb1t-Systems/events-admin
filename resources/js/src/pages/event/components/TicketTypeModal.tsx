@@ -12,6 +12,7 @@ import { ITicketType } from "../../../types";
 
 const schema = z.object({
     name: z.string().min(1, "Required"),
+    is_vip: z.boolean(),
     price: z.coerce.number().min(0, "Must be ≥ 0"),
     unlimited: z.boolean(),
     quantity_limit: z.union([z.coerce.number().int().min(0), z.literal("")]).nullable().optional(),
@@ -43,6 +44,7 @@ const TicketTypeModal: React.FC<Props> = ({ isOpen, onClose, eventId, ticketType
         resolver: zodResolver(schema),
         defaultValues: {
             name: "",
+            is_vip: false,
             price: 0,
             unlimited: true,
             quantity_limit: null,
@@ -58,6 +60,7 @@ const TicketTypeModal: React.FC<Props> = ({ isOpen, onClose, eventId, ticketType
             if (ticketType) {
                 reset({
                     name: ticketType.name,
+                    is_vip: !!ticketType.is_vip,
                     price: Number(ticketType.price),
                     unlimited: ticketType.quantity_limit === null,
                     quantity_limit: ticketType.quantity_limit,
@@ -67,6 +70,7 @@ const TicketTypeModal: React.FC<Props> = ({ isOpen, onClose, eventId, ticketType
             } else {
                 reset({
                     name: "",
+                    is_vip: false,
                     price: 0,
                     unlimited: true,
                     quantity_limit: null,
@@ -90,6 +94,7 @@ const TicketTypeModal: React.FC<Props> = ({ isOpen, onClose, eventId, ticketType
         mutationFn: (data: FormData) => {
             const payload = {
                 name: data.name,
+                is_vip: data.is_vip,
                 price: data.price,
                 quantity_limit: data.unlimited ? null : (data.quantity_limit ? Number(data.quantity_limit) : 0),
                 sales_enabled: data.sales_enabled,
@@ -127,6 +132,19 @@ const TicketTypeModal: React.FC<Props> = ({ isOpen, onClose, eventId, ticketType
                             onChange={field.onChange}
                             onBlur={field.onBlur}
                             error={errors.name?.message}
+                        />
+                    )}
+                />
+
+                <Controller
+                    name="is_vip"
+                    control={control}
+                    render={({ field }) => (
+                        <FormSwitch
+                            label="VIP tier"
+                            checked={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
                         />
                     )}
                 />

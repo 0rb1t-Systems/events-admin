@@ -18,12 +18,19 @@ class TicketTypeFactory extends Factory
         return [
             'event_id' => Event::factory(),
             'name' => fake()->randomElement(['VIP', 'Standard', 'Early Bird', 'General']),
+            // Name alone does not imply VIP — default false; use vip() state when needed.
+            'is_vip' => false,
             'price' => fake()->randomFloat(2, 0, 200),
             'quantity_limit' => 100,
             'quantity_sold' => 0,
             'sort_order' => 0,
             'sales_enabled' => true,
         ];
+    }
+
+    public function vip(bool $isVip = true): static
+    {
+        return $this->state(fn () => ['is_vip' => $isVip]);
     }
 
     public function free(): static

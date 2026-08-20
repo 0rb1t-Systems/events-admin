@@ -34,6 +34,8 @@ export interface ITicketType extends ITimestamped {
     id: number;
     event_id: number;
     name: string;
+    /** Explicit VIP flag — never inferred from name */
+    is_vip: boolean;
     price: number | string;
     /** null = unlimited */
     quantity_limit: number | null;

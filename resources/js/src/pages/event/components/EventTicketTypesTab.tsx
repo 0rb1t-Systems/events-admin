@@ -122,6 +122,7 @@ const EventTicketTypesTab: React.FC<Props> = ({ eventId }) => {
                     <SimpleAdminTable
                         columns={[
                             { key: "name", label: "Name" },
+                            { key: "vip", label: "VIP" },
                             { key: "price", label: "Price", align: "right" },
                             { key: "sold", label: "Sold" },
                             { key: "sales", label: "Sales" },
@@ -139,6 +140,13 @@ const EventTicketTypesTab: React.FC<Props> = ({ eventId }) => {
                                     <span className="font-medium text-gray-900 dark:text-white">
                                         {tt.name}
                                     </span>
+                                </SimpleAdminTd>
+                                <SimpleAdminTd>
+                                    {tt.is_vip ? (
+                                        <span className={statusBadgeClass("info")}>VIP</span>
+                                    ) : (
+                                        <span className="text-gray-400 dark:text-gray-500">—</span>
+                                    )}
                                 </SimpleAdminTd>
                                 <SimpleAdminTd align="right">
                                     {Number(tt.price) === 0 ? "Free" : formatMoney(tt.price)}

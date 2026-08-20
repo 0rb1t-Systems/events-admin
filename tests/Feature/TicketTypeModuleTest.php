@@ -215,4 +215,41 @@ class TicketTypeModuleTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.ticket_types.0.name', 'Standard');
     }
+
+    public function test_is_vip_is_independent_of_name_and_defaults_false(): void
+    {
+        $event = Event::factory()->create();
+        $token = $this->adminToken();
+
+        $namedVip = $this->withToken($token)
+            ->postJson('/api/v1/ticket-types', [
+                'event_id' => $event->id,
+                'name' => 'VIP',
+                'price' => 50,
+            ])
+            ->assertCreated();
+
+        $this->assertFalse($namedVip->json('data.is_vip'));
+
+        $generalVip = $this->withToken($token)
+            ->postJson('/api/v1/ticket-types', [
+                'event_id' => $event->id,
+                'name' => 'General Admission',
+                'price' => 25,
+                'is_vip' => true,
+            ])
+            ->assertCreated();
+
+        $this->assertTrue($generalVip->json('data.is_vip'));
+        $this->assertSame('General Admission', $generalVip->json('data.name'));
+
+        $id = $namedVip->json('data.id');
+        $this->withToken($token)
+            ->patchJson("/api/v1/ticket-types/{$id}", [
+                'is_vip' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.is_vip', true)
+            ->assertJsonPath('data.name', 'VIP');
+    }
 }

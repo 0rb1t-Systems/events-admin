@@ -55,6 +55,7 @@ class TicketTypeController extends BaseController
         $validated = $request->validate([
             'event_id' => 'required|integer|exists:events,id',
             'name' => 'required|string|max:255',
+            'is_vip' => 'sometimes|boolean',
             'price' => 'required|numeric|min:0',
             'quantity_limit' => 'nullable|integer|min:0',
             'sort_order' => 'sometimes|integer|min:0',
@@ -64,6 +65,7 @@ class TicketTypeController extends BaseController
         $validated['quantity_sold'] = 0;
         $validated['sort_order'] = $validated['sort_order'] ?? 0;
         $validated['sales_enabled'] = $validated['sales_enabled'] ?? true;
+        $validated['is_vip'] = $validated['is_vip'] ?? false;
 
         $ticketType = TicketType::create($validated);
         EventMonetization::syncMonetized($ticketType->event);
@@ -79,8 +81,8 @@ class TicketTypeController extends BaseController
     }
 
     /**
-     * Admin full update: name, price, quantity_limit, sales_enabled, sort_order.
-     * Price changes re-sync monetized flag.
+     * Admin full update: name, is_vip, price, quantity_limit, sales_enabled, sort_order.
+     * Price changes re-sync monetized flag. VIP is never inferred from name.
      */
     public function update(Request $request, $id)
     {
@@ -91,6 +93,7 @@ class TicketTypeController extends BaseController
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
+            'is_vip' => 'sometimes|boolean',
             'price' => 'sometimes|numeric|min:0',
             'quantity_limit' => 'nullable|integer|min:0',
             'sales_enabled' => 'sometimes|boolean',

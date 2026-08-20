@@ -199,4 +199,34 @@ class OrganizerWebCoreApiTest extends TestCase
             ->assertJsonPath('data.pagination.total', 1)
             ->assertJsonPath('data.items.0.title', 'Mine');
     }
+
+    public function test_organizer_ticket_type_create_and_update_accept_is_vip(): void
+    {
+        $organizer = $this->organizerWithQuota();
+        $event = Event::factory()->create(['organizer_id' => $organizer->id]);
+        $this->actingAsOrganizer($organizer);
+
+        $created = $this->postJson("/api/v1/organizer/events/{$event->id}/ticket-types", [
+            'name' => 'VIP Pass',
+            'price' => 100,
+            'is_vip' => true,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.name', 'VIP Pass')
+            ->assertJsonPath('data.is_vip', true);
+
+        $id = $created->json('data.id');
+
+        $this->patchJson("/api/v1/organizer/ticket-types/{$id}", [
+            'name' => 'VIP',
+            'is_vip' => false,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'VIP')
+            ->assertJsonPath('data.is_vip', false);
+
+        $this->getJson("/api/v1/organizer/events/{$event->id}/ticket-types")
+            ->assertOk()
+            ->assertJsonPath('data.ticket_types.0.is_vip', false);
+    }
 }
