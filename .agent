@@ -1174,6 +1174,11 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Existing demo rows already in a local DB are **not** auto-deleted — truncate/migrate:fresh if a clean catalog is needed.
 - Files: `DatabaseSeeder.php`, deleted `DemoDataSeeder.php`, `.agent`.
 
+### 2026-08-20 - Organizer Google login
+- Files: `OrganizerAuthController::googleLogin`, `routes/api/v1/organizer-auth.php`, `tests/Feature/OrganizerGoogleLoginTest.php`, `.agent`
+- Behavior: `POST /api/v1/organizer-auth/google/login` (`id_token`/`access_token`) creates or signs in organizer with `organizer-web` token; suspended → `organizer_suspended`
+- Verification: `OrganizerGoogleLoginTest` — 2 passed
+
 ### 2026-08-20 - Fix announcement email Blade `$message` collision
 - Files: `resources/views/mail/notification.blade.php`, `OrganizerAnnouncementController`, `EventAddOnController`, `tests/Feature/AnnouncementMailTemplateTest.php`, `.agent`
 - Behavior: Announcement jobs were failing with `Object of class Illuminate\Mail\Message could not be converted to string` because the view used `{!! $message !!}` — Laravel Mail already binds `$message` to the Message builder. Template + controllers now use `$body`.

@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Enums\OrganizerStatus;
 use App\Enums\SanctumAbility;
 use App\Models\Organizer;
+use App\Services\GoogleTokenVerifier;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 /**
  * Organizer Web App auth scaffolding (no UI in this phase).
@@ -92,6 +95,74 @@ class OrganizerAuthController extends Controller
             'message' => 'Organizer login successful',
             'data' => [
                 'organizer' => $this->organizerPayload($organizer),
+                'token' => $token,
+                'token_ability' => SanctumAbility::OrganizerWeb->value,
+            ],
+        ]);
+    }
+
+    /**
+     * Google sign-in for organizers (API-key + GIS credential).
+     * Body: { id_token } and/or { access_token }. Issues organizer-web token.
+     * New Google emails create an active organizer (contact/business name from Google profile).
+     */
+    public function googleLogin(Request $request)
+    {
+        $request->validate([
+            'id_token' => 'nullable|string',
+            'access_token' => 'nullable|string',
+        ]);
+
+        if (! $request->filled('id_token') && ! $request->filled('access_token')) {
+            return $this->validationErrorResponse([
+                'id_token' => ['Provide a Google id_token or access_token.'],
+            ], 'Google credential required');
+        }
+
+        try {
+            $google = app(GoogleTokenVerifier::class)->verify(
+                $request->input('id_token'),
+                $request->input('access_token'),
+            );
+        } catch (InvalidArgumentException $e) {
+            return $this->unauthorizedResponse($e->getMessage());
+        }
+
+        $organizer = Organizer::query()->where('email', $google['email'])->first();
+
+        if (! $organizer) {
+            $name = $google['name'];
+            $organizer = Organizer::create([
+                'business_name' => $name,
+                'contact_name' => $name,
+                'email' => $google['email'],
+                'phone' => null,
+                'password' => Hash::make(Str::random(40)),
+                'status' => OrganizerStatus::ACTIVE,
+            ]);
+        } elseif ($organizer->isSuspended()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This organizer account is suspended. Contact support or wait for reactivation.',
+                'errors' => [
+                    'error_code' => ['organizer_suspended'],
+                ],
+                'status_code' => 403,
+            ], 403);
+        }
+
+        $this->revokeOrganizerWebTokens($organizer);
+
+        $token = $organizer->createToken(
+            'organizer_web_token',
+            [SanctumAbility::OrganizerWeb->value]
+        )->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Organizer login successful',
+            'data' => [
+                'organizer' => $this->organizerPayload($organizer->fresh() ?? $organizer),
                 'token' => $token,
                 'token_ability' => SanctumAbility::OrganizerWeb->value,
             ],
