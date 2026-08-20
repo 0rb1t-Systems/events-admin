@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-20 (Packages: distinct Archive vs Delete action icons)
+Last updated: 2026-08-20 (MySQL ENUM for domain status columns)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -1034,6 +1034,9 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 
 ## Data + Domain Conventions
 
+### MySQL ENUM for statuses (2026-08-20)
+Domain status / constrained-choice columns are native MySQL `ENUM` (not free-text VARCHAR). Helper: `App\Support\EnumColumn::modify`. Migration: `2026_08_20_153000_convert_status_columns_to_mysql_enums.php`. App layer still uses PHP backed enums + Eloquent casts. SQLite tests leave strings (EnumColumn no-op). Do not invent new status strings — extend the PHP enum **and** a follow-up `ALTER … ENUM(...)` migration together. `settings.status` remains boolean.
+
 ### Soft deletes & trash
 | Resource | SoftDeletes | Admin Trash tab |
 |----------|-------------|-----------------|
@@ -1165,6 +1168,15 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-20 - MySQL ENUM for domain status / constrained columns
+- Converted VARCHAR status (and related domain choice) columns to native MySQL `ENUM` via `App\Support\EnumColumn` + migration `2026_08_20_153000_convert_status_columns_to_mysql_enums.php`.
+- **Status columns:** `users.status` (already ENUM, re-applied), `organizers.status`, `packages.status`, `organizer_subscriptions.status`, `events.status`, `participations.status`, `participations.payment_status`, `payments.status`, `payout_requests.status`, `organizer_subscription_orders.status`.
+- **Related constrained columns:** `users.user_type`, `events.event_mode`, `packages.duration_unit`, `organizer_subscriptions.source`, `organizer_subscription_orders.action`, `payments.gateway` (`waafipay`|`manual`), `discount_codes.type`, `event_form_fields.type`, `event_sponsors.tier`, `qr_scan_logs.result`, `event_invitation_templates.mode` (`template`|`custom`).
+- **Not converted:** `settings.status` (boolean on/off, not a domain status enum).
+- SQLite tests: `EnumColumn` is a no-op (string columns remain); PHP backed enums still cast. MySQL local DB enforces ENUM at the engine.
+- Added `values()` helpers on `OrganizerStatus`, `PackageStatus`, `SubscriptionStatus`, `UserStatus`, `UserType`.
+- Verification: migrate OK; 81 status-heavy feature tests passed.
 
 ### 2026-08-20 - Packages Archive vs Delete icons
 - Cause: Packages list used `type: "delete"` twice (archive + hard delete), so both rendered the Lucide trash icon.
