@@ -15,7 +15,8 @@ export type ActionType =
     | "delete"
     | "restore"
     | "permissions"
-    | "status";
+    | "status"
+    | "archive";
 
 export interface ActionConfig<T = any> {
     type: ActionType;

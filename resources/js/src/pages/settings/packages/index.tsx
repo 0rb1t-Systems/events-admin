@@ -149,13 +149,14 @@ const PackageList = () => {
                     },
                 },
                 {
-                    type: "delete",
+                    type: "archive",
                     label: "Archive",
                     onClick: (record) => {
                         if (record.status !== "archived") {
                             void handleArchive(record);
                         }
                     },
+                    show: (record) => record.status !== "archived",
                 },
                 {
                     type: "delete",
