@@ -18,7 +18,6 @@ class DatabaseSeeder extends Seeder
             SettingsSeeder::class,
             EventCategorySeeder::class,
             InvitationSystemTemplateSeeder::class,
-            DemoDataSeeder::class,
         ]);
     }
 }

@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-20 (Fix announcement email Blade collision)
+Last updated: 2026-08-20 (Removed DemoDataSeeder / dummy catalog)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -43,7 +43,7 @@ Every meaningful change to the codebase must also update this file.
   - Full suite: **252 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
   - Run `php artisan migrate` for package duration/tier + `organizer_subscription_orders` + subscription snapshots (Prompt 15)
   - Seed: `InvitationSystemTemplateSeeder` (4 placeholder designs) via DatabaseSeeder
-  - **Demo data:** `DemoDataSeeder` (called from `DatabaseSeeder`). Idempotent. Fills packages, 3 organizers, 10 participant users, 10 events (7 public catalog + draft/cancelled/completed for Admin), tickets/speakers/sponsors/sessions/payments/feedback. Re-run: `php artisan db:seed --class=DemoDataSeeder`. Demo passwords: `password`. Organizer logins: `horn.events@example.com`, `culture.hub@example.com`, `sahil.sports@example.com`. Participants: `ayaan.mohamed@example.com` (and 9 peers).
+  - **No demo/dummy catalog seeder.** `DemoDataSeeder` was removed. Fresh `db:seed` only boots roles/permissions (+ admin user), API client, settings, event categories, and invitation system templates. Create organizers/events/packages via Admin or Web App.
   - After Prompt 13/14/15 permissions: reseed `RolePermissionSeeder` when needed (`view/manage invitation templates` already exist)
   - **FormCombobox / pickers:** Headless UI calls `displayValue(null)` when nothing is selected — formatters and `FormCombobox` must treat null as `""`. Avoid Unicode middle-dot (`·`) in template literals on Windows/Vite Babel (use ASCII ` - ` instead).
   - **Ownership (Prompt 13):** Admin = platform owner; Organizer = event owner. Event-operation actions (manual pay, QR check-in, Waafi charge) reject `admin-panel` tokens with `403` + `error_code: action_requires_organizer_scope` via `RejectsAdminPanelOrganizerActions`.
@@ -138,7 +138,6 @@ These were decided during Admin Prompts 1–11. Confirm or correct before Web Ap
 ## Run Commands
 - Install: `composer install`; `pnpm install` (or `npm install`)
 - Env: `.env.example` → `.env`; `php artisan key:generate`; DB config; `php artisan migrate`; `php artisan db:seed`
-- Demo catalog: `php artisan db:seed --class=DemoDataSeeder` (idempotent; included in full `db:seed`)
 - Primary dev: `composer run dev` / `composer run dev:windows`
 - Tests: `composer test` / `php artisan test`
 - Hook once: `powershell -ExecutionPolicy Bypass -File .\install-agent-hook.ps1`
@@ -1018,7 +1017,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Jobs: `ExpirePendingPayments`; Events/Listeners: `ParticipationCheckedIn` → `IssueAttendanceCertificate`.
 - Route files under `routes/api/v1/` imported from `routes/api.php`.
 - Factories under `database/factories/` for all major models used in tests.
-- Seeders: `RolePermissionSeeder`, `ApiClientSeeder`, `SettingsSeeder`, `EventCategorySeeder`, `InvitationSystemTemplateSeeder`, **`DemoDataSeeder`** (dummy catalog; idempotent).
+- Seeders: `RolePermissionSeeder`, `ApiClientSeeder`, `SettingsSeeder`, `EventCategorySeeder`, `InvitationSystemTemplateSeeder`. **No** `DemoDataSeeder` (removed).
 
 ## Frontend Structure Notes
 - Entry: `main.tsx`, `App.tsx`
@@ -1063,7 +1062,7 @@ Domain status / constrained-choice columns are native MySQL `ENUM` (not free-tex
 - Public event JSON: organizer visible fields `id`, `business_name` only; no discount codes; show includes ticket types, speakers, sponsors, sessions, category, images, **`event_mode`**, **`online_url`**, **`why_attend`**, **`banner_path`**, **`banner_url`**.
 - Organizer create: `event_mode` required (`in_person` / `online` / `hybrid`). `online_url` required for `online` and `hybrid`. City/address/lat/lng stay optional except lat/lng pair rule. Online-only must not send fake venue.
 - **`why_attend`:** nullable JSON string array (max 6, each max 200 after trim; empty strings dropped). Null/empty → Web App hides the section.
-- **VIP classification:** `ticket_types.is_vip` boolean (default `false`). Never infer VIP from `name`. Admin + organizer create/update accept `is_vip`; public/organizer/admin ticket JSON includes it. Admin Event hub Ticket Types tab shows VIP badge + form switch. Factory default `false`; state `vip()`. Demo seeder sets `is_vip=true` only for the demo tier literally named `VIP` (seed convenience, not runtime inference).
+- **VIP classification:** `ticket_types.is_vip` boolean (default `false`). Never infer VIP from `name`. Admin + organizer create/update accept `is_vip`; public/organizer/admin ticket JSON includes it. Admin Event hub Ticket Types tab shows VIP badge + form switch. Factory default `false`; state `vip()`.
 - **Banner contract:** stored `banner_path` is typically `/assets/images/events/{file}` under **`public/`** (same folder as gallery; **not** `/storage/...`). Absolute `http(s)` URLs (demo picsum) pass through. Appended `banner_url` is `url('/'+path)` for relative paths. Organizer upload: `POST /organizer/events/{event}/banner` field **`banner`**. String `banner_path` still accepted on create/update. If the Web App prefixes `/storage/`, that is a frontend `getMediaUrl()` bug — Laravel is correct.
 - Registration gates (capacity + deadline) are independent (`EventRegistrationGate`).
 - `monetized` derived from paid ticket types.
@@ -1169,6 +1168,12 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 
 ## Change Log
 
+### 2026-08-20 - Removed DemoDataSeeder (dummy catalog)
+- Deleted `database/seeders/DemoDataSeeder.php` and removed it from `DatabaseSeeder`.
+- `php artisan db:seed` now only runs: RolePermission, ApiClient, Settings, EventCategory, InvitationSystemTemplate.
+- Existing demo rows already in a local DB are **not** auto-deleted — truncate/migrate:fresh if a clean catalog is needed.
+- Files: `DatabaseSeeder.php`, deleted `DemoDataSeeder.php`, `.agent`.
+
 ### 2026-08-20 - Fix announcement email Blade `$message` collision
 - Files: `resources/views/mail/notification.blade.php`, `OrganizerAnnouncementController`, `EventAddOnController`, `tests/Feature/AnnouncementMailTemplateTest.php`, `.agent`
 - Behavior: Announcement jobs were failing with `Object of class Illuminate\Mail\Message could not be converted to string` because the view used `{!! $message !!}` — Laravel Mail already binds `$message` to the Message builder. Template + controllers now use `$body`.
@@ -1209,7 +1214,7 @@ Backend self-subscription / upgrade for organizers. Packages: `duration_value` /
 - **Schema:** `ticket_types.is_vip` boolean default `false` (migration `2026_08_20_110000_add_is_vip_to_ticket_types_table.php`). Existing rows stay non-VIP.
 - **Contract:** VIP is only `is_vip === true`. Name is a display label. Create defaults `is_vip=false` when omitted. Admin `POST/PATCH /ticket-types` and organizer `POST …/ticket-types` + `PATCH /organizer/ticket-types/{id}` accept `is_vip`. Serialized on public event ticket types, organizer lists, admin oversight.
 - **Admin FE:** `ITicketType.is_vip`; Ticket Types tab VIP column; `TicketTypeModal` “VIP tier” switch.
-- Files: migration, `TicketType` model/factory, `TicketTypeController`, `OrganizerTicketTypeController`, `DemoDataSeeder`, `resources/js/src/types/event.ts`, `TicketTypeModal.tsx`, `EventTicketTypesTab.tsx`, tests (`TicketTypeModuleTest`, `OrganizerWebCoreApiTest`, `PublicEventApiTest`), `.agent`.
+- Files: migration, `TicketType` model/factory, `TicketTypeController`, `OrganizerTicketTypeController`, `resources/js/src/types/event.ts`, `TicketTypeModal.tsx`, `EventTicketTypesTab.tsx`, tests (`TicketTypeModuleTest`, `OrganizerWebCoreApiTest`, `PublicEventApiTest`), `.agent`.
 - Verification: targeted ticket/organizer/public tests + migrate.
 
 ### 2026-08-19 - Event mode, why_attend, participant discounts, banner_url
@@ -1298,12 +1303,8 @@ Backend self-subscription / upgrade for organizers. Packages: `duration_value` /
 - Migration/config/env impact: none (FE-only)
 - Verification: `composer test` (expect 163 passed / 3 pre-existing ExceptionHandlerTest failures)
 
-### 2026-08-17 - Demo data seeder (non-empty Admin + Web App)
-- **`DemoDataSeeder`** fills local DB so catalogs are not empty: 3 packages, 3 organizers (active subscriptions), 10 participant users, 10 events (7 public: published/open/sold_out/closed/ongoing + draft/cancelled/completed for Admin), ticket types, speakers, sponsors, sessions, form fields, discount `DEMO10`, gallery URLs, announcements, invitation templates, participations/payments, QR scans, certificates, feedback, one payout request, organization profile.
-- Wired into `DatabaseSeeder` after invitation templates. Standalone: `php artisan db:seed --class=DemoDataSeeder` (idempotent; also re-runs category + invitation template seeders).
-- Demo password: `password`. Organizers: `horn.events@example.com`, `culture.hub@example.com`, `sahil.sports@example.com`. Sample participant: `ayaan.mohamed@example.com`.
-- Files: `database/seeders/DemoDataSeeder.php`, `database/seeders/DatabaseSeeder.php`, `.agent`
-- Migration/config/env impact: none (seed only)
+### 2026-08-17 - Demo data seeder (non-empty Admin + Web App) — **REMOVED 2026-08-20**
+- Historical note only: `DemoDataSeeder` previously filled packages/organizers/events/etc. File and `DatabaseSeeder` wiring deleted. Do not reintroduce without an explicit product request.
 - Verification: seeder ran on local MySQL `eventdb` — 10 events (7 public), 3 organizers, 3 packages, 11 users, 51 participations, 47 payments
 
 ### 2026-08-17 - Public HMAC-only event catalog (Web App)
