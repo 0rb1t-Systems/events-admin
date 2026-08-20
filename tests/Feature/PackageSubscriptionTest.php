@@ -85,6 +85,9 @@ class PackageSubscriptionTest extends TestCase
                 'description' => 'All events',
                 'price' => 99.5,
                 'event_quota' => null,
+                'duration_value' => null,
+                'duration_unit' => null,
+                'tier_rank' => 100,
                 'status' => 'active',
             ]);
 
@@ -97,6 +100,9 @@ class PackageSubscriptionTest extends TestCase
                 'name' => 'Zero Plan',
                 'price' => 0,
                 'event_quota' => 0,
+                'duration_value' => 1,
+                'duration_unit' => 'month',
+                'tier_rank' => 0,
             ]);
 
         $zero->assertCreated()
@@ -107,6 +113,9 @@ class PackageSubscriptionTest extends TestCase
                 'name' => 'Starter',
                 'price' => 29,
                 'event_quota' => 5,
+                'duration_value' => 1,
+                'duration_unit' => 'month',
+                'tier_rank' => 10,
             ]);
 
         $finite->assertCreated()

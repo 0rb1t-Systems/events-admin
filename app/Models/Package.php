@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\PackageDurationUnit;
 use App\Enums\PackageStatus;
 use App\Support\EventQuota;
+use App\Support\PackageDuration;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -18,7 +20,14 @@ class Package extends Model
         'description',
         'price',
         'event_quota',
+        'duration_value',
+        'duration_unit',
+        'tier_rank',
         'status',
+    ];
+
+    protected $appends = [
+        'duration_label',
     ];
 
     protected function casts(): array
@@ -26,8 +35,26 @@ class Package extends Model
         return [
             'price' => 'decimal:2',
             'event_quota' => 'integer',
+            'duration_value' => 'integer',
+            'duration_unit' => PackageDurationUnit::class,
+            'tier_rank' => 'integer',
             'status' => PackageStatus::class,
         ];
+    }
+
+    public function getDurationLabelAttribute(): ?string
+    {
+        return PackageDuration::labelForPackage($this);
+    }
+
+    public function isNonExpiring(): bool
+    {
+        return PackageDuration::isNonExpiring($this->duration_value, $this->duration_unit);
+    }
+
+    public function isFree(): bool
+    {
+        return (float) $this->price <= 0;
     }
 
     public function subscriptions(): HasMany

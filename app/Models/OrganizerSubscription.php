@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SubscriptionSource;
 use App\Enums\SubscriptionStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,14 +19,19 @@ class OrganizerSubscription extends Model
         'status',
         'started_at',
         'expires_at',
+        'package_snapshot',
+        'source',
+        'subscription_order_id',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => SubscriptionStatus::class,
+            'source' => SubscriptionSource::class,
             'started_at' => 'datetime',
             'expires_at' => 'datetime',
+            'package_snapshot' => 'array',
         ];
     }
 
@@ -37,6 +43,11 @@ class OrganizerSubscription extends Model
     public function package(): BelongsTo
     {
         return $this->belongsTo(Package::class);
+    }
+
+    public function subscriptionOrder(): BelongsTo
+    {
+        return $this->belongsTo(OrganizerSubscriptionOrder::class, 'subscription_order_id');
     }
 
     public function isActive(): bool

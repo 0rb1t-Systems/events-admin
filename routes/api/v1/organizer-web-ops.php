@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 |
 | Loaded under /api/v1 (see routes/api.php). Prefix organizer → /api/v1/organizer/...
-| Cross-organizer resources return 404. No approve/reject/record-payment. No package purchase.
+| Cross-organizer resources return 404. No approve/reject/record-payment.
+| Organizer self-subscription: POST /subscriptions (Waafi for paid packages).
 |
 */
 
@@ -35,4 +36,8 @@ Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group
     Route::get('/packages', [OrganizerPackageController::class, 'packages']);
     Route::get('/subscription', [OrganizerPackageController::class, 'subscription']);
     Route::get('/quota', [OrganizerPackageController::class, 'quota']);
+    Route::post('/subscriptions', [OrganizerPackageController::class, 'subscribe']);
+    Route::get('/subscriptions/history', [OrganizerPackageController::class, 'history']);
+    Route::get('/subscription-orders', [OrganizerPackageController::class, 'orders']);
+    Route::get('/subscription-orders/{id}', [OrganizerPackageController::class, 'showOrder'])->whereNumber('id');
 });

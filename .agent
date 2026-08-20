@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-20 (TicketType `is_vip` explicit VIP classification)
+Last updated: 2026-08-20 — Prompt 15: Organizer package subscription lifecycle (self-subscribe / upgrade + Waafi)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -22,7 +22,7 @@ Every meaningful change to the codebase must also update this file.
   - Laravel serve: `http://localhost:8000` (Unix) / `http://localhost:8002` (Windows script)
   - Vite HMR via `npm run dev` / pnpm Vite
   - Queue worker: `php artisan queue:listen`
-  - Scheduler: `php artisan schedule:work` (or cron) for `ExpirePendingPayments` every 5 min
+  - Scheduler: `php artisan schedule:work` (or cron) for `ExpirePendingPayments` + `ExpireOrganizerSubscriptions` every 5 min
 - API base URL (axios): `/api/v1` (same-origin)
 - Absolute API examples: `http://localhost:8000/api/v1` (or `:8002` on Windows)
 - Health: `GET /up`; API ping: `GET /api/ping`
@@ -40,8 +40,8 @@ Every meaningful change to the codebase must also update this file.
   - Do not commit `.env` or secrets
   - Organization is effectively **single-tenant profile** (not a full CRUD list page like Users)
   - After permission changes: reseed `RolePermissionSeeder` (or sync admin role) so gates match routes
-  - Full suite: **199 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
-  - Run `php artisan migrate` for invitation system templates + event_invitation_templates mode columns (Prompt 15)
+  - Full suite: **252 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
+  - Run `php artisan migrate` for package duration/tier + `organizer_subscription_orders` + subscription snapshots (Prompt 15)
   - Seed: `InvitationSystemTemplateSeeder` (4 placeholder designs) via DatabaseSeeder
   - **Demo data:** `DemoDataSeeder` (called from `DatabaseSeeder`). Idempotent. Fills packages, 3 organizers, 10 participant users, 10 events (7 public catalog + draft/cancelled/completed for Admin), tickets/speakers/sponsors/sessions/payments/feedback. Re-run: `php artisan db:seed --class=DemoDataSeeder`. Demo passwords: `password`. Organizer logins: `horn.events@example.com`, `culture.hub@example.com`, `sahil.sports@example.com`. Participants: `ayaan.mohamed@example.com` (and 9 peers).
   - After Prompt 13/14/15 permissions: reseed `RolePermissionSeeder` when needed (`view/manage invitation templates` already exist)
@@ -335,12 +335,12 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 | Payouts (per-event only) | `GET /payout-requests`, `GET/POST /events/{event}/payout-requests`, `GET /payout-requests/{id}` — **no** approve/reject/record-payment |
 | QR | `POST /qr-scan-logs/validate` `{ token, gate? }`, `GET /events/{event}/qr-scan-logs`, `GET /events/{event}/check-in-stats` |
 | Invitation | `GET /invitation-system-templates` (active), `GET/POST/PATCH /events/{event}/invitation-template`, `POST .../background` |
-| Packages | `GET /packages` (active catalog), `GET /subscription`, `GET /quota` — **no** purchase |
+| Packages | `GET /packages` (active catalog with duration + lifecycle flags), `GET /subscription`, `GET /quota`, `POST /subscriptions` `{ package_id, payer_phone? }`, `GET /subscriptions/history`, `GET /subscription-orders`, `GET /subscription-orders/{id}` |
 | Auth extras | `PATCH /organizer-auth/profile`, `POST /organizer-auth/change-password` |
 
-**Tests:** `EnsureParticipantWebAccessTest`, `ParticipantWebApiTest`, `ParticipantDiscountApiTest`, `EventModeWhyAttendApiTest`, `OrganizerEventBannerApiTest`, `OrganizerWebCoreApiTest`, `OrganizerWebContentApiTest`, `OrganizerWebOpsApiTest`.
+**Tests:** `EnsureParticipantWebAccessTest`, `ParticipantWebApiTest`, `ParticipantDiscountApiTest`, `EventModeWhyAttendApiTest`, `OrganizerEventBannerApiTest`, `OrganizerWebCoreApiTest`, `OrganizerWebContentApiTest`, `OrganizerWebOpsApiTest`, `OrganizerSubscriptionPurchaseTest`, `PackageSubscriptionTest`.
 
-**Consciously deferred:** invitation PDF compositing; organizer `payments/manual` Web route; organizer self-charge; package purchase/billing; Share Event; Admin SPA Web UI.
+**Consciously deferred:** invitation PDF compositing; organizer `payments/manual` Web route; organizer self-charge for tickets; Share Event; Web App UI for package checkout (backend ready).
 
 ### Admin navigation (permission-gated)
 | Nav | Path | Permission(s) |
@@ -449,7 +449,73 @@ Organizers are **not** Users. Own table, own Authenticatable model, own Sanctum 
 
 ## Packages & Subscriptions (Phase 3)
 
-Access to event creation is gated by **subscription packages**. Admins fully CRUD packages; organizers will subscribe via Web App later. Admin can assign/cancel now for oversight.
+Access to event creation is gated by **subscription packages**. Organizers self-subscribe/upgrade via Web API (`POST /organizer/subscriptions`); Admin can still assign/cancel as ops override.
+
+### Prompt 15 — Organizer package subscription lifecycle
+
+**Package duration**
+
+- Columns: `duration_value` (unsigned int, nullable), `duration_unit` (`day|week|month|year`, nullable), `tier_rank` (unsigned int, default 0).
+- **Non-expiring rule:** both `duration_value` and `duration_unit` null → `expires_at` null (legacy / ops). Both must be set together for time-boxed plans. Appended `duration_label` e.g. `1 month`, `2 years`.
+- Calendar arithmetic: days/weeks addDays/addWeeks; months/years use `addMonthsNoOverflow` / `addYearsNoOverflow`.
+- Admin create/edit (`PackageController` + Admin Package form) requires `tier_rank`; duration pair optional (non-expiring allowed).
+
+**Upgrade / downgrade (deterministic `tier_rank` only)**
+
+- Higher `tier_rank` than current active package → upgrade allowed.
+- Same `package_id` while active → blocked (no re-subscribe).
+- Lower or equal `tier_rank` (different package) → blocked.
+- Archived packages cannot be newly purchased.
+- No price/quota heuristic — avoids incomparable plans.
+
+**Upgrade payment policy**
+
+- No proration; no credit for unused time.
+- Organizer pays full new package price (server snapshot).
+- Activate only after Waafi success (or immediately if price = 0).
+- On success: old active row → `cancelled` (superseded); new history row starts now; expiry from new package duration.
+- Failed Waafi upgrade leaves current subscription unchanged.
+
+**Orders (`organizer_subscription_orders`)**
+
+- Dedicated purchase model (not participation `payments`).
+- Fields: organizer, package, action `subscribe|upgrade`, amount, currency USD, status `pending|completed|failed|cancelled`, reference_id `SUB-{uuid}`, payer_phone, Waafi ids, failure_code/reason, package_snapshot JSON, previous/resulting subscription ids, completed_at, expires_at (pending window).
+- Browser must NEVER submit amount/price/action — only `{ package_id, payer_phone? }`.
+
+**Subscriptions history**
+
+- Immutable period rows. Snapshots: package_name, package_price, event_quota, duration_*, tier_rank.
+- `source`: `admin_assign` | `self_subscribe` | `self_upgrade`.
+- Quota / event create uses `PackageLifecycle::effectiveQuota` (snapshot preferred) + time-safe `activeSubscription()`.
+
+**Expiry**
+
+- `Organizer::activeSubscription()` already excludes `expires_at <= now` even if status still `active`.
+- Job `ExpireOrganizerSubscriptions` every 5 min: pending orders past window → failed; soft-elapsed active rows → `expired`.
+- Expiry does **not** delete events; organizer cannot create more without a new active plan.
+
+**Waafi**
+
+- Reuses `WaafiPayService` + Somali phone normalizer + dual approval (`2001` + `approved`).
+- Free packages skip Waafi.
+- Idempotency: `lockForUpdate` on organizer; block second purchase while pending order exists; completed orders activate once.
+
+**Admin manual assign**
+
+- Still cancels all `status=active` rows and creates a new period with snapshot + `source=admin_assign`.
+- If `expires_at` omitted → computed from package duration (null if non-expiring). Explicit `expires_at` overrides.
+- Manual assign is an ops override (can assign any active package regardless of tier rules).
+
+**Organizer endpoints** (`auth:sanctum` + `organizer.web`)
+
+- `GET /api/v1/organizer/packages` — catalog + `is_current`, `selectable`, `upgrade_allowed`, `blocked_reason`, `action`
+- `GET /api/v1/organizer/subscription` — active + history
+- `GET /api/v1/organizer/subscriptions/history`
+- `GET /api/v1/organizer/quota` — usage + seconds_remaining
+- `POST /api/v1/organizer/subscriptions` — subscribe/upgrade
+- `GET /api/v1/organizer/subscription-orders`, `GET /api/v1/organizer/subscription-orders/{id}`
+
+Service: `OrganizerSubscriptionPurchaseService`. Tests: `OrganizerSubscriptionPurchaseTest`.
 
 ### Data model (history, not a mutable column)
 
@@ -1099,6 +1165,10 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-20 — Prompt 15: Organizer package subscription lifecycle
+
+Backend self-subscription / upgrade for organizers. Packages: `duration_value` / `duration_unit` / `tier_rank` + `duration_label`. New `organizer_subscription_orders`; subscription `package_snapshot` / `source` / `subscription_order_id`. `OrganizerSubscriptionPurchaseService` (Waafi reuse; free skip; no proration; organizer lockForUpdate; pending-order guard). Organizer routes: `POST /subscriptions`, history, orders. Catalog lifecycle flags. Admin Package form duration + tier. Job `ExpireOrganizerSubscriptions`. Quota gates use snapshot via `PackageLifecycle::effectiveQuota`. Tests: `OrganizerSubscriptionPurchaseTest` (13). Verification: filter tests green; full suite **252 passed** / 3 pre-existing `ExceptionHandlerTest` failures. Web App SPA not modified.
 
 ### 2026-08-20 - TicketType `is_vip` (VIP not inferred from name)
 - **Schema:** `ticket_types.is_vip` boolean default `false` (migration `2026_08_20_110000_add_is_vip_to_ticket_types_table.php`). Existing rows stay non-VIP.

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\PackageDurationUnit;
 use App\Enums\PackageStatus;
 use App\Models\Package;
+use App\Support\PackageDuration;
 use Illuminate\Http\Request;
 
 class PackageController extends BaseController
@@ -12,7 +14,17 @@ class PackageController extends BaseController
 
     protected $searchableFields = ['name', 'description'];
 
-    protected $sortableFields = ['id', 'name', 'price', 'event_quota', 'status', 'created_at', 'updated_at'];
+    protected $sortableFields = [
+        'id',
+        'name',
+        'price',
+        'event_quota',
+        'duration_value',
+        'tier_rank',
+        'status',
+        'created_at',
+        'updated_at',
+    ];
 
     protected $relationships = [];
 
@@ -23,6 +35,9 @@ class PackageController extends BaseController
             'price' => 'required|numeric|min:0',
             // Present + nullable: omit vs null vs 0 are distinct; null = unlimited, 0 = zero quota
             'event_quota' => 'present|nullable|integer|min:0',
+            'duration_value' => 'nullable|integer|min:1|required_with:duration_unit',
+            'duration_unit' => 'nullable|required_with:duration_value|in:day,week,month,year',
+            'tier_rank' => 'required|integer|min:0',
             'status' => 'sometimes|in:active,archived',
         ],
         'update' => [
@@ -30,6 +45,9 @@ class PackageController extends BaseController
             'description' => 'nullable|string',
             'price' => 'sometimes|required|numeric|min:0',
             'event_quota' => 'sometimes|nullable|integer|min:0',
+            'duration_value' => 'sometimes|nullable|integer|min:1|required_with:duration_unit',
+            'duration_unit' => 'sometimes|nullable|required_with:duration_value|in:day,week,month,year',
+            'tier_rank' => 'sometimes|required|integer|min:0',
             'status' => 'sometimes|in:active,archived',
         ],
     ];
@@ -38,6 +56,15 @@ class PackageController extends BaseController
     {
         $validated = $request->validate($this->validationRules['store']);
         $validated['status'] = $validated['status'] ?? PackageStatus::ACTIVE->value;
+
+        try {
+            PackageDuration::assertValidPair(
+                $validated['duration_value'] ?? null,
+                $validated['duration_unit'] ?? null
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->badRequestResponse($e->getMessage());
+        }
 
         $package = $this->model::create($validated);
 
@@ -59,6 +86,21 @@ class PackageController extends BaseController
         }
 
         $validated = $request->validate($this->validationRules['update']);
+
+        $nextValue = array_key_exists('duration_value', $validated)
+            ? $validated['duration_value']
+            : $package->duration_value;
+        $nextUnit = array_key_exists('duration_unit', $validated)
+            ? $validated['duration_unit']
+            : ($package->duration_unit instanceof PackageDurationUnit
+                ? $package->duration_unit->value
+                : $package->duration_unit);
+
+        try {
+            PackageDuration::assertValidPair($nextValue, $nextUnit);
+        } catch (\InvalidArgumentException $e) {
+            return $this->badRequestResponse($e->getMessage());
+        }
 
         // Archiving with active subscribers is blocked (no silent orphaning of active plans)
         if (

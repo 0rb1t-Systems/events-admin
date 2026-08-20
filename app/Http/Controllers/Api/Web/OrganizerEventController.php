@@ -11,6 +11,7 @@ use App\Services\EventMonetization;
 use App\Services\EventStatusMachine;
 use App\Support\EventFieldRules;
 use App\Support\EventQuota;
+use App\Support\PackageLifecycle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -272,11 +273,11 @@ class OrganizerEventController extends BaseController
     {
         $organizer->load('activeSubscription.package');
         $sub = $organizer->activeSubscription;
-        if (! $sub || ! $sub->package) {
+        if (! $sub || ! $sub->isActive()) {
             return 'Organizer has no active subscription package; cannot create events.';
         }
 
-        $quota = $sub->package->event_quota;
+        $quota = PackageLifecycle::effectiveQuota($sub);
         $created = $organizer->events()->count();
 
         if (! EventQuota::canCreateEvent($quota, $created)) {

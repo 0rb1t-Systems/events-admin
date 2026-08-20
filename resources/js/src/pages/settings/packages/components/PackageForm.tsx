@@ -20,6 +20,10 @@ const packageSchema = z
         price: z.coerce.number().min(0, "Price must be ≥ 0"),
         unlimited: z.boolean(),
         event_quota: z.coerce.number().int().min(0).optional().nullable(),
+        non_expiring: z.boolean(),
+        duration_value: z.coerce.number().int().min(1).optional().nullable(),
+        duration_unit: z.enum(["day", "week", "month", "year"]).optional().nullable(),
+        tier_rank: z.coerce.number().int().min(0),
         status: z.enum(["active", "archived"]),
     })
     .superRefine((data, ctx) => {
@@ -29,6 +33,22 @@ const packageSchema = z
                 message: "Enter a quota, or enable Unlimited",
                 path: ["event_quota"],
             });
+        }
+        if (!data.non_expiring) {
+            if (!data.duration_value) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "Enter duration value, or enable Non-expiring",
+                    path: ["duration_value"],
+                });
+            }
+            if (!data.duration_unit) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "Select a duration unit",
+                    path: ["duration_unit"],
+                });
+            }
         }
     });
 
@@ -60,21 +80,35 @@ const PackageForm: React.FC<PackageFormProps> = ({ packageToEdit, onClose }) => 
             price: 0,
             unlimited: false,
             event_quota: 10,
+            non_expiring: false,
+            duration_value: 1,
+            duration_unit: "month",
+            tier_rank: 10,
             status: "active",
         },
         mode: "onChange",
     });
 
     const unlimited = watch("unlimited");
+    const nonExpiring = watch("non_expiring");
 
     useEffect(() => {
         if (packageToEdit) {
+            const nonExp =
+                packageToEdit.duration_value == null &&
+                (packageToEdit.duration_unit == null || packageToEdit.duration_unit === "");
             reset({
                 name: packageToEdit.name,
                 description: packageToEdit.description ?? "",
                 price: Number(packageToEdit.price),
                 unlimited: packageToEdit.event_quota === null,
                 event_quota: packageToEdit.event_quota === null ? null : packageToEdit.event_quota,
+                non_expiring: nonExp,
+                duration_value: nonExp ? 1 : packageToEdit.duration_value ?? 1,
+                duration_unit: (nonExp
+                    ? "month"
+                    : (packageToEdit.duration_unit as "day" | "week" | "month" | "year") || "month"),
+                tier_rank: packageToEdit.tier_rank ?? 0,
                 status: (packageToEdit.status as "active" | "archived") || "active",
             });
         } else {
@@ -84,6 +118,10 @@ const PackageForm: React.FC<PackageFormProps> = ({ packageToEdit, onClose }) => 
                 price: 0,
                 unlimited: false,
                 event_quota: 10,
+                non_expiring: false,
+                duration_value: 1,
+                duration_unit: "month",
+                tier_rank: 10,
                 status: "active",
             });
         }
@@ -96,10 +134,28 @@ const PackageForm: React.FC<PackageFormProps> = ({ packageToEdit, onClose }) => 
         }
     }, [unlimited, setValue]);
 
+    useEffect(() => {
+        if (nonExpiring) {
+            setValue("duration_value", null);
+            setValue("duration_unit", null);
+        }
+    }, [nonExpiring, setValue]);
+
     const handleMutationError = (error: any) => {
         if (error?.errors) {
             Object.entries(error.errors).forEach(([key, value]) => {
-                if (["name", "description", "price", "event_quota", "status"].includes(key)) {
+                if (
+                    [
+                        "name",
+                        "description",
+                        "price",
+                        "event_quota",
+                        "duration_value",
+                        "duration_unit",
+                        "tier_rank",
+                        "status",
+                    ].includes(key)
+                ) {
                     setError(key as any, {
                         type: "server",
                         message: Array.isArray(value) ? value[0] : String(value),
@@ -117,8 +173,10 @@ const PackageForm: React.FC<PackageFormProps> = ({ packageToEdit, onClose }) => 
         name: data.name,
         description: data.description || null,
         price: data.price,
-        // Explicit: null = unlimited, 0 = zero quota (never use falsy collapse)
         event_quota: data.unlimited ? null : data.event_quota,
+        duration_value: data.non_expiring ? null : data.duration_value,
+        duration_unit: data.non_expiring ? null : data.duration_unit,
+        tier_rank: data.tier_rank,
         status: data.status,
     });
 
@@ -247,6 +305,88 @@ const PackageForm: React.FC<PackageFormProps> = ({ packageToEdit, onClose }) => 
                         />
                     )}
                 />
+            )}
+
+            <Controller
+                name="tier_rank"
+                control={control}
+                render={({ field }) => (
+                    <FormInput
+                        id="package_tier_rank"
+                        label="Tier rank (upgrade ladder)"
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={String(field.value ?? "")}
+                        onChange={(v) => field.onChange(v === "" ? 0 : Number(v))}
+                        onBlur={field.onBlur}
+                        error={errors.tier_rank?.message}
+                        required
+                    />
+                )}
+            />
+            <p className="text-xs text-gray-500 -mt-2">
+                Higher tier_rank can upgrade from lower. Same or lower is blocked for self-serve.
+            </p>
+
+            <div className="flex items-center gap-2">
+                <Controller
+                    name="non_expiring"
+                    control={control}
+                    render={({ field }) => (
+                        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-white-light cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="form-checkbox"
+                                checked={field.value}
+                                onChange={(e) => field.onChange(e.target.checked)}
+                            />
+                            Non-expiring (no duration)
+                        </label>
+                    )}
+                />
+            </div>
+
+            {!nonExpiring && (
+                <div className="grid grid-cols-2 gap-3">
+                    <Controller
+                        name="duration_value"
+                        control={control}
+                        render={({ field }) => (
+                            <FormInput
+                                id="package_duration_value"
+                                label="Duration"
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={field.value === null || field.value === undefined ? "" : String(field.value)}
+                                onChange={(v) => field.onChange(v === "" ? null : Number(v))}
+                                onBlur={field.onBlur}
+                                error={errors.duration_value?.message}
+                                required
+                            />
+                        )}
+                    />
+                    <Controller
+                        name="duration_unit"
+                        control={control}
+                        render={({ field }) => (
+                            <FormSelect
+                                label="Unit"
+                                value={field.value ?? "month"}
+                                onChange={field.onChange}
+                                onBlur={field.onBlur}
+                                options={[
+                                    { value: "day", label: "Day(s)" },
+                                    { value: "week", label: "Week(s)" },
+                                    { value: "month", label: "Month(s)" },
+                                    { value: "year", label: "Year(s)" },
+                                ]}
+                                error={errors.duration_unit?.message}
+                            />
+                        )}
+                    />
+                </div>
             )}
 
             <Controller

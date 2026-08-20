@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\ExpireOrganizerSubscriptions;
 use App\Jobs\ExpirePendingPayments;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -14,3 +15,4 @@ Artisan::command('inspire', function () {
 | Participation → cancelled, ticket quantity released — seats not held unpaid forever.
 */
 Schedule::job(new ExpirePendingPayments)->everyFiveMinutes();
+Schedule::job(new ExpireOrganizerSubscriptions)->everyFiveMinutes();

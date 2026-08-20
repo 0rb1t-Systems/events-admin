@@ -74,6 +74,16 @@ const PackageDetail: React.FC<PackageDetailProps> = ({ packageId }) => {
                     </p>
                 </div>
                 <div>
+                    <div className="text-xs font-medium uppercase text-gray-500">Duration</div>
+                    <p className="mt-0.5 text-gray-900 dark:text-white">
+                        {pkg.duration_label || "Non-expiring"}
+                    </p>
+                </div>
+                <div>
+                    <div className="text-xs font-medium uppercase text-gray-500">Tier rank</div>
+                    <p className="mt-0.5 text-gray-900 dark:text-white">{pkg.tier_rank ?? 0}</p>
+                </div>
+                <div>
                     <div className="text-xs font-medium uppercase text-gray-500">Status</div>
                     <p className="mt-0.5 capitalize text-gray-900 dark:text-white">{pkg.status}</p>
                 </div>

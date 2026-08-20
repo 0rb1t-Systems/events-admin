@@ -1,6 +1,7 @@
 import { ITimestamped } from "./common";
 
 export type PackageStatus = "active" | "archived";
+export type PackageDurationUnit = "day" | "week" | "month" | "year";
 
 export interface IPackage extends ITimestamped {
     id: number;
@@ -9,6 +10,10 @@ export interface IPackage extends ITimestamped {
     price: number | string;
     /** null = unlimited; 0 = zero events allowed (distinct from unlimited) */
     event_quota: number | null;
+    duration_value?: number | null;
+    duration_unit?: PackageDurationUnit | string | null;
+    duration_label?: string | null;
+    tier_rank?: number;
     status: PackageStatus | string;
 }
 

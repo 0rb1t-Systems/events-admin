@@ -44,6 +44,11 @@ class Organizer extends Authenticatable
         return $this->hasMany(OrganizerSubscription::class);
     }
 
+    public function subscriptionOrders(): HasMany
+    {
+        return $this->hasMany(OrganizerSubscriptionOrder::class);
+    }
+
     public function events(): HasMany
     {
         return $this->hasMany(Event::class);

@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\PackageStatus;
+use App\Enums\SubscriptionSource;
 use App\Enums\SubscriptionStatus;
 use App\Models\Organizer;
 use App\Models\OrganizerSubscription;
 use App\Models\Package;
 use App\Support\EventQuota;
+use App\Support\PackageDuration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -145,7 +148,7 @@ class OrganizerSubscriptionController extends BaseController
         ]);
 
         $package = Package::findOrFail($validated['package_id']);
-        if ($package->status !== \App\Enums\PackageStatus::ACTIVE) {
+        if ($package->status !== PackageStatus::ACTIVE) {
             return $this->badRequestResponse('Only active packages can be assigned.');
         }
 
@@ -158,12 +161,19 @@ class OrganizerSubscriptionController extends BaseController
                     'expires_at' => now(),
                 ]);
 
+            $startedAt = now();
+            $expiresAt = array_key_exists('expires_at', $validated)
+                ? ($validated['expires_at'] ?? null)
+                : PackageDuration::expiresAt($startedAt, $package->duration_value, $package->duration_unit);
+
             return OrganizerSubscription::create([
                 'organizer_id' => $organizer->id,
                 'package_id' => $package->id,
                 'status' => SubscriptionStatus::ACTIVE,
-                'started_at' => now(),
-                'expires_at' => $validated['expires_at'] ?? null,
+                'started_at' => $startedAt,
+                'expires_at' => $expiresAt,
+                'package_snapshot' => PackageDuration::snapshot($package),
+                'source' => SubscriptionSource::ADMIN_ASSIGN,
             ]);
         });
 
@@ -242,10 +252,22 @@ class OrganizerSubscriptionController extends BaseController
                 'name' => $package->name,
                 'price' => $package->price,
                 'event_quota' => $package->event_quota,
+                'duration_value' => $package->duration_value,
+                'duration_unit' => $package->duration_unit,
+                'duration_label' => PackageDuration::labelForPackage($package),
+                'tier_rank' => $package->tier_rank,
                 'status' => $package->status,
             ] : null,
             // events_created = organizer's Event count (EventQuota null vs 0 respected)
-            'quota_usage' => EventQuota::usagePayload($quota, $eventsCreated),
+            'quota_usage' => EventQuota::usagePayload(
+                array_key_exists('event_quota', $sub->package_snapshot ?? [])
+                    ? ($sub->isActive() ? $sub->package_snapshot['event_quota'] : 0)
+                    : ($sub->isActive() ? $quota : 0),
+                $eventsCreated
+            ),
+            'package_snapshot' => $sub->package_snapshot,
+            'source' => $sub->source,
+            'subscription_order_id' => $sub->subscription_order_id,
         ];
     }
 }

@@ -95,18 +95,27 @@ class DemoDataSeeder extends Seeder
                 'description' => 'Up to 5 events. Good for first-time organizers.',
                 'price' => 29,
                 'event_quota' => 5,
+                'duration_value' => 1,
+                'duration_unit' => 'month',
+                'tier_rank' => 10,
             ],
             'pro' => [
                 'name' => 'Pro',
                 'description' => 'Up to 25 events with priority support.',
                 'price' => 79,
                 'event_quota' => 25,
+                'duration_value' => 1,
+                'duration_unit' => 'month',
+                'tier_rank' => 20,
             ],
             'unlimited' => [
                 'name' => 'Unlimited',
                 'description' => 'No event cap. For busy venues and agencies.',
                 'price' => 199,
                 'event_quota' => null,
+                'duration_value' => 1,
+                'duration_unit' => 'year',
+                'tier_rank' => 30,
             ],
         ];
 

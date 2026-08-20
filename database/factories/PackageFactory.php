@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\PackageDurationUnit;
 use App\Enums\PackageStatus;
 use App\Models\Package;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -20,8 +21,24 @@ class PackageFactory extends Factory
             'description' => fake()->sentence(),
             'price' => fake()->randomFloat(2, 0, 500),
             'event_quota' => 10,
+            'duration_value' => 1,
+            'duration_unit' => PackageDurationUnit::MONTH,
+            'tier_rank' => fake()->numberBetween(1, 100),
             'status' => PackageStatus::ACTIVE,
         ];
+    }
+
+    public function nonExpiring(): static
+    {
+        return $this->state(fn () => [
+            'duration_value' => null,
+            'duration_unit' => null,
+        ]);
+    }
+
+    public function free(): static
+    {
+        return $this->state(fn () => ['price' => 0]);
     }
 
     public function unlimited(): static
