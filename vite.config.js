@@ -23,6 +23,58 @@ export default defineConfig({
         watch: {
             ignored: ["**/.env"],
         },
+        // Warm the Admin entry so the first navigation is not a cold transform storm.
+        warmup: {
+            clientFiles: ["./resources/js/src/main.tsx"],
+        },
+    },
+
+    // Pre-bundle heavy deps so the browser does not request thousands of ESM files
+    // on the first visit to a DataTable / Mantine / icons page in `npm run dev`.
+    optimizeDeps: {
+        include: [
+            "react",
+            "react-dom",
+            "react-router-dom",
+            "react-redux",
+            "@reduxjs/toolkit",
+            "@tanstack/react-query",
+            "axios",
+            "lucide-react",
+            "@tabler/icons-react",
+            "@mantine/core",
+            "@mantine/hooks",
+            "mantine-datatable",
+            "@emotion/react",
+            "@emotion/styled",
+            "@mui/material",
+            "@headlessui/react",
+            "@heroicons/react/24/outline",
+            "@heroicons/react/24/solid",
+            "moment",
+            "lodash",
+            "clsx",
+            "sonner",
+            "sweetalert2",
+            "sweetalert2-react-content",
+            "i18next",
+            "react-i18next",
+            "i18next-browser-languagedetector",
+            "i18next-http-backend",
+            "react-hook-form",
+            "@hookform/resolvers",
+            "zod",
+            "flatpickr",
+            "react-flatpickr",
+            "react-perfect-scrollbar",
+            "tippy.js",
+            "@tippyjs/react",
+            "date-fns",
+            "jspdf",
+            "jspdf-autotable",
+            "file-saver",
+            "xlsx",
+        ],
     },
 
     resolve: {

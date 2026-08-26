@@ -30,11 +30,15 @@ import { OrganizationProvider } from "./contexts/OrganizationContext";
 // Axios configuration
 import { setReduxStoreGetter } from "./utils/axios";
 
-// Create a client
+// Create a client — keep list pages from refetching on every remount / focus.
 const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
+            staleTime: 60_000,
+            gcTime: 5 * 60_000,
             refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+            refetchOnMount: false,
             retry: 1,
         },
     },

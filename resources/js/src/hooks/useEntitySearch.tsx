@@ -36,12 +36,14 @@ export function EntitySearchCombobox<T extends Entity>(
     return <FormCombobox<T> {...props} />;
 }
 
-export function useEventSearch(minChars = 1) {
+export function useEventSearch(minChars = 2) {
     const [query, setQuery] = useState("");
     const { data, isFetching } = useQuery({
         queryKey: ["event-search-picker", query],
         queryFn: () => eventApi.search({ q: query, per_page: 20 }),
         enabled: query.trim().length >= minChars,
+        staleTime: 60_000,
+        refetchOnMount: false,
     });
     return {
         query,
@@ -51,12 +53,14 @@ export function useEventSearch(minChars = 1) {
     };
 }
 
-export function useUserSearch(minChars = 1) {
+export function useUserSearch(minChars = 2) {
     const [query, setQuery] = useState("");
     const { data, isFetching } = useQuery({
         queryKey: ["user-search-picker", query],
         queryFn: () => userApi.search({ q: query, per_page: 20 }),
         enabled: query.trim().length >= minChars,
+        staleTime: 60_000,
+        refetchOnMount: false,
     });
     return {
         query,
@@ -66,7 +70,7 @@ export function useUserSearch(minChars = 1) {
     };
 }
 
-export function useOrganizerSearch(minChars = 1) {
+export function useOrganizerSearch(minChars = 2) {
     const [query, setQuery] = useState("");
     const { data, isFetching } = useQuery({
         queryKey: ["organizer-search-picker", query],
@@ -76,6 +80,8 @@ export function useOrganizerSearch(minChars = 1) {
                 per_page: 20,
             } as any),
         enabled: query.trim().length >= minChars,
+        staleTime: 60_000,
+        refetchOnMount: false,
     });
     return {
         query,

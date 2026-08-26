@@ -2,7 +2,7 @@ import { Button, Tooltip } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { DataTable, DataTableSortStatus } from "mantine-datatable";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useSearchParams } from "react-router-dom";
 import { setPageTitle } from "../../store/themeConfigSlice";
@@ -116,7 +116,7 @@ function CustomDataTable<T>({
         setColumns(updatedColumns);
     };
 
-    // Update URL search params when state changes
+    // Update URL search params only when our table keys actually change (avoid remount loops).
     useEffect(() => {
         const params = new URLSearchParams(searchParams);
 
@@ -131,14 +131,16 @@ function CustomDataTable<T>({
         params.set(`${title}_sortCol`, sortStatus.columnAccessor);
         params.set(`${title}_sortDir`, sortStatus.direction);
 
-        setSearchParams(params);
-    }, [search, page, pageSize, sortStatus, title, setSearchParams]);
+        if (params.toString() !== searchParams.toString()) {
+            setSearchParams(params, { replace: true });
+        }
+    }, [search, page, pageSize, sortStatus, title, searchParams, setSearchParams]);
 
     const queryFingerprint = JSON.stringify(query ?? {});
 
     // Reset to first page when page size, search, or filters change
     useEffect(() => {
-        setPage(1);
+        setPage((current) => (current === 1 ? current : 1));
     }, [pageSize, search, queryFingerprint]);
 
     // Handle data fetching with all dynamic parameters
@@ -198,8 +200,9 @@ function CustomDataTable<T>({
     };
 
     // Convert column configs to Mantine columns
-    const mantineColumns = columns.map((column: ColumnConfig<T>) =>
-        createColumn(column)
+    const mantineColumns = useMemo(
+        () => columns.map((column: ColumnConfig<T>) => createColumn(column)),
+        [columns]
     );
 
     // Filter actions based on visibility condition

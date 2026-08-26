@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-20 (Removed DemoDataSeeder / dummy catalog)
+Last updated: 2026-08-26 (Admin SPA: cut Vite cold-start + DataTable refetch churn)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -19,21 +19,21 @@ Every meaningful change to the codebase must also update this file.
 ## Current Runtime / Workspace State
 - Full-stack Laravel + React SPA (Blade shell + Vite React app)
 - Dev: `composer run dev` (Unix) or `composer run dev:windows` (Windows)
-  - Laravel serve: `http://localhost:8000` (Unix) / `http://localhost:8002` (Windows script)
+  - Laravel serve: `http://localhost:8000` (`composer run dev` and `composer run dev:windows`)
   - Vite HMR via `npm run dev` / pnpm Vite
   - Queue worker: `php artisan queue:listen`
   - Scheduler: `php artisan schedule:work` (or cron) for `ExpirePendingPayments` + `ExpireOrganizerSubscriptions` every 5 min
 - API base URL (axios): `/api/v1` (same-origin)
-- Absolute API examples: `http://localhost:8000/api/v1` (or `:8002` on Windows)
+- Absolute API examples: `http://localhost:8000/api/v1`
 - Health: `GET /up`; API ping: `GET /api/ping`
 - Seed admin: `admin@example.com` / `password` (`user_type=admin`, role `admin`, all permissions)
 - DB: MySQL `eventdb` (local); tests use SQLite `:memory:`
 - Known gotchas:
-  - Windows `dev:windows` uses port **8002**, not 8000
+  - Windows `dev:windows` uses port **8000** (same as Unix `dev`)
   - **API client auth (Prompt 3b, simplified 2026-08-18):** All `/api/*` routes require `X-API-Key` (`verify.api.client` / `VerifyApiClientSignature` on `routes/api.php`). Lookup: `api_clients` where `public_key` matches and `active = true`. Errors: `missing_api_key` (header absent/empty), `invalid_api_key` (unknown or inactive). **No** `X-API-Timestamp` / `X-API-Signature` — HMAC was removed because the Web App is a Vite SPA with no server to hide `WEBAPP_API_SECRET`. `api_clients.secret` column remains in DB unused by verification. Admin SPA axios sends `X-API-Key` from `VITE_WEBAPP_API_PUBLIC_KEY`. Web App sends the same public key. Rotate by updating env `WEBAPP_API_PUBLIC_KEY` + `php artisan db:seed --class=ApiClientSeeder`.
   - **Public API-key-only catalog (Web App, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`, `GET /api/v1/events/{id}/form-fields`, **`GET /api/v1/platform/branding`**. `X-API-Key` still required. No `auth:sanctum` / `admin.panel`. Without an `admin-panel` Bearer, events are filtered to `published|registration_open|sold_out|registration_closed|ongoing` (`Event::scopePublicCatalog` / `EventStatus::publicCatalogValues()`). Draft, cancelled, and completed are omitted; public show of those returns **404**. Admin-panel Bearer (Admin SPA) still returns **all** statuses including draft/cancelled. Public payloads hide organizer `email` / `phone` / `contact_name` (only `id` + `business_name`) and do not load `discountCodes`. Public show eager-loads ticket types, speakers, sponsors, sessions, category, images. **Form-fields** (`PublicEventFormFieldController`): public callers get **active** fields only; admin-panel Bearer + `view event form fields` still gets the full admin payload (inactive included). **Platform branding** (`PlatformBrandingController`): returns `{ name, logo_url, logo_dark_url, icon_url }` only (nulls when no org row); never email/phone/address. Managed in Admin Settings → Organization. All other Admin event/category routes remain API-key + Sanctum + `admin.panel` + permissions.
   - **Web App HTTP surface (Prompt 0):** explicit `/api/v1/participant/*` (`participant.web`) and `/api/v1/organizer/*` (`organizer.web`). Do **not** reuse Admin routes for Web tokens. Admin SPA routes/permissions unchanged. Domain services reused (ParticipationService, PaymentService, EventStatusMachine, EventQuota, QrValidationService, etc.).
-  - **Vite must be running** for Admin SPA (`@vite` in `app.blade.php`). If Vite dies, Laravel throws `ViteManifestNotFoundException` (`public/build/manifest.json` missing — we do not commit a production build). Symptom: Internal Server Error on `http://localhost:8002`. Fix: restart `composer run dev:windows` (or `npm run dev`). Cause seen: `.env` change restarts Vite, then `laravel-vite-plugin@1.3.0` crashes (`Cannot read properties of null (reading 'family')`). Mitigated in `vite.config.js`: `server.host=127.0.0.1`, ignore `**/.env`.
+  - **Vite must be running** for Admin SPA (`@vite` in `app.blade.php`). If Vite dies, Laravel throws `ViteManifestNotFoundException` (`public/build/manifest.json` missing — we do not commit a production build). Symptom: Internal Server Error on `http://localhost:8000`. Fix: restart `composer run dev:windows` (or `npm run dev`). Cause seen: `.env` change restarts Vite, then `laravel-vite-plugin@1.3.0` crashes (`Cannot read properties of null (reading 'family')`). Mitigated in `vite.config.js`: `server.host=127.0.0.1`, ignore `**/.env`.
   - Lockfile is **pnpm** (`pnpm-lock.yaml`); npm also works
   - Queue/cache/session default to **database** — migrate before first run
   - Organizations logo columns: create migration includes `logo_dark_url`/`icon_url`; alter is `2025_08_24_090000_...` (never `2025_01_27_...` before create)
@@ -1167,6 +1167,12 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-26 - Admin SPA first-load / DataTable performance
+- **Cause:** In `npm run dev`, Vite was serving huge icon/UI packages (`lucide-react`, `@tabler/icons-react`, Mantine, MUI, etc.) as thousands of unbundled ESM requests on the first visit to a DataTable page (~6k network entries). After the dep cache warmed, later navigations felt fine. Separately, DataTable always wrote URL search params and defaulted React Query to refetch-friendly settings.
+- **Fix:** `vite.config.js` `optimizeDeps.include` + `server.warmup` for the Admin entry; React Query defaults `staleTime` 60s / `refetchOnMount|WindowFocus|Reconnect: false`; table hook `staleTime` 2m + stable query fingerprint + `placeholderData`; URL sync only when params change (`replace: true`); page-reset skips no-op `setPage(1)`; entity search min 2 chars + cache.
+- Files: `vite.config.js`, `resources/js/src/main.tsx`, `components/datatable/{index,useFetchTableData}.tsx`, `hooks/useEntitySearch.tsx`, `.agent`.
+- After pull: delete `node_modules/.vite` and restart `composer run dev:windows` so deps re-prebundle once.
 
 ### 2026-08-20 - Removed DemoDataSeeder (dummy catalog)
 - Deleted `database/seeders/DemoDataSeeder.php` and removed it from `DatabaseSeeder`.

@@ -23,23 +23,23 @@ function useFetchTableData<T>({
     searchFields,
     sortBy,
 }: UseFetchTableDataProps<T>) {
+    // String fingerprint so inline `query={{}}` object identity does not thrash the cache.
+    const queryFingerprint = JSON.stringify(query ?? {});
+
     return useQuery<IApiResponse<T> | undefined>({
-        queryKey: [title, query, currentPage, rowsPerPage, search, sortBy],
+        queryKey: [title, queryFingerprint, currentPage, rowsPerPage, search, sortBy],
         queryFn: () => {
-            // Format parameters for API compatibility
             const apiParams: any = {
                 page: currentPage,
                 per_page: rowsPerPage,
-                filter: { ...query },
+                filter: { ...(query as object) },
             };
 
-            // Handle search query
             if (search && search.trim() !== "") {
                 apiParams.search_term = search;
                 apiParams.search_fields = searchFields.join(",");
             }
 
-            // Handle sorting
             if (sortBy && Object.keys(sortBy).length > 0) {
                 const sortField = Object.keys(sortBy)[0];
                 if (sortField) {
@@ -53,9 +53,10 @@ function useFetchTableData<T>({
             });
         },
         refetchOnWindowFocus: false,
-        refetchOnMount: true,
+        refetchOnMount: false,
         refetchOnReconnect: false,
-        staleTime: 1000 * 60,
+        staleTime: 2 * 60 * 1000,
+        placeholderData: (previousData) => previousData,
     });
 }
 
