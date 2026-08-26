@@ -123,6 +123,9 @@ class ParticipantParticipationController extends WebController
 
         $row->load(['event', 'ticketType']);
 
+        $event = $row->event;
+        $isOnline = $event && $event->event_mode?->value === 'online';
+
         $template = EventInvitationTemplate::query()
             ->with('systemTemplate')
             ->where('event_id', $row->event_id)
@@ -143,9 +146,10 @@ class ParticipantParticipationController extends WebController
             'id' => $row->id,
             'status' => $row->status,
             'payment_status' => $row->payment_status,
-            'qr_token' => $row->qr_token,
+            // Online events: confirmation only — no door QR.
+            'qr_token' => $isOnline ? null : $row->qr_token,
             'created_at' => $row->created_at,
-            'event' => $row->event,
+            'event' => $event,
             'ticket_type' => $row->ticketType,
             'invitation' => $invitation,
             'canvas' => [

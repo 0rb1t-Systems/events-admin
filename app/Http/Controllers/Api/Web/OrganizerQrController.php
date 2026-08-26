@@ -21,20 +21,74 @@ class OrganizerQrController extends BaseController
 
     public function __construct(private QrValidationService $qrValidation) {}
 
+    /**
+     * Unlock the scanner for a specific event using its scan_token.
+     * Confirms ownership and returns event id/title.
+     */
+    public function unlockScanner(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'scan_token' => 'required|string|max:64',
+        ]);
+
+        $organizer = $this->organizer();
+
+        $event = Event::query()
+            ->where('scan_token', $validated['scan_token'])
+            ->first();
+
+        if (! $event) {
+            return $this->notFoundResponse('Invalid scan token');
+        }
+
+        if ((int) $event->organizer_id !== $organizer->id) {
+            return $this->forbiddenResponse('This event does not belong to your organization.');
+        }
+
+        return $this->successResponse([
+            'event_id' => $event->id,
+            'title' => $event->title,
+            'status' => $event->status,
+            'event_mode' => $event->event_mode,
+        ], 'Scanner unlocked for event.');
+    }
+
     public function validateScan(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'token' => 'required|string|max:128',
             'gate' => 'nullable|string|max:100',
+            'event_id' => 'nullable|integer|exists:events,id',
         ]);
 
         $organizer = $this->organizer();
         $token = trim($validated['token']);
         $gate = $validated['gate'] ?? null;
+        $eventId = $validated['event_id'] ?? null;
 
         $participation = $token === ''
             ? null
             : Participation::query()->where('qr_token', $token)->first();
+
+        if ($participation && $eventId && (int) $participation->event_id !== (int) $eventId) {
+            $scanLog = QrScanLog::create([
+                'scanned_token' => $token,
+                'participation_id' => $participation->id,
+                'event_id' => $participation->event_id,
+                'result' => QrScanResult::INVALID,
+                'gate' => $gate,
+                'scanner_user_id' => null,
+                'scanner_organizer_id' => $organizer->id,
+                'meta' => ['reason' => 'event_id_mismatch', 'expected_event_id' => $eventId],
+            ]);
+
+            return $this->successResponse([
+                'result' => QrScanResult::INVALID->value,
+                'checked_in' => false,
+                'participation' => null,
+                'scan_log' => $scanLog->fresh(['scannerOrganizer']),
+            ], 'Ticket does not belong to this event.');
+        }
 
         if ($participation && ! $this->participationBelongsToOrganizer($participation, $organizer->id)) {
             $scanLog = QrScanLog::create([

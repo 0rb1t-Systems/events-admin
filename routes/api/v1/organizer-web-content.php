@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\Web\OrganizerAnalyticsController;
 use App\Http\Controllers\Api\Web\OrganizerAnnouncementController;
+use App\Http\Controllers\Api\Web\OrganizerDiscussionController;
+use App\Http\Controllers\Api\Web\OrganizerFeedbackController;
 use App\Http\Controllers\Api\Web\OrganizerFinanceController;
 use App\Http\Controllers\Api\Web\OrganizerGalleryController;
 use App\Http\Controllers\Api\Web\OrganizerParticipationController;
@@ -49,6 +51,11 @@ Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group
     // Announcements
     Route::get('/events/{event}/announcements', [OrganizerAnnouncementController::class, 'forEvent']);
     Route::post('/events/{event}/announcements', [OrganizerAnnouncementController::class, 'storeForEvent']);
+
+    // Discussions + attendee feedback
+    Route::get('/events/{event}/discussions', [OrganizerDiscussionController::class, 'forEvent']);
+    Route::patch('/events/{event}/discussions/{discussion}/answered', [OrganizerDiscussionController::class, 'markAnswered']);
+    Route::get('/events/{event}/feedback', [OrganizerFeedbackController::class, 'forEvent']);
 
     // Participations
     Route::get('/events/{event}/participations', [OrganizerParticipationController::class, 'forEvent']);

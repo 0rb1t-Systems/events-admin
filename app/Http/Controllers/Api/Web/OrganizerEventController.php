@@ -78,6 +78,7 @@ class OrganizerEventController extends BaseController
         $validated['registrations_count'] = 0;
         $validated['featured'] = false;
         $validated['monetized'] = false;
+        $validated['scan_token'] = bin2hex(random_bytes(16));
 
         $event = Event::create($validated);
         $event->load($this->relationships);
@@ -88,6 +89,8 @@ class OrganizerEventController extends BaseController
             ['attributes' => $event->getAttributes()],
             'created'
         );
+
+        $event->makeVisible('scan_token');
 
         return $this->createdResponse($event);
     }
@@ -100,6 +103,7 @@ class OrganizerEventController extends BaseController
         }
 
         $owned->load($this->relationships);
+        $owned->makeVisible('scan_token');
 
         return $this->successResponse($owned);
     }

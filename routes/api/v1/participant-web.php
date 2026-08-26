@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Web\ParticipantDiscountController;
+use App\Http\Controllers\Api\Web\ParticipantEventRoomController;
 use App\Http\Controllers\Api\Web\ParticipantFeedbackController;
 use App\Http\Controllers\Api\Web\ParticipantParticipationController;
 use App\Http\Controllers\Api\Web\ParticipantPaymentController;
@@ -32,6 +33,13 @@ Route::middleware(['auth:sanctum', 'participant.web'])->prefix('participant')->g
 
     Route::get('/participations/{participation}/feedback', [ParticipantFeedbackController::class, 'show']);
     Route::post('/event-feedback', [ParticipantFeedbackController::class, 'store']);
+
+    Route::get('/participations/{participation}/announcements', [ParticipantEventRoomController::class, 'announcements']);
+
+    Route::get('/events/{event}/discussions', [ParticipantEventRoomController::class, 'listDiscussions']);
+    Route::post('/events/{event}/discussions', [ParticipantEventRoomController::class, 'storeDiscussion']);
+    Route::patch('/events/{event}/discussions/{discussion}', [ParticipantEventRoomController::class, 'updateDiscussion']);
+    Route::delete('/events/{event}/discussions/{discussion}', [ParticipantEventRoomController::class, 'destroyDiscussion']);
 
     Route::post('/payments/charge', [ParticipantPaymentController::class, 'charge']);
 });

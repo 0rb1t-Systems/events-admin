@@ -114,6 +114,22 @@ class EventStatusMachine
     }
 
     /**
+     * Admin-only: force any status transition regardless of state machine rules.
+     * Allows rollback from terminal states (completed, cancelled).
+     */
+    public function forceTransition(Event $event, EventStatus|string $to): Event
+    {
+        $toStatus = $to instanceof EventStatus ? $to : EventStatus::from($to);
+
+        if ($event->status !== $toStatus) {
+            $event->status = $toStatus;
+            $event->save();
+        }
+
+        return $event->fresh();
+    }
+
+    /**
      * Capacity gate → sold_out: if currently registration_open and capacity is reached,
      * fire transition to sold_out. Real-time check vs registrations_count (not a separate queue job).
      */

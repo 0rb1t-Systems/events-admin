@@ -150,6 +150,7 @@ class EventController extends BaseController
         }
 
         $event->unsetRelation('discountCodes');
+        $event->makeHidden('online_url');
     }
 
     /**
@@ -233,6 +234,7 @@ class EventController extends BaseController
         $validated['featured'] = $validated['featured'] ?? false;
         $validated['monetized'] = $validated['monetized'] ?? false;
         $validated['event_mode'] = $validated['event_mode'] ?? EventMode::IN_PERSON->value;
+        $validated['scan_token'] = bin2hex(random_bytes(16));
 
         $event = Event::create($validated);
         $event->load($this->relationships);
@@ -350,6 +352,35 @@ class EventController extends BaseController
         );
 
         return $this->successResponse($event, 'Event status updated');
+    }
+
+    /**
+     * Admin-only: force any status transition, bypassing the state machine.
+     * Allows rollback from terminal states (completed/cancelled).
+     */
+    public function forceTransition(Request $request, $id)
+    {
+        $event = Event::find($id);
+        if (! $event) {
+            return $this->notFoundResponse();
+        }
+
+        $validated = $request->validate([
+            'status' => ['required', 'string', Rule::in(EventStatus::values())],
+        ]);
+
+        $oldStatus = $event->status;
+        $event = $this->statusMachine->forceTransition($event, $validated['status']);
+        $event->load($this->relationships);
+
+        $this->logActivity(
+            'Event status force-transitioned (admin)',
+            $event,
+            ['old_status' => $oldStatus, 'new_status' => $event->status],
+            'force_status_transition'
+        );
+
+        return $this->successResponse($event, 'Event status force-updated');
     }
 
     /**

@@ -61,7 +61,7 @@ APP_NAME="Start Kit"
 APP_ENV=local
 APP_KEY=
 APP_DEBUG=true
-APP_URL=http://localhost:8000
+APP_URL=http://localhost:8001
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -130,7 +130,7 @@ composer run dev:windows
 
 This command will start:
 
--   Laravel development server on `http://localhost:8000`
+-   Laravel development server on `http://localhost:8001`
 -   Queue worker for background jobs
 -   Vite development server for frontend assets
 -   Pail log viewer (if available)
@@ -161,7 +161,7 @@ If you prefer to run services manually:
 ### Base URL
 
 ```
-http://localhost:8000/api/v1
+http://localhost:8001/api/v1
 ```
 
 ### Authentication Endpoints
@@ -211,12 +211,12 @@ All protected endpoints require authentication via Bearer token.
 
 ```bash
 # Login
-curl -X POST http://localhost:8000/api/v1/auth/login \
+curl -X POST http://localhost:8001/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "password"}'
 
 # Get user profile (with token)
-curl -X GET http://localhost:8000/api/v1/auth/me \
+curl -X GET http://localhost:8001/api/v1/auth/me \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
 

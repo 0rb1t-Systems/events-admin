@@ -67,7 +67,6 @@ export default defineConfig({
             "flatpickr",
             "react-flatpickr",
             "react-perfect-scrollbar",
-            "tippy.js",
             "@tippyjs/react",
             "date-fns",
             "jspdf",

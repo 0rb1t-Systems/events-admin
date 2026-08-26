@@ -23,6 +23,7 @@ Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group
     Route::get('/events/{event}/payout-requests', [OrganizerPayoutController::class, 'forEvent']);
     Route::post('/events/{event}/payout-requests', [OrganizerPayoutController::class, 'storeForEvent']);
 
+    Route::post('/scanner/unlock', [OrganizerQrController::class, 'unlockScanner']);
     Route::post('/qr-scan-logs/validate', [OrganizerQrController::class, 'validateScan']);
     Route::get('/events/{event}/qr-scan-logs', [OrganizerQrController::class, 'forEvent']);
     Route::get('/events/{event}/check-in-stats', [OrganizerQrController::class, 'checkInStats']);

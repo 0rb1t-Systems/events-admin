@@ -31,6 +31,7 @@ class Event extends Model
         'latitude',
         'longitude',
         'banner_path',
+        'scan_token',
         'featured',
         'monetized',
         'status',
@@ -40,6 +41,10 @@ class Event extends Model
         'registration_deadline',
         'starts_at',
         'ends_at',
+    ];
+
+    protected $hidden = [
+        'scan_token',
     ];
 
     protected $appends = [
@@ -137,6 +142,11 @@ class Event extends Model
     public function sessions(): HasMany
     {
         return $this->hasMany(EventSession::class)->orderBy('starts_at');
+    }
+
+    public function discussions(): HasMany
+    {
+        return $this->hasMany(EventDiscussion::class)->orderByDesc('created_at');
     }
 
     public function getRegistrationGatesAttribute(): array

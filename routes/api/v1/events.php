@@ -20,6 +20,7 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     Route::delete('/bulk/force-delete', [EventController::class, 'bulkForceDelete'])->middleware('permission:delete events');
 
     Route::post('/{id}/transition', [EventController::class, 'transition'])->middleware('permission:edit events');
+    Route::post('/{id}/force-transition', [EventController::class, 'forceTransition'])->middleware('permission:edit events');
     Route::post('/{id}/sync-capacity', [EventController::class, 'syncCapacity'])->middleware('permission:edit events');
     Route::get('/{id}/registration-gates', [EventController::class, 'registrationGates'])->middleware('permission:view events');
 
