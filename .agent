@@ -697,9 +697,9 @@ Seat-occupying (count toward capacity / `registered_count`): `joined`, `paid`, `
 
 One **non-cancelled** participation per `(user_id, event_id)`:
 
-- **SQLite (tests):**  
+- **SQLite (tests):**
   `CREATE UNIQUE INDEX participations_user_event_active_unique ON participations (user_id, event_id) WHERE status != 'cancelled'`
-- **MySQL:** generated column `active_user_event_key` = `IF(status = 'cancelled', NULL, CONCAT(user_id, '-', event_id)) STORED` + `UNIQUE (active_user_event_key)`  
+- **MySQL:** generated column `active_user_event_key` = `IF(status = 'cancelled', NULL, CONCAT(user_id, '-', event_id)) STORED` + `UNIQUE (active_user_event_key)`
   (NULLs do not collide → multiple cancelled allowed)
 
 Migration: `2026_08_16_160000_create_participations_table.php`.
@@ -872,18 +872,18 @@ Wired from `ParticipationService::join` and `promoteFromWaitlist` after confirme
 
 Branch order (locked + transactional):
 
-1. **invalid** — empty / token not found  
-2. **invalid** — `status=cancelled` (BEFORE already_used)  
-3. **invalid** — `payment_status=refunded` (BEFORE already_used)  
-4. **already_used** — `status=checked_in` → log only, **no** check-in side effects  
-5. **invalid** — not claimable (waitlisted, pending payment, etc.)  
+1. **invalid** — empty / token not found
+2. **invalid** — `status=cancelled` (BEFORE already_used)
+3. **invalid** — `payment_status=refunded` (BEFORE already_used)
+4. **already_used** — `status=checked_in` → log only, **no** check-in side effects
+5. **invalid** — not claimable (waitlisted, pending payment, etc.)
 6. **valid** — claimable → set `checked_in=true`, log; dispatch `ParticipationCheckedIn` (certificate listener — not inline)
 
 Re-scan of a checked-in token → `already_used` + **separate** `qr_scan_logs` row; participation untouched.
 
 ### Check-in dashboard stats
 
-`registered` (seat-occupying) / `arrived` (`checked_in`) / `absent` (= registered − arrived) + scan attempt counters.  
+`registered` (seat-occupying) / `arrived` (`checked_in`) / `absent` (= registered − arrived) + scan attempt counters.
 `GET /events/{id}/check-in-stats` · FE `CheckInStatsPanel` on Event Detail.
 
 ### Admin / API
@@ -950,8 +950,8 @@ Admin read-only oversight + backend models. Organizer authoring / participant su
 1. `events.views_count` column read
 2. ONE `participations` `GROUP BY status` count query
 3. ONE `payments` SUM (completed) via whereHas participation
-4. ONE feedback AVG/COUNT query  
-Also `event_views` log table + `POST /events/{id}/views` for Web App increments.  
+4. ONE feedback AVG/COUNT query
+Also `event_views` log table + `POST /events/{id}/views` for Web App increments.
 FE: `EventAnalyticsPanel` on Event Detail.
 
 ### Certificates (12.5 HIGH)

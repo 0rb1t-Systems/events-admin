@@ -86,9 +86,9 @@ const EventForm: React.FC<Props> = ({ eventToEdit, onClose }) => {
         onSuccess: async () => {
             if (nextStatus !== eventToEdit.status) {
                 try {
-                    await eventApi.transition(eventToEdit.id, nextStatus);
+                    await eventApi.forceTransition(eventToEdit.id, nextStatus);
                 } catch (e: any) {
-                    setGeneralError(e?.message || "Invalid status transition");
+                    setGeneralError(e?.message || "Could not force status update");
                     queryClient.invalidateQueries({ queryKey: ["Event Table"] });
                     queryClient.invalidateQueries({ queryKey: ["event", eventToEdit.id] });
                     return;
@@ -189,7 +189,7 @@ const EventForm: React.FC<Props> = ({ eventToEdit, onClose }) => {
             )}
 
             <FormSelect
-                label="Status transition"
+                label="Force status (admin)"
                 value={String(nextStatus)}
                 onChange={setNextStatus}
                 onBlur={() => undefined}
@@ -199,7 +199,7 @@ const EventForm: React.FC<Props> = ({ eventToEdit, onClose }) => {
                 }))}
             />
             <p className="text-xs text-gray-500 -mt-2">
-                Invalid transitions are rejected by the server state machine.
+                Admin can set any status, including rollback from completed or cancelled.
             </p>
 
             <div className="flex justify-end gap-2">

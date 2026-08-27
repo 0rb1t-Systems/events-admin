@@ -26,6 +26,14 @@ class EventApi extends BaseApi<IEvent> {
         return response.data.data || response.data;
     }
 
+    /** Admin-only: any status including rollback from completed/cancelled. */
+    async forceTransition(id: number | string, status: string): Promise<IEvent> {
+        const response = await axiosInstance.post(`${this.endpoint}/${id}/force-transition`, {
+            status,
+        });
+        return response.data.data || response.data;
+    }
+
     async syncCapacity(id: number | string): Promise<any> {
         const response = await axiosInstance.post(`${this.endpoint}/${id}/sync-capacity`);
         return response.data.data || response.data;

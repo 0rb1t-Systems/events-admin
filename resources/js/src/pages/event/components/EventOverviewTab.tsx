@@ -56,6 +56,16 @@ const EventOverviewTab: React.FC<Props> = ({ eventId }) => {
         onError: (e: Error) => toast.error(e.message),
     });
 
+    const forceTransitionMut = useMutation({
+        mutationFn: (status: EventStatus) => eventApi.forceTransition(eventId, status),
+        onSuccess: () => {
+            toast.success("Status force-updated");
+            queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+            queryClient.invalidateQueries({ queryKey: ["Event Table"] });
+        },
+        onError: (e: Error) => toast.error(e.message),
+    });
+
     if (isLoading) {
         return (
             <div className="p-4">
@@ -69,6 +79,16 @@ const EventOverviewTab: React.FC<Props> = ({ eventId }) => {
 
     const gates = event.registration_gates;
     const registered = event.registered_count ?? event.registrations_count ?? 0;
+    const statusBusy = transitionMut.isPending || forceTransitionMut.isPending;
+
+    const handleForceStatus = (status: EventStatus) => {
+        if (status === event.status) return;
+        const ok = window.confirm(
+            `Force status to "${status.replace(/_/g, " ")}"?\n\nThis bypasses the normal state machine and can roll back completed or cancelled events.`
+        );
+        if (!ok) return;
+        forceTransitionMut.mutate(status);
+    };
 
     return (
         <div className="space-y-5 p-1">
@@ -87,8 +107,11 @@ const EventOverviewTab: React.FC<Props> = ({ eventId }) => {
             {canEditEvent && (
                 <div className="border-t border-gray-100 pt-3 dark:border-[#1b2e4b]">
                     <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
-                        Status
+                        Status (state machine)
                     </h4>
+                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                        Allowed transitions only. Terminal states (completed / cancelled) cannot move with this control.
+                    </p>
                     <div className="flex flex-wrap gap-2">
                         {EVENT_STATUS_OPTIONS.map((option) => {
                             const active = event.status === option.value;
@@ -99,8 +122,33 @@ const EventOverviewTab: React.FC<Props> = ({ eventId }) => {
                                     className={`btn btn-sm ${
                                         active ? "btn-primary" : "btn-outline-primary"
                                     }`}
-                                    disabled={active || transitionMut.isPending}
+                                    disabled={active || statusBusy}
                                     onClick={() => transitionMut.mutate(option.value)}
+                                >
+                                    {option.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <h4 className="mb-1 mt-4 text-sm font-semibold text-gray-900 dark:text-white">
+                        Force status (admin rollback)
+                    </h4>
+                    <p className="mb-2 text-xs text-amber-700 dark:text-amber-400">
+                        Sets any status including rollback from completed/cancelled. Use carefully.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {EVENT_STATUS_OPTIONS.map((option) => {
+                            const active = event.status === option.value;
+                            return (
+                                <button
+                                    key={`force-${option.value}`}
+                                    type="button"
+                                    className={`btn btn-sm ${
+                                        active ? "btn-warning" : "btn-outline-warning"
+                                    }`}
+                                    disabled={active || statusBusy}
+                                    onClick={() => handleForceStatus(option.value)}
                                 >
                                     {option.label}
                                 </button>
