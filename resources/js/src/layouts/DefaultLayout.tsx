@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from "react-redux";
 
 import Footer from "./Footer";
 import Header from "./Header";
-import Setting from "./Setting";
 import { IRootState } from "../store";
 import App from "../App";
 import Sidebar from "./Sidebar";
@@ -42,10 +41,6 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
                 {/* screen loader */}
                 {showLoader && <Loader />}
                 <BackToTop />
-
-                {/* BEGIN APP SETTING LAUNCHER */}
-                <Setting />
-                {/* END APP SETTING LAUNCHER */}
 
                 <div
                     className={`${themeConfig.navbar} main-container text-black dark:text-white-dark min-h-screen`}
