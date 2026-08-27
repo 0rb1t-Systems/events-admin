@@ -27,6 +27,7 @@ Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group
     // Speakers
     Route::get('/events/{event}/speakers', [OrganizerSpeakerController::class, 'forEvent']);
     Route::post('/events/{event}/speakers', [OrganizerSpeakerController::class, 'storeForEvent']);
+    Route::post('/speakers/{speaker}/photo', [OrganizerSpeakerController::class, 'uploadPhoto']);
     Route::patch('/speakers/{speaker}', [OrganizerSpeakerController::class, 'update']);
     Route::delete('/speakers/{speaker}', [OrganizerSpeakerController::class, 'destroy']);
 

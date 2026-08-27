@@ -90,9 +90,7 @@ class OrganizerEventController extends BaseController
             'created'
         );
 
-        $event->makeVisible('scan_token');
-
-        return $this->createdResponse($event);
+        return $this->createdResponse($this->revealScanToken($event));
     }
 
     public function show($event): JsonResponse
@@ -103,9 +101,8 @@ class OrganizerEventController extends BaseController
         }
 
         $owned->load($this->relationships);
-        $owned->makeVisible('scan_token');
 
-        return $this->successResponse($owned);
+        return $this->successResponse($this->revealScanToken($owned));
     }
 
     public function update(Request $request, $event): JsonResponse
@@ -148,7 +145,7 @@ class OrganizerEventController extends BaseController
             'updated'
         );
 
-        return $this->successResponse($owned, 'Event updated successfully');
+        return $this->successResponse($this->revealScanToken($owned), 'Event updated successfully');
     }
 
     public function destroy($event): JsonResponse
@@ -190,7 +187,7 @@ class OrganizerEventController extends BaseController
             ]);
         }
 
-        $owned = $owned->fresh($this->relationships);
+        $owned = $this->revealScanToken($owned->fresh($this->relationships));
 
         $this->logActivity(
             'Event status transitioned',
@@ -235,7 +232,23 @@ class OrganizerEventController extends BaseController
         $owned->banner_path = '/'.$relative;
         $owned->save();
 
-        return $this->successResponse($owned->fresh($this->relationships), 'Banner uploaded');
+        return $this->successResponse($this->revealScanToken($owned->fresh($this->relationships)), 'Banner uploaded');
+    }
+
+    /**
+     * Organizer payloads include scan_token (hidden on public Event JSON).
+     * Missing tokens (pre-migration rows) are generated on first organizer show/update.
+     */
+    private function revealScanToken(Event $event): Event
+    {
+        if (! $event->scan_token) {
+            $event->scan_token = bin2hex(random_bytes(16));
+            $event->save();
+        }
+
+        $event->makeVisible('scan_token');
+
+        return $event;
     }
 
     private function deleteLocalBannerFile(?string $path): void

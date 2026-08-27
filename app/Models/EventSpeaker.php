@@ -12,6 +12,10 @@ class EventSpeaker extends Model
         'event_id', 'name', 'photo_path', 'title', 'organization', 'bio', 'social_links', 'sort_order',
     ];
 
+    protected $appends = [
+        'photo_url',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -23,6 +27,20 @@ class EventSpeaker extends Model
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function getPhotoUrlAttribute(): ?string
+    {
+        $path = $this->photo_path;
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return url('/'.ltrim($path, '/'));
     }
 
     public function sessions(): HasMany

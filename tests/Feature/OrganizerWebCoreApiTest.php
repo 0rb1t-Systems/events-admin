@@ -171,6 +171,32 @@ class OrganizerWebCoreApiTest extends TestCase
         $this->assertSame(EventStatus::DRAFT, $event->fresh()->status);
     }
 
+    public function test_organizer_event_show_and_patch_include_scan_token(): void
+    {
+        $organizer = Organizer::factory()->create();
+        $event = Event::factory()->create([
+            'organizer_id' => $organizer->id,
+            'scan_token' => null,
+        ]);
+        $this->actingAsOrganizer($organizer);
+
+        $show = $this->getJson("/api/v1/organizer/events/{$event->id}")
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $token = $show->json('data.scan_token');
+        $this->assertIsString($token);
+        $this->assertSame(32, strlen($token));
+        $this->assertSame($token, $event->fresh()->scan_token);
+
+        $this->patchJson("/api/v1/organizer/events/{$event->id}", [
+            'capacity' => 50,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.scan_token', $token)
+            ->assertJsonPath('data.capacity', 50);
+    }
+
     public function test_dashboard_returns_owned_metrics_envelope(): void
     {
         $organizer = $this->organizerWithQuota(10);
