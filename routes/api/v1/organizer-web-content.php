@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Web\OrganizerDiscussionController;
 use App\Http\Controllers\Api\Web\OrganizerFeedbackController;
 use App\Http\Controllers\Api\Web\OrganizerFinanceController;
 use App\Http\Controllers\Api\Web\OrganizerGalleryController;
+use App\Http\Controllers\Api\Web\OrganizerLuckyWheelController;
 use App\Http\Controllers\Api\Web\OrganizerParticipationController;
 use App\Http\Controllers\Api\Web\OrganizerSessionController;
 use App\Http\Controllers\Api\Web\OrganizerSpeakerController;
@@ -63,6 +64,10 @@ Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group
     Route::get('/participations/{participation}', [OrganizerParticipationController::class, 'show']);
     Route::post('/participations/{participation}/promote', [OrganizerParticipationController::class, 'promote']);
     Route::post('/participations/{participation}/cancel', [OrganizerParticipationController::class, 'cancel']);
+
+    // Lucky wheel
+    Route::get('/events/{event}/lucky-wheel', [OrganizerLuckyWheelController::class, 'show']);
+    Route::post('/events/{event}/lucky-wheel/spin', [OrganizerLuckyWheelController::class, 'spin']);
 
     // Analytics + finance (single owned event)
     Route::get('/events/{event}/analytics', [OrganizerAnalyticsController::class, 'show']);
