@@ -66,6 +66,10 @@ class OrganizerLuckyWheelApiTest extends TestCase
             'event_id' => $this->ownEvent->id,
             'status' => ParticipationStatus::CANCELLED,
         ]);
+        Participation::factory()->create([
+            'event_id' => $this->ownEvent->id,
+            'status' => ParticipationStatus::WAITLISTED,
+        ]);
 
         $attempt = LuckyWheelAttempt::query()->create([
             'event_id' => $this->ownEvent->id,
@@ -84,6 +88,25 @@ class OrganizerLuckyWheelApiTest extends TestCase
             ->assertJsonPath('data.participants.0.id', $active->id)
             ->assertJsonPath('data.attempts.0.winner_count', 1)
             ->assertJsonPath('data.attempts.0.winners.0.participation_id', $active->id);
+    }
+
+    public function test_waitlisted_participants_are_excluded_from_lucky_wheel(): void
+    {
+        Participation::factory()->create([
+            'event_id' => $this->ownEvent->id,
+            'status' => ParticipationStatus::JOINED,
+        ]);
+        Participation::factory()->count(3)->create([
+            'event_id' => $this->ownEvent->id,
+            'status' => ParticipationStatus::WAITLISTED,
+        ]);
+
+        $this->actingAsOrganizer($this->organizer);
+
+        $this->getJson('/api/v1/organizer/events/'.$this->ownEvent->id.'/lucky-wheel')
+            ->assertOk()
+            ->assertJsonPath('data.participant_count', 1)
+            ->assertJsonCount(1, 'data.participants');
     }
 
     public function test_spin_picks_winners_and_stores_attempt(): void
@@ -117,6 +140,26 @@ class OrganizerLuckyWheelApiTest extends TestCase
         $this->assertCount(2, array_unique($winnerIds));
         foreach ($winnerIds as $pid) {
             $this->assertTrue($rows->contains('id', $pid));
+        }
+    }
+
+    public function test_spin_never_picks_same_participation_twice_in_one_attempt(): void
+    {
+        Participation::factory()->count(8)->create([
+            'event_id' => $this->ownEvent->id,
+            'status' => ParticipationStatus::JOINED,
+        ]);
+
+        $this->actingAsOrganizer($this->organizer);
+
+        for ($run = 0; $run < 5; $run++) {
+            $response = $this->postJson('/api/v1/organizer/events/'.$this->ownEvent->id.'/lucky-wheel/spin', [
+                'winner_count' => 4,
+            ])->assertCreated();
+
+            $winnerIds = collect($response->json('data.winners'))->pluck('participation_id')->all();
+            $this->assertCount(4, $winnerIds);
+            $this->assertSame(4, count(array_unique($winnerIds)));
         }
     }
 

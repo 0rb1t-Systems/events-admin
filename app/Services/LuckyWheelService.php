@@ -15,7 +15,7 @@ use InvalidArgumentException;
 class LuckyWheelService
 {
     /**
-     * Non-cancelled registrations eligible for the lucky wheel.
+     * Confirmed-seat registrations eligible for the lucky wheel (excludes waitlisted and cancelled).
      *
      * @return Collection<int, Participation>
      */
@@ -24,7 +24,7 @@ class LuckyWheelService
         return Participation::query()
             ->with(['user', 'ticketType'])
             ->where('event_id', $event->id)
-            ->where('status', '!=', ParticipationStatus::CANCELLED->value)
+            ->whereIn('status', ParticipationStatus::seatOccupying())
             ->orderBy('created_at')
             ->get();
     }
@@ -46,7 +46,12 @@ class LuckyWheelService
             throw new InvalidArgumentException('Winner count cannot exceed the number of registered participants.');
         }
 
-        $selected = $participations->shuffle()->take($winnerCount);
+        /** @var Collection<int, Participation> $selected */
+        $selected = $participations->random($winnerCount);
+
+        if ($selected->pluck('id')->unique()->count() !== $selected->count()) {
+            throw new InvalidArgumentException('Duplicate winners are not allowed in the same attempt.');
+        }
 
         return DB::transaction(function () use ($event, $organizer, $winnerCount, $participantCount, $selected) {
             $attempt = LuckyWheelAttempt::create([

@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-08-29 (Admin footer/customizer removed + production build refreshed)
+Last updated: 2026-08-29 (removed participations:seed-event dev command + demo participants)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -1169,6 +1169,11 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-08-29 - Removed dev participation seeder + demo data
+- Deleted `app/Console/Commands/SeedEventParticipations.php` (`participations:seed-event`).
+- Purged 25 `demo-participant-*@example.test` users and their participations from local DB (jtech event #1 back to 1 participation).
+- Platform `DatabaseSeeder` unchanged: RolePermission, ApiClient, Settings, EventCategory, InvitationSystemTemplate only.
 
 ### 2026-08-29 - Admin footer JTech + theme customizer (production build fix)
 - Source already correct: `Footer.tsx` (no JTech credit), `DefaultLayout.tsx` (no `<Setting />`), `Setting.tsx` deleted.
