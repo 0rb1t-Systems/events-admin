@@ -36,6 +36,9 @@ Route::middleware('verify.api.client')->group(function () {
         // Public platform branding (Web App — API-key only, no Bearer)
         Route::get('/platform/branding', [\App\Http\Controllers\Api\Web\PlatformBrandingController::class, 'show']);
 
+        // Public door scanner (scan_token auth — no Bearer)
+        Route::prefix('public')->group(base_path('routes/api/v1/public-scanner.php'));
+
         // Organizers (Admin oversight)
         Route::prefix('organizers')->group(base_path('routes/api/v1/organizers.php'));
 
