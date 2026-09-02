@@ -57,9 +57,6 @@ Route::middleware('verify.api.client')->group(function () {
         // Participations (admin oversight)
         require base_path('routes/api/v1/participations.php');
 
-        // Event form fields (admin read-only + ops store/remove)
-        Route::prefix('event-form-fields')->group(base_path('routes/api/v1/event-form-fields.php'));
-
         // Invitation templates + QR scan logs (Phase 5b)
         Route::prefix('event-invitation-templates')->group(base_path('routes/api/v1/event-invitation-templates.php'));
         Route::prefix('invitation-system-templates')->group(base_path('routes/api/v1/invitation-system-templates.php'));

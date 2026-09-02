@@ -3,13 +3,12 @@
 use App\Http\Controllers\Api\Web\OrganizerDashboardController;
 use App\Http\Controllers\Api\Web\OrganizerDiscountCodeController;
 use App\Http\Controllers\Api\Web\OrganizerEventController;
-use App\Http\Controllers\Api\Web\OrganizerFormFieldController;
 use App\Http\Controllers\Api\Web\OrganizerTicketTypeController;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Organizer Web App CORE (dashboard, events, ticket types, discount codes, form fields)
+| Organizer Web App CORE (dashboard, events, ticket types, discount codes)
 |--------------------------------------------------------------------------
 |
 | Require this file inside the v1 group with no extra prefix:
@@ -34,10 +33,6 @@ Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group
     Route::get('/events/{event}/discount-codes', [OrganizerDiscountCodeController::class, 'index']);
     Route::post('/events/{event}/discount-codes', [OrganizerDiscountCodeController::class, 'store']);
 
-    Route::get('/events/{event}/form-fields', [OrganizerFormFieldController::class, 'index']);
-    Route::post('/events/{event}/form-fields', [OrganizerFormFieldController::class, 'store']);
-    Route::patch('/events/{event}/form-fields/reorder', [OrganizerFormFieldController::class, 'reorder']);
-
     Route::patch('/ticket-types/{ticketType}/sales', [OrganizerTicketTypeController::class, 'updateSales']);
     Route::patch('/ticket-types/{ticketType}', [OrganizerTicketTypeController::class, 'update']);
     Route::delete('/ticket-types/{ticketType}', [OrganizerTicketTypeController::class, 'destroy']);
@@ -45,7 +40,4 @@ Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group
     Route::patch('/discount-codes/{discountCode}/active', [OrganizerDiscountCodeController::class, 'updateActive']);
     Route::patch('/discount-codes/{discountCode}', [OrganizerDiscountCodeController::class, 'update']);
     Route::delete('/discount-codes/{discountCode}', [OrganizerDiscountCodeController::class, 'destroy']);
-
-    Route::patch('/form-fields/{field}', [OrganizerFormFieldController::class, 'update']);
-    Route::delete('/form-fields/{field}', [OrganizerFormFieldController::class, 'destroy']);
 });

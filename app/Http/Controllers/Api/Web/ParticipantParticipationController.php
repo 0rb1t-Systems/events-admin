@@ -42,7 +42,6 @@ class ParticipantParticipationController extends WebController
             'event_id' => 'required|integer|exists:events,id',
             'ticket_type_id' => 'nullable|integer|exists:ticket_types,id',
             'discount_code' => 'nullable|string|max:64',
-            'custom_field_answers' => 'nullable|array',
         ]);
 
         $event = Event::find($validated['event_id']);
@@ -57,7 +56,7 @@ class ParticipantParticipationController extends WebController
                 $event,
                 $user,
                 $validated['ticket_type_id'] ?? null,
-                $validated['custom_field_answers'] ?? null,
+                null,
                 true,
                 $validated['discount_code'] ?? null
             );

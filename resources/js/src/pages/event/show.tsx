@@ -11,7 +11,6 @@ import EventGalleryTab from "./components/EventGalleryTab";
 import EventOverviewTab from "./components/EventOverviewTab";
 import EventPaymentsPanel from "./components/EventPaymentsPanel";
 import EventTicketTypesTab from "./components/EventTicketTypesTab";
-import FormFieldOversight from "./components/FormFieldOversight";
 import InvitationTemplatePreview from "./components/InvitationTemplatePreview";
 import ParticipationOversight from "./components/ParticipationOversight";
 
@@ -24,7 +23,6 @@ const EVENT_TABS = [
     { id: "sessions", label: "Sessions" },
     { id: "sponsors", label: "Sponsors" },
     { id: "announcements", label: "Announcements" },
-    { id: "form-fields", label: "Form Fields" },
     { id: "gallery", label: "Gallery" },
     { id: "invitation", label: "Invitation" },
     { id: "analytics", label: "Analytics" },
@@ -97,7 +95,6 @@ const EventShow = () => {
                         {active === "announcements" && (
                             <EventAddOnOversight eventId={eventId} only={["announcements"]} />
                         )}
-                        {active === "form-fields" && <FormFieldOversight eventId={eventId} />}
                         {active === "gallery" && <EventGalleryTab eventId={eventId} />}
                         {active === "invitation" && (
                             <InvitationTemplatePreview eventId={eventId} />

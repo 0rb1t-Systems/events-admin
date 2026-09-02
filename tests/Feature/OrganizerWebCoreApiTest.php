@@ -3,14 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\EventStatus;
-use App\Enums\FormFieldType;
 use App\Enums\OrganizerStatus;
 use App\Enums\PackageStatus;
 use App\Enums\SanctumAbility;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserStatus;
 use App\Models\Event;
-use App\Models\EventFormField;
 use App\Models\Organizer;
 use App\Models\OrganizerSubscription;
 use App\Models\Package;
@@ -93,17 +91,12 @@ class OrganizerWebCoreApiTest extends TestCase
         $this->assertSame($event->title, $event->fresh()->title);
     }
 
-    public function test_cannot_mutate_another_organizers_ticket_or_form_field(): void
+    public function test_cannot_mutate_another_organizers_ticket(): void
     {
         $owner = Organizer::factory()->create();
         $intruder = Organizer::factory()->create();
         $event = Event::factory()->create(['organizer_id' => $owner->id]);
         $ticket = TicketType::factory()->for($event)->create(['name' => 'VIP']);
-        $field = EventFormField::factory()->for($event)->create([
-            'key' => 'shirt_size',
-            'label' => 'Shirt size',
-            'type' => FormFieldType::TEXT,
-        ]);
 
         $this->actingAsOrganizer($intruder);
 
@@ -114,15 +107,7 @@ class OrganizerWebCoreApiTest extends TestCase
         $this->deleteJson("/api/v1/organizer/ticket-types/{$ticket->id}")
             ->assertNotFound();
 
-        $this->patchJson("/api/v1/organizer/form-fields/{$field->id}", [
-            'label' => 'Stolen',
-        ])->assertNotFound();
-
-        $this->deleteJson("/api/v1/organizer/form-fields/{$field->id}")
-            ->assertNotFound();
-
         $this->assertSame('VIP', $ticket->fresh()->name);
-        $this->assertSame('Shirt size', $field->fresh()->label);
         $this->assertNull($ticket->fresh()->deleted_at);
     }
 

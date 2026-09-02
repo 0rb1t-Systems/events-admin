@@ -91,7 +91,6 @@ class ParticipationController extends BaseController
             'event_id' => 'required|integer|exists:events,id',
             'user_id' => 'required|integer|exists:users,id',
             'ticket_type_id' => 'nullable|integer|exists:ticket_types,id',
-            'custom_field_answers' => 'nullable|array',
         ]);
 
         $event = Event::findOrFail($validated['event_id']);
@@ -102,7 +101,7 @@ class ParticipationController extends BaseController
                 $event,
                 $user,
                 $validated['ticket_type_id'] ?? null,
-                $validated['custom_field_answers'] ?? null,
+                null,
                 allowWaitlist: true
             );
         } catch (ValidationException $e) {

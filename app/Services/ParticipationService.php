@@ -36,9 +36,8 @@ class ParticipationService
         bool $allowWaitlist = true,
         ?string $discountCode = null
     ): Participation {
-        // Validate against current active schema at submission time only
-        // (schema changes never retroactively invalidate stored answers).
-        app(FormFieldValidationService::class)->validateOrFail($event, $customFieldAnswers);
+        // Custom registration fields removed — ticket-only join; ignore any legacy answers payload.
+        $customFieldAnswers = null;
 
         return DB::transaction(function () use ($event, $user, $ticketTypeId, $customFieldAnswers, $allowWaitlist, $discountCode) {
             /** @var Event $event */

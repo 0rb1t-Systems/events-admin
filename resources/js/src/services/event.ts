@@ -3,7 +3,6 @@ import {
     IDiscountCode,
     IEvent,
     IEventAnnouncement,
-    IEventFormField,
     IEventImage,
     IEventSession,
     IEventSpeaker,
@@ -73,14 +72,6 @@ class EventApi extends BaseApi<IEvent> {
         participations: IParticipation[];
     }> {
         const response = await axiosInstance.get(`${this.endpoint}/${eventId}/participations`);
-        return response.data.data || response.data;
-    }
-
-    async formFields(eventId: number | string): Promise<{
-        event_id: number;
-        form_fields: IEventFormField[];
-    }> {
-        const response = await axiosInstance.get(`${this.endpoint}/${eventId}/form-fields`);
         return response.data.data || response.data;
     }
 
@@ -179,48 +170,6 @@ class EventApi extends BaseApi<IEvent> {
 
     async deleteDiscountCode(id: number | string): Promise<void> {
         await axiosInstance.delete(`/discount-codes/${id}`);
-    }
-
-    // ── Event form fields ─────────────────────────────────────────────────────
-
-    async createFormField(payload: {
-        event_id: number;
-        key: string;
-        label: string;
-        type: string;
-        options?: string[] | null;
-        required?: boolean;
-        sort_order?: number;
-        active?: boolean;
-    }): Promise<IEventFormField> {
-        const response = await axiosInstance.post("/event-form-fields", payload);
-        return response.data.data || response.data;
-    }
-
-    async updateFormField(
-        id: number | string,
-        payload: Partial<{
-            label: string;
-            type: string;
-            options: string[] | null;
-            required: boolean;
-            sort_order: number;
-            active: boolean;
-        }>
-    ): Promise<IEventFormField> {
-        const response = await axiosInstance.patch(`/event-form-fields/${id}`, payload);
-        return response.data.data || response.data;
-    }
-
-    async deleteFormField(id: number | string): Promise<void> {
-        await axiosInstance.delete(`/event-form-fields/${id}`);
-    }
-
-    async reorderFormFields(eventId: number, orderedIds: number[]): Promise<void> {
-        await axiosInstance.post("/event-form-fields/reorder", {
-            event_id: eventId,
-            ordered_ids: orderedIds,
-        });
     }
 
     // ── Announcements ─────────────────────────────────────────────────────────

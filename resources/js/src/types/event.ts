@@ -73,8 +73,6 @@ export interface IParticipation {
     ticket_type?: ITicketType | null;
 }
 
-export type FormFieldType = "text" | "number" | "select" | "checkbox" | "date";
-
 export type SponsorTier = "platinum" | "gold" | "silver" | "partner";
 
 export interface IEventAnnouncement {
@@ -119,18 +117,6 @@ export interface IEventSession {
     speaker?: IEventSpeaker | null;
     created_at?: string;
     updated_at?: string;
-}
-
-export interface IEventFormField extends ITimestamped {
-    id: number;
-    event_id: number;
-    key: string;
-    label: string;
-    type: FormFieldType | string;
-    options?: Array<string | { value?: string; label?: string }> | null;
-    required: boolean;
-    sort_order: number;
-    active: boolean;
 }
 
 export interface IEvent extends ITimestamped {

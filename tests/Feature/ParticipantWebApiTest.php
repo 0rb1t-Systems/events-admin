@@ -100,7 +100,7 @@ class ParticipantWebApiTest extends TestCase
         $event = Event::factory()->published()->create();
 
         $this->withoutApiClientSigning()
-            ->getJson("/api/v1/events/{$event->id}/form-fields")
+            ->getJson("/api/v1/events/{$event->id}")
             ->assertUnauthorized()
             ->assertJsonPath('errors.error_code.0', 'missing_api_key');
 
@@ -215,41 +215,33 @@ class ParticipantWebApiTest extends TestCase
         $this->assertSame(ParticipationStatus::CANCELLED, $participation->fresh()->status);
     }
 
-    public function test_public_form_fields_404_for_draft(): void
+    public function test_form_fields_endpoint_removed(): void
     {
-        $draft = Event::factory()->create(['status' => EventStatus::DRAFT]);
-        EventFormField::factory()->for($draft)->create(['key' => 'secret']);
+        $event = Event::factory()->published()->create();
+        EventFormField::factory()->for($event)->create(['key' => 'diet']);
 
-        $this->getJson("/api/v1/events/{$draft->id}/form-fields")
+        $this->getJson("/api/v1/events/{$event->id}/form-fields")
             ->assertNotFound();
     }
 
-    public function test_public_form_fields_returns_active_fields_for_published(): void
+    public function test_join_ignores_legacy_required_form_fields(): void
     {
-        $event = Event::factory()->published()->create();
-        EventFormField::factory()->for($event)->create([
-            'key' => 'diet',
-            'label' => 'Dietary needs',
+        $event = $this->openEvent();
+        EventFormField::factory()->for($event)->required()->create([
+            'key' => 'company',
+            'label' => 'Company',
             'type' => FormFieldType::TEXT,
-            'required' => true,
-            'sort_order' => 1,
-            'active' => true,
-        ]);
-        EventFormField::factory()->for($event)->inactive()->create([
-            'key' => 'old_diet',
-            'label' => 'Old diet',
-            'sort_order' => 0,
         ]);
 
-        $payload = $this->getJson("/api/v1/events/{$event->id}/form-fields")
-            ->assertOk()
-            ->json('data');
+        $this->asParticipant()
+            ->postJson('/api/v1/participant/participations', [
+                'event_id' => $event->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', ParticipationStatus::JOINED->value);
 
-        $this->assertCount(1, $payload);
-        $this->assertSame('diet', $payload[0]['key']);
-        $this->assertSame('text', $payload[0]['type']);
-        $this->assertTrue($payload[0]['required']);
-        $this->assertArrayNotHasKey('active', $payload[0]);
+        $participation = Participation::query()->where('event_id', $event->id)->first();
+        $this->assertNull($participation->custom_field_answers);
     }
 
     public function test_charge_own_paid_ticket_participation_succeeds(): void

@@ -11,7 +11,6 @@ use App\Enums\SponsorTier;
 use App\Enums\UserStatus;
 use App\Models\DiscountCode;
 use App\Models\Event;
-use App\Models\EventFormField;
 use App\Models\EventSponsor;
 use App\Models\Participation;
 use App\Models\Payment;
@@ -234,54 +233,7 @@ class Prompt12CategoryATest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // 5. EventFormField update + reorder
-    // -------------------------------------------------------------------------
-
-    public function test_form_field_update_label_and_required(): void
-    {
-        $event = Event::factory()->create();
-        $field = EventFormField::factory()->create([
-            'event_id' => $event->id,
-            'key' => 'phone',
-            'label' => 'Phone',
-            'type' => 'text',
-            'required' => false,
-        ]);
-
-        $response = $this->auth()->patchJson("/api/v1/event-form-fields/{$field->id}", [
-            'label' => 'Mobile Phone',
-            'required' => true,
-        ]);
-
-        $response->assertOk();
-        $this->assertDatabaseHas('event_form_fields', [
-            'id' => $field->id,
-            'label' => 'Mobile Phone',
-            'required' => true,
-            'key' => 'phone', // key must not change
-        ]);
-    }
-
-    public function test_form_field_reorder(): void
-    {
-        $event = Event::factory()->create();
-        $f1 = EventFormField::factory()->create(['event_id' => $event->id, 'key' => 'name', 'sort_order' => 0]);
-        $f2 = EventFormField::factory()->create(['event_id' => $event->id, 'key' => 'email', 'sort_order' => 1]);
-        $f3 = EventFormField::factory()->create(['event_id' => $event->id, 'key' => 'phone', 'sort_order' => 2]);
-
-        $response = $this->auth()->postJson('/api/v1/event-form-fields/reorder', [
-            'event_id' => $event->id,
-            'ordered_ids' => [$f3->id, $f1->id, $f2->id],
-        ]);
-
-        $response->assertOk();
-        $this->assertDatabaseHas('event_form_fields', ['id' => $f3->id, 'sort_order' => 0]);
-        $this->assertDatabaseHas('event_form_fields', ['id' => $f1->id, 'sort_order' => 1]);
-        $this->assertDatabaseHas('event_form_fields', ['id' => $f2->id, 'sort_order' => 2]);
-    }
-
-    // -------------------------------------------------------------------------
-    // 6. Announcement store (Bus::fake to avoid real mail)
+    // 5. Announcement store (Bus::fake to avoid real mail)
     // -------------------------------------------------------------------------
 
     public function test_store_announcement_creates_record_and_queues_emails(): void

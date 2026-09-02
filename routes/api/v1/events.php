@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\EventController;
-use App\Http\Controllers\Api\Web\PublicEventFormFieldController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -105,9 +104,6 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
 /*
 | API-key-only public catalog (verify.api.client from routes/api.php).
 | Admin Bearer with admin-panel ability still receives the full unfiltered payload.
-| Form-fields: dual-access via PublicEventFormFieldController (admin-panel + permission
-| still gets the full admin payload including inactive fields).
 */
 Route::get('/', [EventController::class, 'index']);
-Route::get('/{id}/form-fields', [PublicEventFormFieldController::class, 'show']);
 Route::get('/{id}', [EventController::class, 'show']);
