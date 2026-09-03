@@ -122,8 +122,8 @@ class QrInvitationModuleTest extends TestCase
 
         $this->assertSame(ParticipationStatus::JOINED, $p->status);
         $this->assertNotNull($p->qr_token);
-        $this->assertGreaterThanOrEqual(32, strlen($p->qr_token));
-        $this->assertTrue(ctype_xdigit($p->qr_token));
+        $this->assertSame(QrTokenService::TOKEN_LENGTH, strlen($p->qr_token));
+        $this->assertMatchesRegularExpression('/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/', $p->qr_token);
     }
 
     public function test_pending_payment_does_not_get_qr_token(): void
@@ -190,7 +190,7 @@ class QrInvitationModuleTest extends TestCase
         $this->assertNull($outcome['participation']);
         $this->assertDatabaseHas('qr_scan_logs', [
             'result' => QrScanResult::INVALID->value,
-            'scanned_token' => 'definitely-not-a-real-token',
+            'scanned_token' => 'DEFINITELY-NOT-A-REAL-TOKEN',
         ]);
     }
 

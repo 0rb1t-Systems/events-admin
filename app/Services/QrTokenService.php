@@ -8,13 +8,17 @@ use App\Models\Participation;
 use Illuminate\Database\QueryException;
 
 /**
- * Issues cryptographically random qr_tokens for confirmed participations.
+ * Issues short, unique qr_tokens for confirmed participations (door scan + manual entry).
  * Uniqueness is enforced by DB unique index on participations.qr_token
  * (migration 2026_08_16_160000 — $table->string('qr_token')->nullable()->unique()).
  */
 class QrTokenService
 {
-    private const TOKEN_BYTES = 32;
+    /** 8 chars from a 32-symbol alphabet ≈ 40 bits; collisions retried via unique index. */
+    public const TOKEN_LENGTH = 8;
+
+    /** Crockford-like: no 0/O/1/I/L so door staff can type reliably. */
+    private const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
     private const MAX_ATTEMPTS = 8;
 
@@ -96,7 +100,21 @@ class QrTokenService
 
     public function generateToken(): string
     {
-        return bin2hex(random_bytes(self::TOKEN_BYTES));
+        $alphabet = self::ALPHABET;
+        $max = strlen($alphabet) - 1;
+        $token = '';
+
+        for ($i = 0; $i < self::TOKEN_LENGTH; $i++) {
+            $token .= $alphabet[random_int(0, $max)];
+        }
+
+        return $token;
+    }
+
+    /** Normalize typed/scanned input for lookup (uppercase, trimmed). */
+    public static function normalize(string $token): string
+    {
+        return strtoupper(trim($token));
     }
 
     private function isUniqueViolation(QueryException $e): bool

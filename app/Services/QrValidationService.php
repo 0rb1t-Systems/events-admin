@@ -45,7 +45,7 @@ class QrValidationService
         ?User $scannerUser = null,
         ?Organizer $scannerOrganizer = null
     ): array {
-        $token = trim($token);
+        $token = QrTokenService::normalize($token);
 
         return DB::transaction(function () use ($token, $gate, $scannerUser, $scannerOrganizer) {
             if ($token === '') {

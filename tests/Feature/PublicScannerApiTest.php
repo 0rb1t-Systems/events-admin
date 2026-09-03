@@ -25,7 +25,7 @@ class PublicScannerApiTest extends TestCase
             'event_id' => $event->id,
             'status' => ParticipationStatus::JOINED,
             'payment_status' => 'not_required',
-            'qr_token' => 'qr-public-test-token',
+            'qr_token' => 'QRTEST8A',
         ]);
 
         $this->postJson('/api/v1/public/scanner/unlock', [
@@ -37,7 +37,7 @@ class PublicScannerApiTest extends TestCase
 
         $this->postJson('/api/v1/public/qr-scan-logs/validate', [
             'scan_token' => 'DOOR-TEST-TOKEN',
-            'token' => 'qr-public-test-token',
+            'token' => 'qrtest8a',
             'event_id' => $event->id,
         ])
             ->assertOk()

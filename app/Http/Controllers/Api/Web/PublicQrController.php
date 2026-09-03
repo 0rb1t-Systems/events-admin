@@ -51,7 +51,7 @@ class PublicQrController extends BaseController
             return $event;
         }
 
-        $token = trim($validated['token']);
+        $token = \App\Services\QrTokenService::normalize($validated['token']);
         $gate = $validated['gate'] ?? null;
         $eventId = (int) ($validated['event_id'] ?? $event->id);
 

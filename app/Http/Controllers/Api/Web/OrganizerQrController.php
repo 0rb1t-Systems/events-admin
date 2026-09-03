@@ -62,7 +62,7 @@ class OrganizerQrController extends BaseController
         ]);
 
         $organizer = $this->organizer();
-        $token = trim($validated['token']);
+        $token = \App\Services\QrTokenService::normalize($validated['token']);
         $gate = $validated['gate'] ?? null;
         $eventId = $validated['event_id'] ?? null;
 
