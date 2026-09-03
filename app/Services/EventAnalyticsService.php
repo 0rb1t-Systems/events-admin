@@ -54,10 +54,10 @@ class EventAnalyticsService
             ->groupBy('status')
             ->pluck('aggregate', 'status');
 
-        $registered = 0;
-        foreach (ParticipationStatus::seatOccupying() as $status) {
-            $registered += (int) ($statusCounts[$status] ?? 0);
-        }
+        $registered = Participation::query()
+            ->where('event_id', $eventId)
+            ->confirmedSeat()
+            ->count();
         $checkIns = (int) ($statusCounts[ParticipationStatus::CHECKED_IN->value] ?? 0);
 
         $revenue = (float) Payment::query()

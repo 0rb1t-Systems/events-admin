@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\ParticipationStatus;
 use App\Models\Event;
 use App\Models\EventImage;
 use App\Models\EventSpeaker;
@@ -124,20 +123,23 @@ class OrganizerWebContentApiTest extends TestCase
             ]);
     }
 
-    public function test_cannot_promote_participation_on_another_organizers_event(): void
+    public function test_cannot_cancel_participation_on_another_organizers_event(): void
     {
-        $foreignParticipation = Participation::factory()->waitlisted()->create([
+        $foreignParticipation = Participation::factory()->create([
             'event_id' => $this->foreignEvent->id,
         ]);
 
         $this->actingAsOrganizer($this->organizer);
 
-        $this->postJson('/api/v1/organizer/participations/'.$foreignParticipation->id.'/promote')
+        $this->postJson('/api/v1/organizer/participations/'.$foreignParticipation->id.'/cancel')
             ->assertNotFound()
             ->assertJsonPath('success', false)
             ->assertJsonPath('status_code', 404);
 
-        $this->assertSame(ParticipationStatus::WAITLISTED, $foreignParticipation->fresh()->status);
+        $this->assertNotSame(
+            \App\Enums\ParticipationStatus::CANCELLED,
+            $foreignParticipation->fresh()->status
+        );
     }
 
     public function test_analytics_and_finance_return_404_for_foreign_event(): void

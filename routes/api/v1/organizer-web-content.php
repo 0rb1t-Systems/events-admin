@@ -62,7 +62,6 @@ Route::middleware(['auth:sanctum', 'organizer.web'])->prefix('organizer')->group
     // Participations
     Route::get('/events/{event}/participations', [OrganizerParticipationController::class, 'forEvent']);
     Route::get('/participations/{participation}', [OrganizerParticipationController::class, 'show']);
-    Route::post('/participations/{participation}/promote', [OrganizerParticipationController::class, 'promote']);
     Route::post('/participations/{participation}/cancel', [OrganizerParticipationController::class, 'cancel']);
 
     // Lucky wheel

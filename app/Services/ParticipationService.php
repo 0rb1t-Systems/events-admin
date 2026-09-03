@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Enums\ParticipationPaymentStatus;
 use App\Enums\ParticipationStatus;
+use App\Enums\PaymentStatus;
 use App\Models\Event;
 use App\Models\Participation;
+use App\Models\Payment;
 use App\Models\TicketType;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -13,18 +15,23 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * Join / waitlist / promote / cancel for event participations.
+ * Join / cancel for event participations.
  *
  * Transaction boundary (critical):
  * - Ticket claim via TicketType::claimQuantityAtomically() and participation INSERT
  *   happen in the SAME DB::transaction. If the insert fails, the claim UPDATE rolls back.
  * - Never claim outside the transaction or reimplement quantity checks ad hoc.
+ *
+ * Capacity:
+ * - Confirmed seats (free joined, paid, checked-in) occupy displayed capacity.
+ * - Pending unpaid checkouts hold a seat so the event cannot be oversold, but
+ *   failed/cancelled payments do not occupy.
+ * - There is no waitlist: a full event rejects join.
  */
 class ParticipationService
 {
     /**
-     * Create a participation (admin or future Web App join).
-     * Capacity full → waitlisted (no ticket claim). Otherwise joined (+ atomic ticket claim).
+     * Create a participation. Capacity full or ticket exhausted → exception (no waitlist).
      *
      * @param  array<string, mixed>|null  $customFieldAnswers
      */
@@ -33,13 +40,11 @@ class ParticipationService
         User $user,
         ?int $ticketTypeId = null,
         ?array $customFieldAnswers = null,
-        bool $allowWaitlist = true,
         ?string $discountCode = null
     ): Participation {
-        // Custom registration fields removed — ticket-only join; ignore any legacy answers payload.
         $customFieldAnswers = null;
 
-        return DB::transaction(function () use ($event, $user, $ticketTypeId, $customFieldAnswers, $allowWaitlist, $discountCode) {
+        return DB::transaction(function () use ($event, $user, $ticketTypeId, $customFieldAnswers, $discountCode) {
             /** @var Event $event */
             $event = Event::query()->whereKey($event->id)->lockForUpdate()->firstOrFail();
 
@@ -58,30 +63,12 @@ class ParticipationService
                 throw new InvalidArgumentException('User already has an active participation for this event.');
             }
 
-            $registered = $this->countSeatOccupying($event->id);
-            $capacityReached = $event->capacity !== null && $registered >= $event->capacity;
+            $held = $this->countHeldSeats($event->id);
+            if ($event->capacity !== null && $held >= $event->capacity) {
+                throw new InvalidArgumentException('Event capacity reached.');
+            }
 
             $discountAttrs = $this->resolveDiscountAttributes($event, $ticketTypeId, $discountCode);
-
-            // Event capacity full → waitlist (no ticket quantity claim yet)
-            if ($capacityReached) {
-                if (! $allowWaitlist) {
-                    throw new InvalidArgumentException('Event capacity reached.');
-                }
-
-                $participation = Participation::create(array_merge([
-                    'user_id' => $user->id,
-                    'event_id' => $event->id,
-                    'ticket_type_id' => $ticketTypeId,
-                    'status' => ParticipationStatus::WAITLISTED,
-                    'payment_status' => ParticipationPaymentStatus::NOT_REQUIRED,
-                    'custom_field_answers' => $customFieldAnswers,
-                ], $discountAttrs));
-
-                $this->syncEventRegistrationCount($event);
-
-                return $participation->fresh(['user', 'ticketType']);
-            }
 
             $paymentStatus = ParticipationPaymentStatus::NOT_REQUIRED;
 
@@ -100,22 +87,7 @@ class ParticipationService
                     throw new InvalidArgumentException('Ticket type sales are disabled.');
                 }
 
-                // Atomic claim — same transaction as insert below
                 if (! TicketType::claimQuantityAtomically($ticketType->id, 1)) {
-                    if ($allowWaitlist) {
-                        $participation = Participation::create(array_merge([
-                            'user_id' => $user->id,
-                            'event_id' => $event->id,
-                            'ticket_type_id' => $ticketTypeId,
-                            'status' => ParticipationStatus::WAITLISTED,
-                            'payment_status' => ParticipationPaymentStatus::NOT_REQUIRED,
-                            'custom_field_answers' => $customFieldAnswers,
-                        ], $discountAttrs));
-                        $this->syncEventRegistrationCount($event);
-
-                        return $participation->fresh(['user', 'ticketType']);
-                    }
-
                     throw new RuntimeException('Ticket type quantity exhausted.');
                 }
 
@@ -191,70 +163,7 @@ class ParticipationService
     }
 
     /**
-     * Promote waitlisted → joined when a seat opens (admin action / future auto-promote).
-     */
-    public function promoteFromWaitlist(Participation $participation): Participation
-    {
-        return DB::transaction(function () use ($participation) {
-            /** @var Participation $participation */
-            $participation = Participation::query()->whereKey($participation->id)->lockForUpdate()->firstOrFail();
-
-            if ($participation->status !== ParticipationStatus::WAITLISTED) {
-                throw new InvalidArgumentException('Only waitlisted participations can be promoted.');
-            }
-
-            $event = Event::query()->whereKey($participation->event_id)->lockForUpdate()->firstOrFail();
-
-            if (EventRegistrationGate::isRegistrationDeadlinePassed($event)) {
-                throw new InvalidArgumentException('Registration deadline has passed; cannot promote.');
-            }
-
-            $registered = $this->countSeatOccupying($event->id);
-            if ($event->capacity !== null && $registered >= $event->capacity) {
-                throw new InvalidArgumentException('No seats available to promote from waitlist.');
-            }
-
-            $paymentStatus = ParticipationPaymentStatus::NOT_REQUIRED;
-
-            if ($participation->ticket_type_id) {
-                $ticketType = TicketType::query()
-                    ->whereKey($participation->ticket_type_id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $ticketType || ! TicketType::claimQuantityAtomically($ticketType->id, 1)) {
-                    throw new RuntimeException('Cannot promote: ticket type quantity unavailable.');
-                }
-
-                $paymentStatus = $ticketType->isPaid()
-                    ? ParticipationPaymentStatus::PENDING
-                    : ParticipationPaymentStatus::NOT_REQUIRED;
-
-                if ($participation->final_amount !== null && (float) $participation->final_amount <= 0) {
-                    $paymentStatus = ParticipationPaymentStatus::PAID;
-                } elseif ($participation->final_amount !== null && (float) $participation->final_amount > 0) {
-                    $paymentStatus = ParticipationPaymentStatus::PENDING;
-                }
-            }
-
-            $participation->status = ParticipationStatus::JOINED;
-            $participation->payment_status = $paymentStatus;
-            $participation->save();
-
-            $this->syncEventRegistrationCount($event);
-            app(EventStatusMachine::class)->syncSoldOutFromCapacity($event->fresh());
-            app(QrTokenService::class)->ensureForConfirmed($participation);
-
-            if ($paymentStatus === ParticipationPaymentStatus::PAID) {
-                app(DiscountPricingService::class)->consumeUsageIfNeeded($participation);
-            }
-
-            return $participation->fresh(['user', 'ticketType']);
-        });
-    }
-
-    /**
-     * Cancel participation; release ticket quantity if a seat was held.
+     * Cancel participation; release ticket quantity if a ticket was claimed.
      */
     public function cancel(Participation $participation): Participation
     {
@@ -265,13 +174,13 @@ class ParticipationService
                 return $participation;
             }
 
-            $occupiedSeat = $participation->occupiesSeat();
+            $heldTicket = $participation->holdsTicketQuantity();
             $ticketTypeId = $participation->ticket_type_id;
 
             $participation->status = ParticipationStatus::CANCELLED;
             $participation->save();
 
-            if ($occupiedSeat && $ticketTypeId) {
+            if ($heldTicket && $ticketTypeId) {
                 TicketType::releaseQuantityAtomically($ticketTypeId, 1);
             }
 
@@ -284,19 +193,65 @@ class ParticipationService
         });
     }
 
+    /**
+     * Cancel unpaid pending checkouts that never completed payment (no live Waafi row).
+     * Same timeout as Waafi pending payments. Releases ticket quantity and the held seat.
+     */
+    public function expireAbandonedUnpaidCheckouts(int $limit = 100): int
+    {
+        $minutes = (int) config('waafipay.pending_timeout_minutes', 15);
+        $cutoff = now()->subMinutes(max(1, $minutes));
+
+        $rows = Participation::query()
+            ->where('status', ParticipationStatus::JOINED)
+            ->where('payment_status', ParticipationPaymentStatus::PENDING)
+            ->where('created_at', '<=', $cutoff)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+
+        $expired = 0;
+
+        foreach ($rows as $participation) {
+            $livePending = Payment::query()
+                ->where('participation_id', $participation->id)
+                ->where('status', PaymentStatus::PENDING)
+                ->where(function ($q) {
+                    $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                })
+                ->exists();
+
+            if ($livePending) {
+                continue;
+            }
+
+            $cancelled = $this->cancel($participation);
+            $cancelled->payment_status = ParticipationPaymentStatus::FAILED;
+            $cancelled->save();
+            $expired++;
+        }
+
+        return $expired;
+    }
+
+    /** Confirmed attendees that occupy displayed event capacity. */
     public function countSeatOccupying(int $eventId): int
     {
         return Participation::query()
             ->where('event_id', $eventId)
-            ->whereIn('status', ParticipationStatus::seatOccupying())
+            ->confirmedSeat()
             ->count();
     }
 
-    public function countWaitlisted(int $eventId): int
+    /**
+     * Confirmed seats plus unpaid pending checkouts (prevents oversell).
+     * Failed and cancelled do not count.
+     */
+    public function countHeldSeats(int $eventId): int
     {
         return Participation::query()
             ->where('event_id', $eventId)
-            ->where('status', ParticipationStatus::WAITLISTED)
+            ->heldSeat()
             ->count();
     }
 
@@ -315,13 +270,14 @@ class ParticipationService
     public function capacitySnapshot(Event $event): array
     {
         $registered = $this->countSeatOccupying($event->id);
+        $held = $this->countHeldSeats($event->id);
         $capacity = $event->capacity;
 
         return [
             'registered_count' => $registered,
-            'waitlisted_count' => $this->countWaitlisted($event->id),
+            'waitlisted_count' => 0,
             'capacity' => $capacity,
-            'seats_remaining' => $capacity === null ? null : max(0, $capacity - $registered),
+            'seats_remaining' => $capacity === null ? null : max(0, $capacity - $held),
         ];
     }
 }

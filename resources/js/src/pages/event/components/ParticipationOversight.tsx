@@ -68,15 +68,6 @@ const ParticipationOversight: React.FC<Props> = ({ eventId }) => {
         onError: (e: any) => toast.error(e?.message || "Failed to add participation"),
     });
 
-    const promote = useMutation({
-        mutationFn: (id: number) => eventApi.promoteParticipation(id),
-        onSuccess: () => {
-            toast.success("Promoted from waitlist");
-            invalidate();
-        },
-        onError: (e: Error) => toast.error(e.message),
-    });
-
     const cancel = useMutation({
         mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
             eventApi.cancelParticipation(id, reason),
@@ -108,8 +99,6 @@ const ParticipationOversight: React.FC<Props> = ({ eventId }) => {
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                         Registered {cap.registered_count}
                         {cap.capacity != null ? ` / ${cap.capacity}` : " (unlimited)"}
-                        {" · "}
-                        Waitlisted {cap.waitlisted_count}
                         {cap.seats_remaining != null ? ` · ${cap.seats_remaining} left` : ""}
                     </p>
                     <button
@@ -158,15 +147,6 @@ const ParticipationOversight: React.FC<Props> = ({ eventId }) => {
                             </SimpleAdminTd>
                             <SimpleAdminTd align="center">
                                 <div className="flex items-center justify-center gap-1.5">
-                                    {p.status === "waitlisted" && (
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-primary btn-sm"
-                                            onClick={() => promote.mutate(p.id)}
-                                        >
-                                            Promote
-                                        </button>
-                                    )}
                                     {p.status !== "cancelled" && (
                                         <>
                                             <input

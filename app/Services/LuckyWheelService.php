@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\ParticipationStatus;
 use App\Models\Event;
 use App\Models\LuckyWheelAttempt;
 use App\Models\LuckyWheelWinner;
@@ -15,7 +14,7 @@ use InvalidArgumentException;
 class LuckyWheelService
 {
     /**
-     * Confirmed-seat registrations eligible for the lucky wheel (excludes waitlisted and cancelled).
+     * Confirmed-seat registrations eligible for the lucky wheel (excludes pending unpaid, cancelled, and legacy waitlisted).
      *
      * @return Collection<int, Participation>
      */
@@ -24,7 +23,7 @@ class LuckyWheelService
         return Participation::query()
             ->with(['user', 'ticketType'])
             ->where('event_id', $event->id)
-            ->whereIn('status', ParticipationStatus::seatOccupying())
+            ->confirmedSeat()
             ->orderBy('created_at')
             ->get();
     }

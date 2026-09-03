@@ -146,8 +146,7 @@ class PaymentService
 
             $participation = $payment->participation;
             if ($participation) {
-                $participation->payment_status = ParticipationPaymentStatus::FAILED;
-                $participation->save();
+                $this->cancelUnpaidAfterFailedPayment($participation);
             }
 
             return $payment->fresh(['participation', 'ticketType']);
@@ -222,22 +221,8 @@ class PaymentService
                 ->lockForUpdate()
                 ->first();
 
-            if ($participation && $participation->status !== ParticipationStatus::CANCELLED) {
-                $occupied = $participation->occupiesSeat();
-                $ticketTypeId = $participation->ticket_type_id;
-
-                $participation->payment_status = ParticipationPaymentStatus::FAILED;
-                $participation->status = ParticipationStatus::CANCELLED;
-                $participation->save();
-
-                if ($occupied && $ticketTypeId) {
-                    TicketType::releaseQuantityAtomically($ticketTypeId, 1);
-                }
-
-                $event = $participation->event;
-                if ($event) {
-                    app(ParticipationService::class)->syncEventRegistrationCount($event);
-                }
+            if ($participation) {
+                $this->cancelUnpaidAfterFailedPayment($participation);
             }
 
             return $payment->fresh(['participation']);
@@ -312,5 +297,25 @@ class PaymentService
         $participation->save();
 
         app(QrTokenService::class)->ensureForConfirmed($participation);
+
+        $event = $participation->event;
+        if ($event) {
+            app(ParticipationService::class)->syncEventRegistrationCount($event);
+            app(EventStatusMachine::class)->syncSoldOutFromCapacity($event->fresh());
+        }
+    }
+
+    /**
+     * Failed/expired unpaid checkout: cancel so the seat and ticket inventory are released.
+     */
+    private function cancelUnpaidAfterFailedPayment(Participation $participation): void
+    {
+        $svc = app(ParticipationService::class);
+        if ($participation->status !== ParticipationStatus::CANCELLED) {
+            $participation = $svc->cancel($participation);
+        }
+
+        $participation->payment_status = ParticipationPaymentStatus::FAILED;
+        $participation->save();
     }
 }

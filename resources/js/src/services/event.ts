@@ -86,11 +86,6 @@ class EventApi extends BaseApi<IEvent> {
         return response.data.data || response.data;
     }
 
-    async promoteParticipation(id: number | string) {
-        const response = await axiosInstance.post(`/participations/${id}/promote`);
-        return response.data.data || response.data;
-    }
-
     async cancelParticipation(id: number | string, reason?: string) {
         const response = await axiosInstance.post(`/participations/${id}/cancel`, reason ? { reason } : {});
         return response.data.data || response.data;

@@ -111,7 +111,7 @@ class ParticipationModuleTest extends TestCase
             'quantity_limit' => 1,
             'quantity_sold' => 0,
             'sales_enabled' => true,
-            'price' => 10,
+            'price' => 0,
         ]);
         $user = User::factory()->create();
 
@@ -122,6 +122,55 @@ class ParticipationModuleTest extends TestCase
         $this->assertSame(1, $event->fresh()->registrations_count);
         $this->assertSame(1, $event->fresh()->registered_count);
         $this->assertSame(9, $event->fresh()->seats_remaining);
+    }
+
+    public function test_unpaid_pending_does_not_occupy_displayed_capacity(): void
+    {
+        $event = $this->openEvent(['capacity' => 2]);
+        $ticket = TicketType::factory()->create([
+            'event_id' => $event->id,
+            'quantity_limit' => 10,
+            'quantity_sold' => 0,
+            'sales_enabled' => true,
+            'price' => 25,
+        ]);
+        $user = User::factory()->create();
+
+        $p = $this->service->join($event, $user, $ticket->id);
+
+        $this->assertSame('pending', $p->payment_status->value);
+        $this->assertSame(1, $ticket->fresh()->quantity_sold);
+        $this->assertSame(0, $event->fresh()->registrations_count);
+        $this->assertSame(1, $event->fresh()->seats_remaining);
+        $this->assertSame(1, $this->service->countHeldSeats($event->id));
+    }
+
+    public function test_abandoned_unpaid_checkout_expires_and_releases_seat(): void
+    {
+        $event = $this->openEvent(['capacity' => 1]);
+        $ticket = TicketType::factory()->create([
+            'event_id' => $event->id,
+            'quantity_limit' => 10,
+            'quantity_sold' => 0,
+            'sales_enabled' => true,
+            'price' => 25,
+        ]);
+        $user = User::factory()->create();
+
+        $p = $this->service->join($event, $user, $ticket->id);
+        $this->assertSame(0, $event->fresh()->seats_remaining);
+
+        $this->assertSame(0, $this->service->expireAbandonedUnpaidCheckouts());
+        $this->assertSame('joined', $p->fresh()->status->value);
+
+        $this->travel(16)->minutes();
+
+        $this->assertSame(1, $this->service->expireAbandonedUnpaidCheckouts());
+        $fresh = $p->fresh();
+        $this->assertSame('cancelled', $fresh->status->value);
+        $this->assertSame('failed', $fresh->payment_status->value);
+        $this->assertSame(0, $ticket->fresh()->quantity_sold);
+        $this->assertSame(1, $event->fresh()->seats_remaining);
     }
 
     public function test_failed_unique_does_not_leave_orphaned_ticket_claim(): void
@@ -184,13 +233,14 @@ class ParticipationModuleTest extends TestCase
         $this->assertSame(0, Participation::where('event_id', $event->id)->count());
     }
 
-    public function test_capacity_full_creates_waitlisted_without_ticket_claim(): void
+    public function test_capacity_full_rejects_join_without_waitlist(): void
     {
         $event = $this->openEvent(['capacity' => 1]);
         $ticket = TicketType::factory()->create([
             'event_id' => $event->id,
             'quantity_limit' => 100,
             'quantity_sold' => 0,
+            'price' => 0,
         ]);
 
         $u1 = User::factory()->create();
@@ -200,34 +250,16 @@ class ParticipationModuleTest extends TestCase
         $this->assertSame(ParticipationStatus::JOINED, $first->status);
         $this->assertSame(1, $ticket->fresh()->quantity_sold);
 
-        $second = $this->service->join($event, $u2, $ticket->id);
-        $this->assertSame(ParticipationStatus::WAITLISTED, $second->status);
-        // Waitlist does not claim ticket inventory
+        try {
+            $this->service->join($event, $u2, $ticket->id);
+            $this->fail('Expected capacity-full join to throw');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame('Event capacity reached.', $e->getMessage());
+        }
+
         $this->assertSame(1, $ticket->fresh()->quantity_sold);
-        $this->assertSame(1, $event->fresh()->waitlisted_count);
-    }
-
-    public function test_promote_from_waitlist_claims_ticket_atomically(): void
-    {
-        $event = $this->openEvent(['capacity' => 1]);
-        $ticket = TicketType::factory()->create([
-            'event_id' => $event->id,
-            'quantity_limit' => 10,
-            'quantity_sold' => 0,
-        ]);
-        $u1 = User::factory()->create();
-        $u2 = User::factory()->create();
-
-        $this->service->join($event, $u1, $ticket->id);
-        $waitlisted = $this->service->join($event, $u2, $ticket->id);
-        $this->assertSame(ParticipationStatus::WAITLISTED, $waitlisted->status);
-
-        $this->service->cancel(Participation::where('user_id', $u1->id)->first());
-        $this->assertSame(0, $ticket->fresh()->quantity_sold);
-
-        $promoted = $this->service->promoteFromWaitlist($waitlisted->fresh());
-        $this->assertSame(ParticipationStatus::JOINED, $promoted->status);
-        $this->assertSame(1, $ticket->fresh()->quantity_sold);
+        $this->assertSame(1, Participation::query()->where('event_id', $event->id)->count());
+        $this->assertSame(0, $event->fresh()->waitlisted_count);
     }
 
     public function test_ticket_quantity_race_only_one_claim_succeeds(): void
@@ -251,7 +283,7 @@ class ParticipationModuleTest extends TestCase
         $this->assertSame(1, $ticket->fresh()->quantity_sold);
     }
 
-    public function test_admin_api_lists_and_promotes(): void
+    public function test_admin_api_lists_and_rejects_when_full(): void
     {
         $event = $this->openEvent(['capacity' => 1]);
         $u1 = User::factory()->create();
@@ -266,25 +298,18 @@ class ParticipationModuleTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.status', 'joined');
 
-        $wait = $this->withToken($token)
+        $this->withToken($token)
             ->postJson('/api/v1/participations', [
                 'event_id' => $event->id,
                 'user_id' => $u2->id,
             ])
-            ->assertCreated()
-            ->assertJsonPath('data.status', 'waitlisted');
+            ->assertStatus(400)
+            ->assertJsonPath('success', false);
 
         $this->withToken($token)
             ->getJson("/api/v1/events/{$event->id}/participations")
             ->assertOk()
             ->assertJsonPath('data.capacity.registered_count', 1)
-            ->assertJsonPath('data.capacity.waitlisted_count', 1);
-
-        $this->service->cancel(Participation::where('user_id', $u1->id)->first());
-
-        $this->withToken($token)
-            ->postJson('/api/v1/participations/'.$wait->json('data.id').'/promote')
-            ->assertOk()
-            ->assertJsonPath('data.status', 'joined');
+            ->assertJsonPath('data.capacity.waitlisted_count', 0);
     }
 }

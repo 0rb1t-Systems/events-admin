@@ -11,7 +11,8 @@ use App\Models\Event;
  * Gate A — Capacity: EventRegistrationGate::isCapacityReached()
  *   - capacity === null → unlimited (not reached)
  *   - capacity === 0 → reached (zero seats)
- *   - capacity > 0 → reached when registrations_count >= capacity
+ *   - capacity > 0 → reached when held seats (confirmed + unpaid pending) >= capacity
+ *     Failed/cancelled checkouts do not count. Confirmed = free joined, paid, checked-in.
  *   When reached while status is registration_open, EventStatusMachine::syncSoldOutFromCapacity()
  *   transitions to sold_out (independent of deadline).
  *
@@ -42,7 +43,11 @@ final class EventRegistrationGate
             return true;
         }
 
-        return (int) $event->registrations_count >= $capacity;
+        if (! $event->id) {
+            return (int) $event->registrations_count >= $capacity;
+        }
+
+        return app(ParticipationService::class)->countHeldSeats((int) $event->id) >= $capacity;
     }
 
     /**

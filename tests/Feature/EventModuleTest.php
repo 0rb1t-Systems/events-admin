@@ -16,6 +16,7 @@ use App\Models\Package;
 use App\Models\User;
 use App\Services\EventRegistrationGate;
 use App\Services\EventStatusMachine;
+use App\Services\ParticipationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
@@ -167,9 +168,11 @@ class EventModuleTest extends TestCase
     {
         $event = Event::factory()->registrationOpen()->create([
             'capacity' => 2,
-            'registrations_count' => 2,
             'registration_deadline' => now()->addDays(5),
         ]);
+        app(ParticipationService::class)->join($event, User::factory()->create());
+        app(ParticipationService::class)->join($event, User::factory()->create());
+        $event = $event->fresh();
 
         // Gate B: deadline NOT passed
         $this->assertFalse(EventRegistrationGate::isRegistrationDeadlinePassed($event));

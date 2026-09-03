@@ -83,7 +83,7 @@ class ParticipationController extends BaseController
     }
 
     /**
-     * Admin stand-in for Web App join (creates joined or waitlisted).
+     * Admin stand-in for Web App join. Capacity full → 400 (no waitlist).
      */
     public function store(Request $request)
     {
@@ -101,8 +101,7 @@ class ParticipationController extends BaseController
                 $event,
                 $user,
                 $validated['ticket_type_id'] ?? null,
-                null,
-                allowWaitlist: true
+                null
             );
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e->errors());
@@ -126,29 +125,6 @@ class ParticipationController extends BaseController
         );
 
         return $this->createdResponse($participation);
-    }
-
-    public function promote($id)
-    {
-        $participation = Participation::find($id);
-        if (! $participation) {
-            return $this->notFoundResponse();
-        }
-
-        try {
-            $participation = $this->participations->promoteFromWaitlist($participation);
-        } catch (InvalidArgumentException|RuntimeException $e) {
-            return $this->badRequestResponse($e->getMessage());
-        }
-
-        $this->logActivity(
-            'Waitlisted participation promoted',
-            $participation,
-            [],
-            'participation_promoted'
-        );
-
-        return $this->successResponse($participation, 'Promoted from waitlist');
     }
 
     public function cancel(Request $request, $id)

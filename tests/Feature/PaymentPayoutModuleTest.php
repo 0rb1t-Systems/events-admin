@@ -166,8 +166,11 @@ class PaymentPayoutModuleTest extends TestCase
 
         $this->assertSame(PaymentStatus::FAILED, $payment->status);
         $this->assertSame('user_rejected', $payment->failure_code);
-        $this->assertSame(ParticipationPaymentStatus::FAILED, $p->fresh()->payment_status);
-        $this->assertNotSame(ParticipationStatus::PAID, $p->fresh()->status);
+        $fresh = $p->fresh();
+        $this->assertSame(ParticipationPaymentStatus::FAILED, $fresh->payment_status);
+        $this->assertSame(ParticipationStatus::CANCELLED, $fresh->status);
+        $this->assertSame(0, $fresh->ticketType->quantity_sold);
+        $this->assertSame(0, $fresh->event->registrations_count);
     }
 
     public function test_http_200_with_non_approved_is_not_success(): void

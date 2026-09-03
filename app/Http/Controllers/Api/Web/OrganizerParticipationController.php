@@ -8,12 +8,10 @@ use App\Models\Participation;
 use App\Services\ParticipationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use InvalidArgumentException;
-use RuntimeException;
 
 /**
- * Organizer Web API — registrations for owned events only (cross-organizer → 404).
- * Promote/cancel reuse ParticipationService (capacity honored on promote).
+ * Registrations for owned events only (cross-organizer → 404).
+ * Cancel reuses ParticipationService. Waitlist promote is removed.
  */
 class OrganizerParticipationController extends BaseController
 {
@@ -70,29 +68,6 @@ class OrganizerParticipationController extends BaseController
         }
 
         return $this->successResponse($row->load($this->relationships));
-    }
-
-    public function promote($participation)
-    {
-        $row = $this->ownedParticipationOrFail($participation);
-        if ($row instanceof JsonResponse) {
-            return $row;
-        }
-
-        try {
-            $row = $this->participations->promoteFromWaitlist($row);
-        } catch (InvalidArgumentException|RuntimeException $e) {
-            return $this->badRequestResponse($e->getMessage());
-        }
-
-        $this->logActivity(
-            'Waitlisted participation promoted',
-            $row,
-            [],
-            'participation_promoted'
-        );
-
-        return $this->successResponse($row, 'Promoted from waitlist');
     }
 
     public function cancel(Request $request, $participation)

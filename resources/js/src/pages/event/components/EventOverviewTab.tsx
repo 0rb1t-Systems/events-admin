@@ -180,7 +180,6 @@ const EventOverviewTab: React.FC<Props> = ({ eventId }) => {
                         </span>
                     )}
                 </EventField>
-                <EventField label="Waitlisted">{event.waitlisted_count ?? 0}</EventField>
                 <EventField label="Reg. deadline">
                     {event.registration_deadline
                         ? moment(event.registration_deadline).format("MMM DD, YYYY HH:mm")

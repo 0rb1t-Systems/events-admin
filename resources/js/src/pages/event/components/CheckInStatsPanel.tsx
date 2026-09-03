@@ -25,12 +25,11 @@ const CheckInStatsPanel: React.FC<Props> = ({ eventId }) => {
         { label: "Registered", value: data.registered },
         { label: "Arrived", value: data.arrived },
         { label: "Absent", value: data.absent },
-        { label: "Waitlisted", value: data.waitlisted },
     ];
 
     return (
         <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-3 gap-3">
                 {cells.map((c) => (
                     <EventMetricCard key={c.label} label={c.label} value={c.value} />
                 ))}

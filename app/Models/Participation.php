@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ParticipationPaymentStatus;
 use App\Enums\ParticipationStatus;
 use App\Models\DiscountCode;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -85,14 +86,85 @@ class Participation extends Model
         return $this->hasMany(QrScanLog::class);
     }
 
+    /**
+     * Free joined, paid, or checked-in — occupies displayed event capacity.
+     * Pending unpaid and failed payments do not occupy.
+     */
     public function occupiesSeat(): bool
     {
-        return in_array($this->status?->value ?? $this->status, ParticipationStatus::seatOccupying(), true);
+        $status = $this->status instanceof ParticipationStatus
+            ? $this->status
+            : ParticipationStatus::tryFrom((string) $this->status);
+        $payment = $this->payment_status instanceof ParticipationPaymentStatus
+            ? $this->payment_status
+            : ParticipationPaymentStatus::tryFrom((string) $this->payment_status);
+
+        if ($status === ParticipationStatus::PAID || $status === ParticipationStatus::CHECKED_IN) {
+            return true;
+        }
+
+        return $status === ParticipationStatus::JOINED
+            && in_array($payment, [
+                ParticipationPaymentStatus::NOT_REQUIRED,
+                ParticipationPaymentStatus::PAID,
+            ], true);
     }
 
-    public function isWaitlisted(): bool
+    /** Ticket quantity was claimed on join (pending unpaid still holds inventory). */
+    public function holdsTicketQuantity(): bool
     {
-        return $this->status === ParticipationStatus::WAITLISTED;
+        $status = $this->status instanceof ParticipationStatus
+            ? $this->status
+            : ParticipationStatus::tryFrom((string) $this->status);
+
+        return in_array($status, [
+            ParticipationStatus::JOINED,
+            ParticipationStatus::PAID,
+            ParticipationStatus::CHECKED_IN,
+        ], true);
+    }
+
+    /**
+     * @param  Builder<Participation>  $query
+     * @return Builder<Participation>
+     */
+    public function scopeConfirmedSeat(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->whereIn('status', [
+                ParticipationStatus::PAID->value,
+                ParticipationStatus::CHECKED_IN->value,
+            ])->orWhere(function (Builder $inner) {
+                $inner->where('status', ParticipationStatus::JOINED->value)
+                    ->whereIn('payment_status', [
+                        ParticipationPaymentStatus::NOT_REQUIRED->value,
+                        ParticipationPaymentStatus::PAID->value,
+                    ]);
+            });
+        });
+    }
+
+    /**
+     * Confirmed seats plus unpaid pending checkouts (not failed/cancelled).
+     *
+     * @param  Builder<Participation>  $query
+     * @return Builder<Participation>
+     */
+    public function scopeHeldSeat(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->whereIn('status', [
+                ParticipationStatus::PAID->value,
+                ParticipationStatus::CHECKED_IN->value,
+            ])->orWhere(function (Builder $inner) {
+                $inner->where('status', ParticipationStatus::JOINED->value)
+                    ->whereIn('payment_status', [
+                        ParticipationPaymentStatus::NOT_REQUIRED->value,
+                        ParticipationPaymentStatus::PAID->value,
+                        ParticipationPaymentStatus::PENDING->value,
+                    ]);
+            });
+        });
     }
 
     public function isCancelled(): bool

@@ -166,11 +166,7 @@ class Event extends Model
 
     public function getWaitlistedCountAttribute(): int
     {
-        if (! $this->id) {
-            return 0;
-        }
-
-        return app(ParticipationService::class)->countWaitlisted((int) $this->id);
+        return 0;
     }
 
     public function getSeatsRemainingAttribute(): ?int
@@ -179,7 +175,13 @@ class Event extends Model
             return null;
         }
 
-        return max(0, (int) $this->capacity - $this->registered_count);
+        if (! $this->id) {
+            return max(0, (int) $this->capacity - $this->registered_count);
+        }
+
+        $held = app(ParticipationService::class)->countHeldSeats((int) $this->id);
+
+        return max(0, (int) $this->capacity - $held);
     }
 
     public function getBannerUrlAttribute(): ?string

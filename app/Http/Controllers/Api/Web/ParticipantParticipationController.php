@@ -57,7 +57,6 @@ class ParticipantParticipationController extends WebController
                 $user,
                 $validated['ticket_type_id'] ?? null,
                 null,
-                true,
                 $validated['discount_code'] ?? null
             );
         } catch (ValidationException $e) {

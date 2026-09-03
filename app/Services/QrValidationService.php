@@ -205,17 +205,12 @@ class QrValidationService
     {
         $registered = Participation::query()
             ->where('event_id', $eventId)
-            ->whereIn('status', ParticipationStatus::seatOccupying())
+            ->confirmedSeat()
             ->count();
 
         $arrived = Participation::query()
             ->where('event_id', $eventId)
             ->where('status', ParticipationStatus::CHECKED_IN)
-            ->count();
-
-        $waitlisted = Participation::query()
-            ->where('event_id', $eventId)
-            ->where('status', ParticipationStatus::WAITLISTED)
             ->count();
 
         $scanBase = QrScanLog::query()->where('event_id', $eventId);
@@ -225,7 +220,7 @@ class QrValidationService
             'registered' => $registered,
             'arrived' => $arrived,
             'absent' => max(0, $registered - $arrived),
-            'waitlisted' => $waitlisted,
+            'waitlisted' => 0,
             'scan_attempts' => (clone $scanBase)->count(),
             'valid_scans' => (clone $scanBase)->where('result', QrScanResult::VALID)->count(),
             'already_used_scans' => (clone $scanBase)->where('result', QrScanResult::ALREADY_USED)->count(),
