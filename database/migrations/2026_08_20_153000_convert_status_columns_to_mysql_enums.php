@@ -21,6 +21,7 @@ use App\Enums\UserStatus;
 use App\Enums\UserType;
 use App\Support\EnumColumn;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Convert domain status / constrained-choice string columns to MySQL ENUM.
@@ -80,7 +81,9 @@ return new class extends Migration
         );
 
         EnumColumn::modify('discount_codes', 'type', DiscountCodeType::values(), false, null);
-        EnumColumn::modify('event_form_fields', 'type', FormFieldType::values(), false, null);
+        if (Schema::hasTable('event_form_fields')) {
+            EnumColumn::modify('event_form_fields', 'type', FormFieldType::values(), false, null);
+        }
         EnumColumn::modify('event_sponsors', 'tier', SponsorTier::values(), false, null);
         EnumColumn::modify('qr_scan_logs', 'result', QrScanResult::values(), false, null);
 

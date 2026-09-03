@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-09-03 (waitlist removed; unpaid/failed payments do not occupy confirmed seats)
+Last updated: 2026-09-03 (form fields table dropped; Admin Form Fields tab gone from production build)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -33,7 +33,7 @@ Every meaningful change to the codebase must also update this file.
   - Windows `dev:windows` and Unix `dev` serve Admin Laravel on port **8001** (Vite stays on **5173**)
   - Sanctum stateful defaults include `localhost:8001` / `127.0.0.1:8001`
   - **API client auth (Prompt 3b, simplified 2026-08-18):** All `/api/*` routes require `X-API-Key` (`verify.api.client` / `VerifyApiClientSignature` on `routes/api.php`). Lookup: `api_clients` where `public_key` matches and `active = true`. Errors: `missing_api_key` (header absent/empty), `invalid_api_key` (unknown or inactive). **No** `X-API-Timestamp` / `X-API-Signature` — HMAC was removed because the Web App is a Vite SPA with no server to hide `WEBAPP_API_SECRET`. `api_clients.secret` column remains in DB unused by verification. Admin SPA axios sends `X-API-Key` from `VITE_WEBAPP_API_PUBLIC_KEY`. Web App sends the same public key. Rotate by updating env `WEBAPP_API_PUBLIC_KEY` + `php artisan db:seed --class=ApiClientSeeder`.
-  - **Public API-key-only catalog (Web App, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`, `GET /api/v1/events/{id}/form-fields`, **`GET /api/v1/platform/branding`**. `X-API-Key` still required. No `auth:sanctum` / `admin.panel`. Without an `admin-panel` Bearer, events are filtered to `published|registration_open|sold_out|registration_closed|ongoing` (`Event::scopePublicCatalog` / `EventStatus::publicCatalogValues()`). Draft, cancelled, and completed are omitted; public show of those returns **404**. Admin-panel Bearer (Admin SPA) still returns **all** statuses including draft/cancelled. Public payloads hide organizer `email` / `phone` / `contact_name` (only `id` + `business_name`) and do not load `discountCodes`. Public show eager-loads ticket types, speakers, sponsors, sessions, category, images. **Form-fields** (`PublicEventFormFieldController`): public callers get **active** fields only; admin-panel Bearer + `view event form fields` still gets the full admin payload (inactive included). **Platform branding** (`PlatformBrandingController`): returns `{ name, logo_url, logo_dark_url, icon_url }` only (nulls when no org row); never email/phone/address. Managed in Admin Settings → Organization. All other Admin event/category routes remain API-key + Sanctum + `admin.panel` + permissions.
+  - **Public API-key-only catalog (Web App, no Bearer):** `GET /api/v1/events`, `GET /api/v1/events/{id}`, `GET /api/v1/event-categories`, **`GET /api/v1/platform/branding`**. `X-API-Key` still required. No `auth:sanctum` / `admin.panel`. Without an `admin-panel` Bearer, events are filtered to `published|registration_open|sold_out|registration_closed|ongoing` (`Event::scopePublicCatalog` / `EventStatus::publicCatalogValues()`). Draft, cancelled, and completed are omitted; public show of those returns **404**. Admin-panel Bearer (Admin SPA) still returns **all** statuses including draft/cancelled. Public payloads hide organizer `email` / `phone` / `contact_name` (only `id` + `business_name`) and do not load `discountCodes`. Public show eager-loads ticket types, speakers, sponsors, sessions, category, images. **No form-fields endpoints.** **Platform branding** (`PlatformBrandingController`): returns `{ name, logo_url, logo_dark_url, icon_url }` only (nulls when no org row); never email/phone/address. Managed in Admin Settings → Organization. All other Admin event/category routes remain API-key + Sanctum + `admin.panel` + permissions.
   - **Web App HTTP surface (Prompt 0):** explicit `/api/v1/participant/*` (`participant.web`) and `/api/v1/organizer/*` (`organizer.web`). Do **not** reuse Admin routes for Web tokens. Admin SPA routes/permissions unchanged. Domain services reused (ParticipationService, PaymentService, EventStatusMachine, EventQuota, QrValidationService, etc.).
   - **Vite must be running** for Admin SPA (`@vite` in `app.blade.php`). If Vite dies, Laravel throws `ViteManifestNotFoundException` (`public/build/manifest.json` missing — we do not commit a production build). Symptom: Internal Server Error on `http://localhost:8001`. Fix: restart `composer run dev:windows` (or `npm run dev`). Cause seen: `.env` change restarts Vite, then `laravel-vite-plugin@1.3.0` crashes (`Cannot read properties of null (reading 'family')`). Mitigated in `vite.config.js`: `server.host=127.0.0.1`, ignore `**/.env`.
   - Lockfile is **pnpm** (`pnpm-lock.yaml`); npm also works
@@ -363,10 +363,10 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 | QR Scan History | `/qr-scan-logs` | `view qr scan logs` |
 | Trash | `/trash/*` | `view trash items` |
 
-**Event hub is a full page** (`/events/:id`, `pages/event/show.tsx`) — not a side panel. Tabs (lazy: fetch only the active tab): Overview, Ticket Types, Registrations, Payments, Speakers, Sessions, Sponsors, Announcements, Form Fields, Gallery, Invitation, Analytics. Overview: event fields, status transition buttons, registered / revenue / check-in stats. List row-click and view action navigate here.
+**Event hub is a full page** (`/events/:id`, `pages/event/show.tsx`) — not a side panel. Tabs (lazy: fetch only the active tab): Overview, Ticket Types, Registrations, Payments, Speakers, Sessions, Sponsors, Announcements, Gallery, Invitation, Analytics. Overview: event fields, status transition buttons, registered / revenue / check-in stats. List row-click and view action navigate here. **No Form Fields tab.**
 
 ### Domain services (non-controller)
-`MailService`, `LocationService`, `CommonServices`, `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`, `EventQuota`, `ParticipationService`, `DiscountPricingService`, `FormFieldValidationService`, `EventFormFieldService`, `QrTokenService`, `QrValidationService`, `WaafiPayService`, `PaymentService`, `PayoutService`, `EventFinanceService`, `CommissionSettings`, `EventAnalyticsService`, `CertificateIssuanceService` (issue + **reissue**), `EventFeedbackService`, `SomaliPhoneNormalizer`.
+`MailService`, `LocationService`, `CommonServices`, `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`, `EventQuota`, `ParticipationService`, `DiscountPricingService`, `QrTokenService`, `QrValidationService`, `WaafiPayService`, `PaymentService`, `PayoutService`, `EventFinanceService`, `CommissionSettings`, `EventAnalyticsService`, `CertificateIssuanceService` (issue + **reissue**), `EventFeedbackService`, `SomaliPhoneNormalizer`.
 
 ### Domain ownership
 **Admin = platform owner** (system config, data integrity, platform oversight). **Organizer = event owner** (their events, who gets in, registrations, door scanning). See Prompt 13 boundary.
@@ -741,64 +741,15 @@ FE: `ParticipationOversight` inside Event Detail sidebar (add + cancel only).
 - `tests/Feature/ParticipationModuleTest.php` — unique index, txn claim+insert, rollback, unpaid pending does not occupy displayed capacity, capacity full rejects (no waitlist), quantity race, admin API.
 - `tests/Feature/PaymentPayoutModuleTest.php` — Waafi failure and pending expiry **cancel** the participation and release ticket quantity.
 
-## Event Form Fields (Phase 5a — Dynamic Form Builder backend)
+## Event Form Fields — removed
 
-Organizers will design custom registration fields per event on the Web App. This phase stores the **schema** and validates `participations.custom_field_answers` at **submission time only**. Admin gets read-only visibility.
+Custom registration form fields are gone from the product.
 
-### Table `event_form_fields`
-
-Migration: `2026_08_16_170000_create_event_form_fields_table.php`
-
-| Column | Notes |
-|--------|-------|
-| `event_id` | FK → events, `restrictOnDelete` |
-| `key` | Slug-like field id |
-| `label` | Display label |
-| `type` | `FormFieldType`: `text` \| `number` \| `select` \| `checkbox` \| `date` |
-| `options` | JSON (select / multi-checkbox choices); null for boolean checkbox / text / number / date |
-| `required` | boolean |
-| `sort_order` | unsigned int |
-| `active` | Soft-handle flag — `false` = deactivated (kept for historical display) |
-
-**Compound unique:** `$table->unique(['event_id', 'key']);` — key unique **within an event**, not globally.
-
-### No FK from answers → schema (critical)
-
-Answers are a JSON snapshot on `participations.custom_field_answers`. There is **no** foreign key tying answer keys to `event_form_fields`. Schema edits after join **must not** invalidate old rows. Validation runs only in `FormFieldValidationService` at join/submit.
-
-### Soft-handle delete
-
-`EventFormFieldService::remove()`:
-- If any participation for that event has `custom_field_answers` containing the field `key` → set `active=false` (keep row).
-- Else → hard-delete.
-
-Inactive fields are **not** required by validation (only `active` schema applies to new submits).
-
-### Validation service (standalone + wired)
-
-`FormFieldValidationService::validate($event, $answers)` / `validateOrFail()`:
-- Required active fields must be present (typed emptiness rules; boolean checkbox `false` counts as present).
-- Type checks: text, number, date, select ∈ options, checkbox bool or multi-option list ∈ options.
-- Extra keys in answers are allowed (forward/historical compatible).
-
-`ParticipationService::join` calls `validateOrFail` **before** the DB transaction.
-
-### Admin / API surface
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /events/{id}/form-fields` | Read-only schema (includes inactive unless `?active_only=1`) |
-| `GET /event-form-fields` | Index (permission-gated) |
-| `POST /event-form-fields` | Ops/test create (Web App will own authoring) |
-| `DELETE /event-form-fields/{id}` | Soft-handle remove |
-
-Permissions: `view event form fields`, `manage event form fields`.
-
-FE: `FormFieldOversight` in Event Detail — **read-only** (no edit UI).
-
-### Tests
-- `tests/Unit/FormFieldValidationServiceTest.php` — standalone required/type/inactive/historical extras (14)
-- `tests/Feature/EventFormFieldModuleTest.php` — compound unique, deactivate vs delete, join validation wire, admin list/store/destroy (8)
+- Table `event_form_fields` is **dropped** (`2026_09_03_120000_drop_event_form_fields_table.php`).
+- Controllers, services, model, factory, and `event-form-fields.php` routes deleted.
+- Admin Event hub has **no Form Fields tab** (`show.tsx` `EVENT_TABS`). Rebuild Admin (`npm run build`) after this change — a stale `public/build` still showed the tab and “Failed to load form fields”.
+- Join ignores `custom_field_answers`. Column on `participations` may still exist for old rows.
+- `FormFieldType` enum remains only because the older MySQL enum conversion migration referenced it.
 
 ## Invitation Canvas Standard
 
@@ -996,8 +947,7 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Event categories | `EventCategory` | `EventCategoryController` | `event-categories.php` (`GET /` **API-key-only public**; rest Admin) | Settings + trash | `eventCategory.ts` | `event.ts` |
 | Ticket types | `TicketType` | `TicketTypeController` | `ticket-types.php` + nested | Event hub Ticket Types tab + `TicketTypeModal` | `event.ts` | `event.ts` |
 | Discount codes | `DiscountCode` | `DiscountCodeController` + `OrganizerDiscountCodeController` + **`ParticipantDiscountController`** | Admin nested validate (model only); organizer CRUD; **participant validate + join snapshot** | Event hub Ticket Types tab + `DiscountCodeModal` | `event.ts` | `event.ts` |
-| Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event hub Registrations tab (add/promote/cancel; **no manual pay**) | `event.ts` | `event.ts` |
-| Event form fields | `EventFormField` | `EventFormFieldController` | `event-form-fields.php` + nested | Event hub Form Fields tab | `event.ts` | `event.ts` |
+| Participations | `Participation` | `ParticipationController` | `participations.php` + nested | Event hub Registrations tab (add/cancel; **no waitlist/promote**; **no manual pay**) | `event.ts` | `event.ts` |
 | Payments | `Payment` (+ `gateway`) | `PaymentController` | `payments.php` | **`pages/payment/`** (side panel) + Event hub Payments tab (refunds) | `payment.ts` | `payment.ts` |
 | Payout requests | `PayoutRequest` | `PayoutRequestController` | `payout-requests.php` | `pages/payout/` list + **`show.tsx`** | `payout.ts` | `payment.ts` |
 | Certificates | `Certificate` | `CertificateController` + EventAddOn | `certificates.php` + nested | **`pages/certificate/`** list + **`show.tsx`** (re-issue) | `certificate.ts` | `certificate.ts` |
@@ -1130,7 +1080,7 @@ Domain status / constrained-choice columns are native MySQL `ENUM` (not free-tex
   - Side panel (~8 fields, no nested lists): Users, Payments, Subscriptions, QR Scan History, Roles, Packages, Categories, Invitation templates, API clients, Logs.
   - Full page `pages/<resource>/show.tsx` + `/{resource}/:id` + back button + row-click: **Events** (tabbed hub), **Organizers**, **Payouts**, **Certificates**, **Feedback**.
 - Event hub tabs (lazy, in order): Overview, Ticket Types, Registrations, Payments, Speakers, Sessions, Sponsors, Announcements, Gallery, Invitation, Analytics. `EventAddOnOversight` accepts `only` so unused add-on queries do not fire. **No Form Fields tab.**
-- **Event hub nested data is tables, not cards:** Ticket Types + Discount codes, Registrations, Payments (`StatusFilterBar` + table), Speakers/Sessions/Sponsors/Announcements, Form Fields, Gallery (thumbnail + file + remove). Overview stays fields + `EventMetricCard`. Invitation is a read-only preview: template thumbnail, `EventField` customizations with color swatches, overlay positions as `SimpleAdminTable` (Element / X / Y / Width / Height / Font size) — never dump `x=300, y=820` strings. Analytics uses `EventMetricCard` (not a table). Reuse `SimpleAdminTable` + `statusBadgeClass` + `formatMoney`.
+- **Event hub nested data is tables, not cards:** Ticket Types + Discount codes, Registrations, Payments (`StatusFilterBar` + table), Speakers/Sessions/Sponsors/Announcements, Gallery (thumbnail + file + remove). Overview stays fields + `EventMetricCard`. Invitation is a read-only preview: template thumbnail, `EventField` customizations with color swatches, overlay positions as `SimpleAdminTable` (Element / X / Y / Width / Height / Font size) — never dump `x=300, y=820` strings. Analytics uses `EventMetricCard` (not a table). Reuse `SimpleAdminTable` + `statusBadgeClass` + `formatMoney`.
 - Forms/modals: shared `components/form/*` + `GenericModal`; CTAs use `btn btn-primary` patterns.
 - Dense spacing in admin surfaces; avoid sparse “marketing” whitespace in sidebars/tables.
 - New UI must include `dark:` variants consistent with neighboring screens.
@@ -1173,6 +1123,10 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-09-03 — Drop `event_form_fields` and rebuild Admin without Form Fields tab
+
+Admin Event hub source already had no Form Fields tab; production `public/build` still showed it (“Failed to load form fields”). Rebuilt Admin SPA. Dropped table `event_form_fields`. Deleted leftover PHP: `EventFormField` model/factory, `EventFormFieldController`, `OrganizerFormFieldController`, `PublicEventFormFieldController`, `EventFormFieldService`, `FormFieldValidationService`, `routes/api/v1/event-form-fields.php`. Removed `Event::formFields()`. `FormFieldType` kept for the old enum conversion migration.
 
 ### 2026-09-03 — Waitlist removed; failed payment releases the seat
 

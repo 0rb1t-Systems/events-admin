@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\EventStatus;
-use App\Enums\FormFieldType;
 use App\Enums\ParticipationPaymentStatus;
 use App\Enums\ParticipationStatus;
 use App\Enums\PaymentStatus;
@@ -11,14 +10,12 @@ use App\Enums\SanctumAbility;
 use App\Enums\UserStatus;
 use App\Models\Event;
 use App\Models\EventFeedback;
-use App\Models\EventFormField;
 use App\Models\Participation;
 use App\Models\Payment;
 use App\Models\TicketType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -34,9 +31,7 @@ class ParticipantWebApiTest extends TestCase
     {
         parent::setUp();
 
-        Permission::findOrCreate('view event form fields');
-        $role = Role::findOrCreate('admin');
-        $role->givePermissionTo('view event form fields');
+        Role::findOrCreate('admin');
 
         $this->participant = User::factory()->participant()->create([
             'email' => 'web-participant@example.com',
@@ -218,24 +213,19 @@ class ParticipantWebApiTest extends TestCase
     public function test_form_fields_endpoint_removed(): void
     {
         $event = Event::factory()->published()->create();
-        EventFormField::factory()->for($event)->create(['key' => 'diet']);
 
         $this->getJson("/api/v1/events/{$event->id}/form-fields")
             ->assertNotFound();
     }
 
-    public function test_join_ignores_legacy_required_form_fields(): void
+    public function test_join_ignores_legacy_custom_field_answers(): void
     {
         $event = $this->openEvent();
-        EventFormField::factory()->for($event)->required()->create([
-            'key' => 'company',
-            'label' => 'Company',
-            'type' => FormFieldType::TEXT,
-        ]);
 
         $this->asParticipant()
             ->postJson('/api/v1/participant/participations', [
                 'event_id' => $event->id,
+                'custom_field_answers' => ['company' => 'Acme'],
             ])
             ->assertCreated()
             ->assertJsonPath('data.status', ParticipationStatus::JOINED->value);

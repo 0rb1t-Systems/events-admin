@@ -34,8 +34,6 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
     Route::get('/{id}/participations', [\App\Http\Controllers\Api\ParticipationController::class, 'forEvent'])
         ->middleware('permission:view participations');
 
-    // GET /{id}/form-fields is dual-access on the public catalog (see bottom of this file).
-
     Route::get('/{id}/check-in-stats', [\App\Http\Controllers\Api\QrScanLogController::class, 'checkInStats'])
         ->middleware('permission:view qr scan logs');
     Route::get('/{id}/qr-scan-logs', [\App\Http\Controllers\Api\QrScanLogController::class, 'forEvent'])

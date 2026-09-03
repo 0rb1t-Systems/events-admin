@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\Web\Concerns;
 
 use App\Models\DiscountCode;
 use App\Models\Event;
-use App\Models\EventFormField;
 use App\Models\EventImage;
 use App\Models\EventSession;
 use App\Models\EventSpeaker;
@@ -60,16 +59,6 @@ trait ResolvesOrganizerEvent
             ->first();
 
         return $row ?: $this->notFoundResponse('Discount code not found');
-    }
-
-    protected function ownedFormFieldOrFail(int|string $id): EventFormField|JsonResponse
-    {
-        $row = EventFormField::query()
-            ->whereKey($id)
-            ->whereHas('event', fn ($q) => $q->where('organizer_id', $this->organizer()->id))
-            ->first();
-
-        return $row ?: $this->notFoundResponse('Form field not found');
     }
 
     protected function ownedSpeakerOrFail(int|string $id): EventSpeaker|JsonResponse

@@ -104,11 +104,6 @@ class Event extends Model
         return $this->hasMany(Participation::class);
     }
 
-    public function formFields(): HasMany
-    {
-        return $this->hasMany(EventFormField::class)->orderBy('sort_order')->orderBy('id');
-    }
-
     public function invitationTemplate(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(EventInvitationTemplate::class);

@@ -1,0 +1,1 @@
+import{a4 as n,a as s}from"./main-xQD8JSCe.js";class r extends n{constructor(){super("/payments")}async getEventPayments(t,a={}){return this.getAll({...a,event_id:t})}async refund(t,a={}){const e=await s.post(`${this.endpoint}/${t}/refund`,a);return e.data.data||e.data}}const i=new r;export{i as p};
