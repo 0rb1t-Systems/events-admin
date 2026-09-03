@@ -370,8 +370,6 @@ class ParticipantWebApiTest extends TestCase
             ->getJson("/api/v1/participant/participations/{$participation->id}/invitation")
             ->assertOk()
             ->assertJsonPath('data.invitation', null)
-            ->assertJsonPath('data.qr_token', 'qr-abc')
-            ->assertJsonPath('data.canvas.width', 800)
-            ->assertJsonPath('data.canvas.height', 1100);
+            ->assertJsonPath('data.qr_token', 'qr-abc');
     }
 }

@@ -298,16 +298,6 @@ class EventApi extends BaseApi<IEvent> {
         });
         return response.data.data || response.data;
     }
-
-    async getInvitationTemplate(eventId: number | string): Promise<{
-        event_id: number;
-        template: import("../types/invitationTemplate").IEventInvitationTemplate | null;
-    }> {
-        const response = await axiosInstance.get(
-            `${this.endpoint}/${eventId}/invitation-template`
-        );
-        return response.data.data || response.data;
-    }
 }
 
 export const eventApi = new EventApi();

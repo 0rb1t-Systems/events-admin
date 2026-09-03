@@ -11,5 +11,4 @@ export * from './qrScan';
 export * from './payment';
 export * from './feedback';
 export * from './certificate';
-export * from './invitationTemplate';
 export * from './apiClient';

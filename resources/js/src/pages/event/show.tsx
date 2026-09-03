@@ -11,7 +11,6 @@ import EventGalleryTab from "./components/EventGalleryTab";
 import EventOverviewTab from "./components/EventOverviewTab";
 import EventPaymentsPanel from "./components/EventPaymentsPanel";
 import EventTicketTypesTab from "./components/EventTicketTypesTab";
-import InvitationTemplatePreview from "./components/InvitationTemplatePreview";
 import ParticipationOversight from "./components/ParticipationOversight";
 
 const EVENT_TABS = [
@@ -24,7 +23,6 @@ const EVENT_TABS = [
     { id: "sponsors", label: "Sponsors" },
     { id: "announcements", label: "Announcements" },
     { id: "gallery", label: "Gallery" },
-    { id: "invitation", label: "Invitation" },
     { id: "analytics", label: "Analytics" },
 ] as const;
 
@@ -96,9 +94,6 @@ const EventShow = () => {
                             <EventAddOnOversight eventId={eventId} only={["announcements"]} />
                         )}
                         {active === "gallery" && <EventGalleryTab eventId={eventId} />}
-                        {active === "invitation" && (
-                            <InvitationTemplatePreview eventId={eventId} />
-                        )}
                         {active === "analytics" && <EventAnalyticsPanel eventId={eventId} />}
                     </>
                 )}

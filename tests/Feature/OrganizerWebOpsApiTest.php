@@ -10,7 +10,6 @@ use App\Enums\ParticipationStatus;
 use App\Enums\SanctumAbility;
 use App\Enums\UserStatus;
 use App\Models\Event;
-use App\Models\InvitationSystemTemplate;
 use App\Models\Organizer;
 use App\Models\Package;
 use App\Models\Participation;
@@ -152,22 +151,6 @@ class OrganizerWebOpsApiTest extends TestCase
         $this->assertSame(ParticipationStatus::CHECKED_IN, $participation->fresh()->status);
     }
 
-    public function test_invitation_get_returns_200_with_null_template(): void
-    {
-        $organizer = Organizer::factory()->create();
-        $event = Event::factory()->create(['organizer_id' => $organizer->id]);
-
-        $this->actingAsOrganizer($organizer);
-
-        $this->getJson("/api/v1/organizer/events/{$event->id}/invitation-template")
-            ->assertOk()
-            ->assertJsonPath('success', true)
-            ->assertJsonPath('data.template', null)
-            ->assertJsonPath('data.event_id', $event->id)
-            ->assertJsonPath('data.canvas.width', 800)
-            ->assertJsonPath('data.canvas.height', 1100);
-    }
-
     public function test_packages_list_returns_active_catalog_only(): void
     {
         Package::factory()->create(['name' => 'Visible Plan', 'status' => PackageStatus::ACTIVE]);
@@ -261,27 +244,5 @@ class OrganizerWebOpsApiTest extends TestCase
             ])
             ->assertForbidden()
             ->assertJsonPath('errors.error_code.0', 'action_requires_organizer_scope');
-    }
-
-    public function test_inactive_system_templates_are_omitted_from_organizer_catalog(): void
-    {
-        InvitationSystemTemplate::factory()->create(['name' => 'Live Design', 'active' => true]);
-        InvitationSystemTemplate::factory()->inactive()->create(['name' => 'Retired Design']);
-
-        $organizer = Organizer::factory()->create();
-        $this->actingAsOrganizer($organizer);
-
-        $response = $this->getJson('/api/v1/organizer/invitation-system-templates');
-        $response->assertOk();
-
-        $names = collect($response->json('data'))->pluck('name');
-        $this->assertTrue($names->contains('Live Design'));
-        $this->assertFalse($names->contains('Retired Design'));
-
-        $first = $response->json('data.0');
-        $this->assertArrayHasKey('slug', $first);
-        $this->assertArrayHasKey('thumbnail_path', $first);
-        $this->assertArrayNotHasKey('deleted_at', $first);
-        $this->assertArrayNotHasKey('active', $first);
     }
 }

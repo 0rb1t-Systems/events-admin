@@ -87,13 +87,15 @@ return new class extends Migration
         EnumColumn::modify('event_sponsors', 'tier', SponsorTier::values(), false, null);
         EnumColumn::modify('qr_scan_logs', 'result', QrScanResult::values(), false, null);
 
-        EnumColumn::modify(
-            'event_invitation_templates',
-            'mode',
-            ['template', 'custom'],
-            true,
-            null
-        );
+        if (Schema::hasTable('event_invitation_templates')) {
+            EnumColumn::modify(
+                'event_invitation_templates',
+                'mode',
+                ['template', 'custom'],
+                true,
+                null
+            );
+        }
     }
 
     public function down(): void

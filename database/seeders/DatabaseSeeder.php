@@ -17,7 +17,6 @@ class DatabaseSeeder extends Seeder
             ApiClientSeeder::class,
             SettingsSeeder::class,
             EventCategorySeeder::class,
-            InvitationSystemTemplateSeeder::class,
         ]);
     }
 }

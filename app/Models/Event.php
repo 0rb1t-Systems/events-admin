@@ -104,11 +104,6 @@ class Event extends Model
         return $this->hasMany(Participation::class);
     }
 
-    public function invitationTemplate(): \Illuminate\Database\Eloquent\Relations\HasOne
-    {
-        return $this->hasOne(EventInvitationTemplate::class);
-    }
-
     public function qrScanLogs(): HasMany
     {
         return $this->hasMany(QrScanLog::class);

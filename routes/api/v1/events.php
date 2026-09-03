@@ -38,8 +38,6 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->group(function () {
         ->middleware('permission:view qr scan logs');
     Route::get('/{id}/qr-scan-logs', [\App\Http\Controllers\Api\QrScanLogController::class, 'forEvent'])
         ->middleware('permission:view qr scan logs');
-    Route::get('/{id}/invitation-template', [\App\Http\Controllers\Api\EventInvitationTemplateController::class, 'forEvent'])
-        ->middleware('permission:view invitation templates');
 
     Route::get('/{id}/finance', [\App\Http\Controllers\Api\PaymentController::class, 'eventFinance'])
         ->middleware('permission:view payments');

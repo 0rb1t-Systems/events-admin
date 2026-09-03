@@ -8,7 +8,6 @@ use App\Enums\UserStatus;
 use App\Models\Certificate;
 use App\Models\Event;
 use App\Models\EventFeedback;
-use App\Models\EventInvitationTemplate;
 use App\Models\Participation;
 use App\Models\User;
 use App\Services\CertificateIssuanceService;
@@ -36,7 +35,6 @@ class Prompt13OwnershipAndAdminScreensTest extends TestCase
             'reissue certificates',
             'view event feedback',
             'moderate feedback',
-            'view invitation templates',
             'view events',
         ] as $name) {
             Permission::findOrCreate($name, 'web');
@@ -196,29 +194,5 @@ class Prompt13OwnershipAndAdminScreensTest extends TestCase
         $eventFeedback->assertOk();
         $eventFeedback->assertJsonPath('data.hidden_count', 1);
         $eventFeedback->assertJsonPath('data.feedback_count', 1);
-    }
-
-    public function test_invitation_template_preview_endpoint(): void
-    {
-        $event = Event::factory()->create();
-
-        $empty = $this->auth()->getJson("/api/v1/events/{$event->id}/invitation-template");
-        $empty->assertOk();
-        $empty->assertJsonPath('data.template', null);
-
-        EventInvitationTemplate::factory()->create([
-            'event_id' => $event->id,
-            'mode' => null,
-            'config' => [
-                'title' => 'Welcome',
-                'primary_color' => '#112233',
-                'show_qr' => true,
-            ],
-        ]);
-
-        $with = $this->auth()->getJson("/api/v1/events/{$event->id}/invitation-template");
-        $with->assertOk();
-        $with->assertJsonPath('data.template.config.title', 'Welcome');
-        $with->assertJsonPath('data.template.config.primary_color', '#112233');
     }
 }

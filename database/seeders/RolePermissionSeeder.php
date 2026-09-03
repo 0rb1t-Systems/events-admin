@@ -79,9 +79,7 @@ class RolePermissionSeeder extends Seeder
             'view participations',
             'manage participations',
 
-            // invitation templates + QR scans (Admin oversight; Web App owns designer/scanner UI)
-            'view invitation templates',
-            'manage invitation templates',
+            // QR scans (Admin oversight; Web App owns scanner UI)
             'view qr scan logs',
             'manage qr scans',
 

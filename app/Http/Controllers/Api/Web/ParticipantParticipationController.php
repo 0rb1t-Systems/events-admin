@@ -3,10 +3,8 @@
 namespace App\Http\Controllers\Api\Web;
 
 use App\Models\Event;
-use App\Models\EventInvitationTemplate;
 use App\Models\Participation;
 use App\Services\ParticipationService;
-use App\Support\InvitationCanvas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -124,22 +122,6 @@ class ParticipantParticipationController extends WebController
         $event = $row->event;
         $isOnline = $event && $event->event_mode?->value === 'online';
 
-        $template = EventInvitationTemplate::query()
-            ->with('systemTemplate')
-            ->where('event_id', $row->event_id)
-            ->first();
-
-        $invitation = null;
-        if ($template) {
-            $invitation = [
-                'mode' => $template->mode,
-                'system_template' => $template->systemTemplate,
-                'background_image_path' => $template->background_image_path,
-                'customizations' => $template->customizations,
-                'overlay_positions' => $template->overlay_positions,
-            ];
-        }
-
         return $this->successResponse([
             'id' => $row->id,
             'status' => $row->status,
@@ -149,11 +131,8 @@ class ParticipantParticipationController extends WebController
             'created_at' => $row->created_at,
             'event' => $event,
             'ticket_type' => $row->ticketType,
-            'invitation' => $invitation,
-            'canvas' => [
-                'width' => InvitationCanvas::WIDTH,
-                'height' => InvitationCanvas::HEIGHT,
-            ],
+            // Ticket design is static on the Web App; no template customization.
+            'invitation' => null,
         ]);
     }
 

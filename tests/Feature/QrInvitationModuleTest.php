@@ -39,7 +39,6 @@ class QrInvitationModuleTest extends TestCase
             'view events',
             'view qr scan logs',
             'manage qr scans',
-            'view invitation templates',
             'view dashboard',
         ] as $name) {
             Permission::create(['name' => $name]);

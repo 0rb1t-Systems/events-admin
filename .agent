@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-09-03 (form fields table dropped; Admin Form Fields tab gone from production build)
+Last updated: 2026-09-03 (invitation templates removed; tickets are static Web App design; QR tokens/scans kept)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -44,13 +44,13 @@ Every meaningful change to the codebase must also update this file.
   - After permission changes: reseed `RolePermissionSeeder` (or sync admin role) so gates match routes
   - Full suite: **252 passed**, **3 pre-existing `ExceptionHandlerTest` failures** (SPA catch-all) — only acceptable failures
   - Run `php artisan migrate` for package duration/tier + `organizer_subscription_orders` + subscription snapshots (Prompt 15)
-  - Seed: `InvitationSystemTemplateSeeder` (4 placeholder designs) via DatabaseSeeder
-  - **No demo/dummy catalog seeder.** `DemoDataSeeder` was removed. Fresh `db:seed` only boots roles/permissions (+ admin user), API client, settings, event categories, and invitation system templates. Create organizers/events/packages via Admin or Web App.
-  - After Prompt 13/14/15 permissions: reseed `RolePermissionSeeder` when needed (`view/manage invitation templates` already exist)
+  - Seed: no invitation templates. Fresh `db:seed` only boots roles/permissions (+ admin user), API client, settings, and event categories.
+  - **No demo/dummy catalog seeder.** `DemoDataSeeder` was removed. Create organizers/events/packages via Admin or Web App.
+  - After permission changes: reseed `RolePermissionSeeder` when needed. Invitation template permissions (`view/manage invitation templates`) were removed.
   - **FormCombobox / pickers:** Headless UI calls `displayValue(null)` when nothing is selected — formatters and `FormCombobox` must treat null as `""`. Avoid Unicode middle-dot (`·`) in template literals on Windows/Vite Babel (use ASCII ` - ` instead).
   - **Ownership (Prompt 13):** Admin = platform owner; Organizer = event owner. Event-operation actions (manual pay, QR check-in, Waafi charge) reject `admin-panel` tokens with `403` + `error_code: action_requires_organizer_scope` via `RejectsAdminPanelOrganizerActions`.
-  - **Event hub is a full page** (`/events/:id`) with lazy-loaded tabs for all event-scoped sub-resources (tickets, participants, payments+refunds, gallery upload, invitation preview, add-ons, analytics, finance). List row-click navigates; do not reopen this hub in a side panel.
-  - **Invitation designer / generation / overlay editor = Web App Phase 2** — Admin only manages system template library + read-only event preview.
+  - **Event hub is a full page** (`/events/:id`) with lazy-loaded tabs for event-scoped sub-resources (tickets, participants, payments+refunds, gallery upload, add-ons, analytics). **No Invitation tab.** List row-click navigates; do not reopen this hub in a side panel.
+  - **Tickets / invitations:** Ticket design is **static on the Web App only**. No system templates, no per-event invitation designer, no canvas compositing API. `GET /participant/participations/{id}/invitation` always returns `invitation: null` (still returns `qr_token` for door scan). QR validate + scan logs remain.
 
 ## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
 These were decided during Admin Prompts 1–12. Confirm or correct before Web App work:
@@ -78,13 +78,12 @@ These were decided during Admin Prompts 1–12. Confirm or correct before Web Ap
 21. **Prompt 12 Admin write expansion** — Platform admins have write/override on ticket types, discount codes, form fields, announcements, sponsors/speakers/sessions, and participation add/cancel-with-reason. **Manual cash payment was removed from Admin in Prompt 13** (organizer-scoped).
 22. **Manual payments** — Service `PaymentService::recordManual` kept for Web App. `POST /payments/manual` **rejects admin-panel tokens** (`action_requires_organizer_scope`). Historical activity logs retained.
 23. **Full Event create UI** — Still moderation-focused in Admin (no full organizer-style create form). API `POST /events` exists; gallery upload API exists but FE remains delete-focused. **BY DESIGN** unless product asks for admin create.
-24. **Ownership boundary (Prompt 13 / Prompt 0)** — Admin = platform owner; Organizer = event owner. QR scanner UI and Waafi charge UI were **never built** in Admin. Admin `POST /qr-scan-logs/validate` and `POST /payments/charge` remain scope-blocked for admin-panel tokens. **Web API now exists:** participant charge, organizer QR validate, organizer invitation designer endpoints. Invitation PDF compositing and Share Event remain deferred.
+24. **Ownership boundary (Prompt 13 / Prompt 0)** — Admin = platform owner; Organizer = event owner. QR scanner UI and Waafi charge UI were **never built** in Admin. Admin `POST /qr-scan-logs/validate` and `POST /payments/charge` remain scope-blocked for admin-panel tokens. **Web API:** participant charge, organizer QR validate. Invitation template designer endpoints **removed**. Share Event remains deferred.
 25. **Certificate re-issue (Prompt 13)** — Admin can force re-issue via `POST /certificates/{participation_id}/reissue` (`reissue certificates`). Requires `checked_in`; fails safely without deleting old row on generation error.
 26. **Feedback moderation (Prompt 13)** — Platform-wide `/feedback` list + hide/show (`event_feedback.hidden`). Soft-hide only. **Web App MUST filter `where hidden = false`** on any public/organizer feedback query.
-27. **Invitation preview (Prompt 13/14)** — Read-only `InvitationTemplatePreview` on Event Detail; uses `GET /events/{id}/invitation-template` + `eventApi.getInvitationTemplate`.
+27. **Invitation templates removed (2026-09-03)** — No Admin Invitation tab, no Settings invitation library, no organizer invitation-template routes. Tables `event_invitation_templates` + `invitation_system_templates` dropped. Tickets are a static Web App design; QR tokens + scan validation kept.
 28. **Prompt 14 UI completeness** — Platform `/payments`, `/certificates`, `/subscriptions`; Event Detail payments+refunds + gallery upload. **Item 7 (rebuild Feedback) skipped** — Feedback already complete from Prompt 13; do not regress.
-29. **Invitation system (Prompt 15)** — Platform library `invitation_system_templates` (Admin CRUD under Settings). Event configs support `mode=template|custom`. Designer/generation/compositing = **Web App Phase 2**. Canvas locked at **800×1100px portrait**.
-30. **Public event catalog (Web App)** — `GET /events`, `GET /events/{id}`, `GET /event-categories` are API-key-only (no participant Bearer). Public statuses: `published`, `registration_open`, `sold_out`, `registration_closed`, `ongoing`. Admin-panel Bearer keeps full unfiltered Admin list/detail.
+29. **Public event catalog (Web App)** — `GET /events`, `GET /events/{id}`, `GET /event-categories` are API-key-only (no participant Bearer). Public statuses: `published`, `registration_open`, `sold_out`, `registration_closed`, `ongoing`. Admin-panel Bearer keeps full unfiltered Admin list/detail.
 ## Flagged Decisions (CLIENT REVIEW — confirm before Web App pack)
 These were decided during Admin Prompts 1–11. Confirm or correct before Web App work:
 
@@ -228,8 +227,8 @@ When adding a new domain resource (e.g. Events), **mirror Users / Roles**. Do no
 - **Ticket types Admin (Prompt 12)** — Full create/edit/soft-delete + disable/enable sales from Event hub Ticket Types tab (`TicketTypeModal`). Force-delete blocked if `quantity_sold > 0`.
 - **Discount codes Admin (Prompt 12)** — Full create/edit/soft-delete/activate from Event hub Ticket Types tab (`DiscountCodeModal`).
 - **Participations Admin (Prompt 12/13)** — Add (user combobox) and cancel with optional reason on Event hub Registrations tab. **No waitlist / promote.** Capacity full → 400. **Manual cash payment UI removed** (organizer-scoped; API still exists but rejects admin-panel tokens).
-- **Event form fields** — **Removed from product.** No Admin Form Fields tab, no public/organizer form-field routes. DB `event_form_fields` may remain for history.
-- **Invitation templates Admin (Prompt 13)** — Read-only preview on Event hub Invitation tab (`InvitationTemplatePreview`). Ops store/update API remains; **no designer/edit UI** in Admin (Web App).
+- **Event form fields** — **Removed from product.** No Admin Form Fields tab, no public/organizer form-field routes. Table `event_form_fields` dropped.
+- **Invitation templates** — **Removed from product (2026-09-03).** No Admin Invitation tab, no Settings invitation library, no organizer/admin invitation-template APIs. Tables `event_invitation_templates` + `invitation_system_templates` dropped. Tickets are static Web App UI; QR tokens + scan validation remain.
 - **QR Scan History Admin** — list + side panel + Event hub Overview check-in stats (keep). **No scanner UI was ever built** in Admin. `POST /qr-scan-logs/validate` rejects admin-panel tokens (`action_requires_organizer_scope`).
 - **Payments / Payouts Admin** — Platform `/payments` list + **side panel**; Event hub Payments tab + refunds; Payout list + **full page** `/payouts/:id`; finance on Event Overview; Settings commission. Charge UI **never built**; charge/manual reject admin-panel tokens.
 - **Event add-ons Admin** — Announcements / Speakers / Sessions / Sponsors as lazy Event hub tabs (`EventAddOnOversight` `only` prop). Certificates re-issue on platform `/certificates/:id`; Event hub no longer dumps all add-ons at once.
@@ -302,9 +301,9 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 
 **Payment distinction:** Participant checkout is `POST /api/v1/participant/payments/charge` (`PaymentService::charge`). Admin `POST /payments/charge` and `POST /payments/manual` remain for historical/ops compatibility but **reject admin-panel** (`action_requires_organizer_scope`). Organizer door cash is **not** yet on `/organizer/*` (gap: `POST /organizer/payments/manual`). QR validate for organizers is `POST /api/v1/organizer/qr-scan-logs/validate` (scanner organizer derived from token; foreign event → `invalid`, no check-in). Admin `POST /qr-scan-logs/validate` still rejects admin-panel.
 
-**Invitation distinction:** Admin Event hub preview stays read-only `GET /events/{id}/invitation-template`. Organizer designer: `GET/POST/PATCH /organizer/events/{event}/invitation-template` (+ optional `.../background` multipart `background`). Participant ticket: `GET /participant/participations/{id}/invitation` (200 with `invitation: null` if none; canvas 800×1100; **no PDF generation**).
+**Invitation / tickets:** Invitation template customization was **removed**. No Admin preview, no organizer designer routes, no canvas/compositing API. Participant `GET /participant/participations/{id}/invitation` always returns `invitation: null` (still includes `qr_token` for in-person door scan; online events omit QR). Ticket visual design lives only on the Web App as a static UI.
 
-**Route files:** `routes/api/v1/participant-web.php`, `organizer-web-core.php`, `organizer-web-content.php`, `organizer-web-ops.php`; required from `routes/api.php` inside v1. Public form-fields registered in `events.php` next to catalog GETs.
+**Route files:** `routes/api/v1/participant-web.php`, `organizer-web-core.php`, `organizer-web-content.php`, `organizer-web-ops.php`; required from `routes/api.php` inside v1.
 
 **Participant routes** (`auth:sanctum` + `participant.web`):
 | Method | Path |
@@ -335,13 +334,13 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 | Analytics / finance | `GET /events/{event}/analytics`, `GET /events/{event}/finance` |
 | Payouts (per-event only) | `GET /payout-requests`, `GET/POST /events/{event}/payout-requests`, `GET /payout-requests/{id}` — **no** approve/reject/record-payment |
 | QR | `POST /qr-scan-logs/validate` `{ token, gate? }`, `POST /scanner/unlock` `{ scan_token }`, `GET /events/{event}/qr-scan-logs`, `GET /events/{event}/check-in-stats`. Organizer event show/update includes `scan_token` (hidden on public APIs; backfilled if null). |
-| Invitation | `GET /invitation-system-templates` (active), `GET/POST/PATCH /events/{event}/invitation-template`, `POST .../background` |
 | Packages | `GET /packages` (active catalog with duration + lifecycle flags), `GET /subscription`, `GET /quota`, `POST /subscriptions` `{ package_id, payer_phone? }`, `GET /subscriptions/history`, `GET /subscription-orders`, `GET /subscription-orders/{id}` |
 | Auth extras | `PATCH /organizer-auth/profile`, `POST /organizer-auth/change-password` |
 
 **Tests:** `EnsureParticipantWebAccessTest`, `ParticipantWebApiTest`, `ParticipantDiscountApiTest`, `EventModeWhyAttendApiTest`, `OrganizerEventBannerApiTest`, `OrganizerSpeakerPhotoApiTest`, `OrganizerWebCoreApiTest`, `OrganizerWebContentApiTest`, `OrganizerWebOpsApiTest`, `OrganizerSubscriptionPurchaseTest`, `PackageSubscriptionTest`.
 
-**Consciously deferred:** invitation PDF compositing; organizer `payments/manual` Web route; organizer self-charge for tickets; Share Event; Web App UI for package checkout (backend ready).
+**Consciously deferred:** organizer `payments/manual` Web route; organizer self-charge for tickets; Share Event; Web App UI for package checkout (backend ready).
+**Removed:** invitation system/event templates, invitation designer APIs, PDF/canvas compositing, Admin Invitation tab / Settings invitation library.
 
 ### Admin navigation (permission-gated)
 | Nav | Path | Permission(s) |
@@ -363,7 +362,7 @@ Browser → resources/views/app.blade.php → Vite React (resources/js/src)
 | QR Scan History | `/qr-scan-logs` | `view qr scan logs` |
 | Trash | `/trash/*` | `view trash items` |
 
-**Event hub is a full page** (`/events/:id`, `pages/event/show.tsx`) — not a side panel. Tabs (lazy: fetch only the active tab): Overview, Ticket Types, Registrations, Payments, Speakers, Sessions, Sponsors, Announcements, Gallery, Invitation, Analytics. Overview: event fields, status transition buttons, registered / revenue / check-in stats. List row-click and view action navigate here. **No Form Fields tab.**
+**Event hub is a full page** (`/events/:id`, `pages/event/show.tsx`) — not a side panel. Tabs (lazy: fetch only the active tab): Overview, Ticket Types, Registrations, Payments, Speakers, Sessions, Sponsors, Announcements, Gallery, Analytics. Overview: event fields, status transition buttons, registered / revenue / check-in stats. List row-click and view action navigate here. **No Form Fields tab. No Invitation tab.**
 
 ### Domain services (non-controller)
 `MailService`, `LocationService`, `CommonServices`, `EventStatusMachine`, `EventRegistrationGate`, `EventMonetization`, `EventQuota`, `ParticipationService`, `DiscountPricingService`, `QrTokenService`, `QrValidationService`, `WaafiPayService`, `PaymentService`, `PayoutService`, `EventFinanceService`, `CommissionSettings`, `EventAnalyticsService`, `CertificateIssuanceService` (issue + **reissue**), `EventFeedbackService`, `SomaliPhoneNormalizer`.
@@ -380,14 +379,14 @@ Organizer-scoped endpoints (logic kept for Web App; **admin-panel tokens rejecte
 Trait: `App\Traits\RejectsAdminPanelOrganizerActions`.
 
 ### Permission audit (Prompt 13)
-- Seeder includes Prompt 13 adds: `reissue certificates`, `moderate feedback` (plus existing `view invitation templates`, `view event feedback`, `view certificates`).
+- Seeder includes Prompt 13 adds: `reissue certificates`, `moderate feedback` (plus existing `view event feedback`, `view certificates`). **Invitation template permissions removed** (`view/manage invitation templates`).
 - No separate “manual mark payment” permission existed — used `manage payments` (still used for refunds/oversight; manual/charge routes remain permission-gated but scope-blocked for admin tokens).
 - Logs: `permission:view logs` **enabled** on all log routes.
 - Dashboard stats API: `GET /api/v1/dashboard/stats` → `permission:view dashboard`.
 
 ### Activity log audit
 - BaseController CRUD writes log automatically.
-- Custom writes that log: Event transition/gallery, Organizer update/suspend/reactivate, Package archive, TicketType disable/enable sales, Participation promote/cancel, FormField store/destroy, Invitation template store/update, Payment charge/refund/manual (when allowed), Payout request/approve/reject/recordPayment, QR validateScan (when allowed), Event feedback submit, **certificate re-issue**, **feedback visibility**, Settings mail/commission (via `activity()`).
+- Custom writes that log: Event transition/gallery, Organizer update/suspend/reactivate, Package archive, TicketType disable/enable sales, Participation promote/cancel, Payment charge/refund/manual (when allowed), Payout request/approve/reject/recordPayment, QR validateScan (when allowed), Event feedback submit, **certificate re-issue**, **feedback visibility**, Settings mail/commission (via `activity()`).
 - Historical manual-payment / QR activity logs are retained; Admin can no longer create new ones for those organizer actions.
 - Read-only oversight endpoints do not log.
 ## Auth + User Types (Phase 1 — EventHub multi-tenant foundation)
@@ -751,66 +750,27 @@ Custom registration form fields are gone from the product.
 - Join ignores `custom_field_answers`. Column on `participations` may still exist for old rows.
 - `FormFieldType` enum remains only because the older MySQL enum conversion migration referenced it.
 
-## Invitation Canvas Standard
+## Invitation templates — removed
 
-**Locked for Phase 2 generation engine** (Prompt 15). All system templates, custom uploads, and compositing must use this standard.
+Invitation template customization is gone from the product (2026-09-03).
 
-### Canvas
-- **Size:** **800 × 1100 px** (portrait)
-- Helper: `App\Support\InvitationCanvas` (`WIDTH` / `HEIGHT` / `defaultOverlayPositions()` / `defaultCustomizations()`)
+- Tables `event_invitation_templates` and `invitation_system_templates` **dropped** (`2026_09_03_140000_drop_invitation_template_tables.php`).
+- Controllers, models, factories, `InvitationCanvas`, seeders, Admin SPA pages/services/types deleted.
+- Organizer invitation-template routes removed from `organizer-web-ops.php`.
+- Admin routes `event-invitation-templates`, `invitation-system-templates`, and nested `GET /events/{id}/invitation-template` removed.
+- Permissions `view invitation templates` / `manage invitation templates` removed from `RolePermissionSeeder`.
+- Participant `GET .../invitation` always returns `invitation: null` (no `canvas`); still returns `qr_token` for in-person events.
+- Ticket visual design is **static on the Web App only**. QR token issuance + scan validation unchanged.
 
-### Output formats
-- **PNG** — primary (email / in-app display)
-- **PDF** — download
-- Both generated from the **same compositing pass** (Web App Phase 2)
+## QR (Phase 5b) — kept
 
-### Dynamic overlay fields (keys)
-| Key | Type | Position fields |
-|-----|------|-----------------|
-| `qr_code` | image zone | `x`, `y`, `width`, `height` |
-| `participant_name` | text | `x`, `y`, `font_size`, `font_color` |
-| `event_title` | text | `x`, `y`, `font_size`, `font_color` |
-| `event_date` | text | `x`, `y`, `font_size`, `font_color` |
-| `event_time` | text | `x`, `y`, `font_size`, `font_color` |
-| `event_venue` | text | `x`, `y`, `font_size`, `font_color` |
-| `ticket_type` | text | `x`, `y`, `font_size`, `font_color` |
-| `organizer_logo` | image zone | `x`, `y`, `width`, `height` |
-
-Overlay position schema object: `{ x: int, y: int, width?: int, height?: int, font_size?: int, font_color?: string }` — coordinates are pixels relative to the 800×1100 canvas origin (top-left).
-
-### Custom upload requirements (organizer mode = custom)
-- **Dimensions:** must match canvas **800 × 1100 px**
-- **Formats:** PNG or JPG
-- **Max size:** 5 MB (admin system background uploads use the same limit)
-
-### Schema notes
-- `invitation_system_templates` — platform library (Admin CRUD). Soft-delete; **force-delete blocked** if referenced by any `event_invitation_templates.system_template_id`.
-- `event_invitation_templates` — per-event config:
-  - `mode`: `template` | `custom` | `null` (not configured)
-  - `system_template_id` (nullable FK, nullOnDelete) when mode=template
-  - `background_image_path` when mode=custom
-  - **`config`** — legacy JSON kept for backward compatibility (do not remove)
-  - **`overlay_positions`** — new positional JSON (Phase 2 designer writes here)
-  - **`customizations`** — `{ primary_color, secondary_color, logo_path, header_text, font_family }`
-
-### Admin surfaces
-- Settings → Invitation Templates (`/settings/invitation-templates`) — library CRUD
-- Event Detail → Invitation template — read-only mode-aware preview
-
-### Explicitly deferred to Web App Phase 2
-Organizer designer UI, overlay drag/position editor, invitation PNG/PDF generation engine.
-
-## Invitation + QR (Phase 5b)
-
-Digital invitation templates + cryptographically random `participations.qr_token` + scan validation state machine + scan audit log. Scanner UI is Web App; Admin gets scan history + check-in stats.
+Cryptographically random `participations.qr_token` + scan validation state machine + scan audit log. Scanner UI is Web App; Admin gets scan history + check-in stats. No invitation template dependency.
 
 ### Tables
 
-**`event_invitation_templates`** (`2026_08_16_180000_...` + Prompt 15 alter `2026_08_16_220100_...`): `event_id` (unique), `mode` (`template|custom|null`), `system_template_id` (nullable FK), `background_image_path`, legacy `config` JSON, `overlay_positions` JSON, `customizations` JSON, timestamps.
-
-**`invitation_system_templates`** (`2026_08_16_220000_...`): platform library — name, slug (unique), thumbnail/background paths, default overlay/customization JSON, active, soft deletes.
-
 **`qr_scan_logs`** (`2026_08_16_180100_...`): `scanned_token`, nullable `participation_id` / `event_id`, `result` (`valid|already_used|invalid`), nullable `gate`, `scanner_user_id`, `scanner_organizer_id`, `meta` JSON. **Every attempt is logged** (success and failure).
+
+**Dropped (2026-09-03):** `event_invitation_templates`, `invitation_system_templates`.
 
 **Token uniqueness (DB):** already on participations from Phase 4c:
 `$table->string('qr_token')->nullable()->unique();` — generation retries on rare collision (`QrTokenService::assignToken`).
@@ -850,12 +810,10 @@ Re-scan of a checked-in token → `already_used` + **separate** `qr_scan_logs` r
 | `POST /qr-scan-logs/validate` | Organizer Web App scanner (**admin-panel tokens rejected** — Prompt 13) |
 | `GET /events/{id}/qr-scan-logs` | Recent scans + stats |
 | `GET /events/{id}/check-in-stats` | Dashboard numbers |
-| `GET /events/{id}/invitation-template` | Read-only template (Admin preview UI on Event Detail) |
-| `POST/PATCH /event-invitation-templates` | Ops store/update |
 
-Permissions: `view qr scan logs`, `manage qr scans`, `view invitation templates`, `manage invitation templates`.
+Permissions: `view qr scan logs`, `manage qr scans`.
 
-FE: `pages/qr-scan-log/` (sidebar nav — **history only**), `CheckInStatsPanel` + `InvitationTemplatePreview` in Event Detail. **No Admin scanner UI was ever built.**
+FE: `pages/qr-scan-log/` (sidebar nav — **history only**), `CheckInStatsPanel` on Event Detail Overview. **No Admin scanner UI was ever built.** Invitation template preview removed.
 
 ### Tests
 - `tests/Feature/QrInvitationModuleTest.php` — unique index, crypto token on free join, pending skips token, **valid / already_used / invalid**, cancelled→invalid (not already_used), refunded before already_used, re-scan dual logs, stats + API.
@@ -954,8 +912,6 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Feedback | `EventFeedback` (+ `hidden`) | `FeedbackController` + EventAddOn | `feedback.php` + nested + POST event-feedback | `pages/feedback/` list + **`show.tsx`** | `feedback.ts` | `feedback.ts` |
 | Organizer subscriptions | `OrganizerSubscription` | `OrganizerSubscriptionController` | nested `organizers.php` | **`pages/subscription/`** (side panel) + Organizer full page assign/cancel | `subscription.ts` / `organizerSubscription.ts` | `package.ts` |
 | Event add-ons | Announcement, Sponsor, Speaker, Session | `EventAddOnController` | nested `events.php` | Event hub lazy tabs (`EventAddOnOversight` `only`) | `event.ts` | `event.ts` |
-| Invitation templates | `EventInvitationTemplate` | `EventInvitationTemplateController` | nested + resource | Event hub Invitation tab **read-only preview** | `event.ts` (`getInvitationTemplate`) | `invitationTemplate.ts` |
-| Invitation system templates | `InvitationSystemTemplate` | `InvitationSystemTemplateController` | `invitation-system-templates.php` | **Settings → Invitation Templates** CRUD ✅ | `invitationSystemTemplate.ts` | `invitationTemplate.ts` |
 | QR scan logs | `QrScanLog` | `QrScanLogController` | `qr-scan-logs.php` + nested | `pages/qr-scan-log/` history only | `qrScanLog.ts` | `qrScan.ts` |
 | Settings | `Settings` | `SettingsController` | `settings.php` | mail + commission | `mail.ts` / `payout.ts` | `mail.ts` / `payment.ts` |
 | API clients | `ApiClient` | `ApiClientController` | `api-clients.php` | **Settings → API Clients** read-only ✅ | `apiClient.ts` | `apiClient.ts` |
@@ -964,7 +920,8 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 | Logs | Activity log | `LogController` | `logs.php` | `pages/logs/` | `logs.ts` | — |
 | Trash | soft-deleted rows | per-resource trash endpoints | users/roles/organizers/events/event-categories | `pages/trash/` | BaseApi trash methods | — |
 
-**Explicitly deferred:** Share Event → Web App pack. Organizer door scanner / Waafi charge UI / invitation designer / feedback submit UX → Web App.
+**Removed modules:** Event form fields; Invitation templates / invitation system templates (tables dropped 2026-09-03). Tickets are static Web App design; QR kept.
+**Explicitly deferred:** Share Event → Web App pack. Organizer door scanner / Waafi charge UI / feedback submit UX → Web App.
 **Removed from Admin (Prompt 13):** manual mark-as-paid UI; admin use of QR validate & payment charge (scope-blocked). QR scanner screen and payment charging screen were **never built** in Admin FE.
 
 ## Backend Structure Notes
@@ -973,14 +930,14 @@ Admin System inventory through Prompt 13. Ownership: **Admin = platform owner; O
 - Jobs: `ExpirePendingPayments`; Events/Listeners: `ParticipationCheckedIn` → `IssueAttendanceCertificate`.
 - Route files under `routes/api/v1/` imported from `routes/api.php`.
 - Factories under `database/factories/` for all major models used in tests.
-- Seeders: `RolePermissionSeeder`, `ApiClientSeeder`, `SettingsSeeder`, `EventCategorySeeder`, `InvitationSystemTemplateSeeder`. **No** `DemoDataSeeder` (removed).
+- Seeders: `RolePermissionSeeder`, `ApiClientSeeder`, `SettingsSeeder`, `EventCategorySeeder`. **No** `DemoDataSeeder` / `InvitationSystemTemplateSeeder` (removed).
 
 ## Frontend Structure Notes
 - Entry: `main.tsx`, `App.tsx`
 - Router: `router/routes.tsx`, `router/index.tsx` (lazy + `permissions`)
 - Sidebar: `lib/sidebar.ts` + `filterMenuByPermissions` / `cleanEmptySections`
 - Shared list UX: `DataTableWithSidebar` (sidebar optional), `StatusFilterBar`, `DetailPageHeader`, `DetailTabs`, `GenericModal`, `GenericSidebar`, `DetailSidebar`
-- Nested Event hub lists: `SimpleAdminTable` (`components/SimpleAdminTable.tsx`) — compact `<table>` matching list-page look (headers, `text-sm`, badges, action buttons). Do **not** stack bordered cards/`<ul>` for ticket types, discounts, registrations, payments, form fields, speakers, sessions, sponsors, announcements, gallery, or certificates-on-event. Overview/Analytics use `EventMetricCard`. Invitation tab: thumbnail + `EventField` customizations (color swatches) + overlay positions table (never raw `x=, y=` strings).
+- Nested Event hub lists: `SimpleAdminTable` (`components/SimpleAdminTable.tsx`) — compact `<table>` matching list-page look (headers, `text-sm`, badges, action buttons). Do **not** stack bordered cards/`<ul>` for ticket types, discounts, registrations, payments, speakers, sessions, sponsors, announcements, gallery, or certificates-on-event. Overview/Analytics use `EventMetricCard`.
 - Amount helper: `utils/money.ts` `formatMoney` → `"15.00 USD"`
 - Column extras: `hideBelow`, `minWidth` on `ColumnConfig`
 - Hooks: `useSidebarDetail`, `useConfirmDialog`, `usePermission`, `useAuth`, `useAuthInit`
@@ -1079,8 +1036,8 @@ Domain status / constrained-choice columns are native MySQL `ENUM` (not free-tex
 - **Side panel vs full page (data volume):**
   - Side panel (~8 fields, no nested lists): Users, Payments, Subscriptions, QR Scan History, Roles, Packages, Categories, Invitation templates, API clients, Logs.
   - Full page `pages/<resource>/show.tsx` + `/{resource}/:id` + back button + row-click: **Events** (tabbed hub), **Organizers**, **Payouts**, **Certificates**, **Feedback**.
-- Event hub tabs (lazy, in order): Overview, Ticket Types, Registrations, Payments, Speakers, Sessions, Sponsors, Announcements, Gallery, Invitation, Analytics. `EventAddOnOversight` accepts `only` so unused add-on queries do not fire. **No Form Fields tab.**
-- **Event hub nested data is tables, not cards:** Ticket Types + Discount codes, Registrations, Payments (`StatusFilterBar` + table), Speakers/Sessions/Sponsors/Announcements, Gallery (thumbnail + file + remove). Overview stays fields + `EventMetricCard`. Invitation is a read-only preview: template thumbnail, `EventField` customizations with color swatches, overlay positions as `SimpleAdminTable` (Element / X / Y / Width / Height / Font size) — never dump `x=300, y=820` strings. Analytics uses `EventMetricCard` (not a table). Reuse `SimpleAdminTable` + `statusBadgeClass` + `formatMoney`.
+- Event hub tabs (lazy, in order): Overview, Ticket Types, Registrations, Payments, Speakers, Sessions, Sponsors, Announcements, Gallery, Analytics. `EventAddOnOversight` accepts `only` so unused add-on queries do not fire. **No Form Fields tab. No Invitation tab.**
+- **Event hub nested data is tables, not cards:** Ticket Types + Discount codes, Registrations, Payments (`StatusFilterBar` + table), Speakers/Sessions/Sponsors/Announcements, Gallery (thumbnail + file + remove). Overview stays fields + `EventMetricCard`. Analytics uses `EventMetricCard` (not a table). Reuse `SimpleAdminTable` + `statusBadgeClass` + `formatMoney`.
 - Forms/modals: shared `components/form/*` + `GenericModal`; CTAs use `btn btn-primary` patterns.
 - Dense spacing in admin surfaces; avoid sparse “marketing” whitespace in sidebars/tables.
 - New UI must include `dark:` variants consistent with neighboring screens.
@@ -1123,6 +1080,18 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-09-03 — Remove invitation template customization (static Web App tickets)
+
+Dropped invitation designer/library entirely. Tickets are a static design on the Web App; QR tokens + scan validation kept.
+
+- **API:** `ParticipantParticipationController::invitation` always returns `invitation: null` (no `canvas`). Removed organizer invitation-template routes + `OrganizerInvitationController`. Removed Admin `event-invitation-templates` / `invitation-system-templates` prefixes and nested `GET /events/{id}/invitation-template`.
+- **Deleted PHP:** controllers (`OrganizerInvitation`, `EventInvitationTemplate`, `InvitationSystemTemplate`), models, `InvitationCanvas`, factories, `InvitationSystemTemplateSeeder`, route files, `InvitationSystemTemplateTest`.
+- **Event:** removed `invitationTemplate()` relation. `DatabaseSeeder` no longer seeds invitation templates. `RolePermissionSeeder` dropped `view/manage invitation templates`.
+- **Migration:** `2026_09_03_140000_drop_invitation_template_tables.php` drops `event_invitation_templates` then `invitation_system_templates`. Enum migration guards `event_invitation_templates` with `Schema::hasTable`.
+- **Admin SPA:** removed Invitation Event hub tab, Settings invitation-templates page/nav/route, `getInvitationTemplate`, types/services.
+- **Tests:** updated `ParticipantWebApiTest`, removed invitation methods from `OrganizerWebOpsApiTest` / `Prompt13OwnershipAndAdminScreensTest`, cleaned `QrInvitationModuleTest` permissions.
+- **Verification:** `php artisan migrate --force` OK; `npm run build` OK; `php artisan test --filter="ParticipantWebApiTest|OrganizerWebOpsApiTest|Prompt13|QrInvitation"` → **38 passed**.
 
 ### 2026-09-03 — Drop `event_form_fields` and rebuild Admin without Form Fields tab
 
