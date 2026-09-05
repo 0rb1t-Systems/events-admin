@@ -1,0 +1,1 @@
+import{a5 as e,a as i}from"./main-CFieH9A3.js";class n extends e{constructor(){super("/feedback")}async updateVisibility(s,t){const a=await i.patch(`${this.endpoint}/${s}/visibility`,{hidden:t});return a.data.data||a.data}}const p=new n;export{p as f};

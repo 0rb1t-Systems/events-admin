@@ -1,0 +1,1 @@
+import{a5 as t,a as n}from"./main-CFieH9A3.js";class e extends t{constructor(){super("/qr-scan-logs")}}const o=new e;async function r(a){const s=await n.get(`/events/${a}/check-in-stats`);return s.data.data||s.data}export{r as f,o as q};

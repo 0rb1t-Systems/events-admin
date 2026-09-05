@@ -1,0 +1,1 @@
+import{a5 as a,a as e}from"./main-CFieH9A3.js";class i extends a{constructor(){super("/certificates")}async reissue(t){const s=await e.post(`${this.endpoint}/${t}/reissue`);return s.data.data||s.data}}const n=new i;export{n as c};
