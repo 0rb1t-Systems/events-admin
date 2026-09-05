@@ -18,8 +18,13 @@ return [
         'token' => env('POSTMARK_TOKEN'),
     ],
 
+    /*
+    | Resend API key is set at send-time from Admin Settings → Mail
+    | (settings table), not from .env. MailService::configureMailSettings()
+    | writes config('services.resend.key') before dispatching.
+    */
     'resend' => [
-        'key' => env('RESEND_KEY'),
+        'key' => env('RESEND_KEY'), // optional fallback only; prefer Admin UI
     ],
 
     'ses' => [

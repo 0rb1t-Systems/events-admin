@@ -45,6 +45,13 @@ class OrganizerQrController extends BaseController
             return $this->forbiddenResponse('This event does not belong to your organization.');
         }
 
+        if ($this->qrValidation->isEventClosedForCheckIn($event)) {
+            return $this->badRequestResponse(
+                'This event has ended. Check-in is closed.',
+                ['error_code' => ['event_check_in_closed']]
+            );
+        }
+
         return $this->successResponse([
             'event_id' => $event->id,
             'title' => $event->title,

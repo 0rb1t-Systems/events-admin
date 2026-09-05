@@ -2,9 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\Settings;
+use Illuminate\Database\Seeder;
 
 class SettingsSeeder extends Seeder
 {
@@ -13,19 +12,17 @@ class SettingsSeeder extends Seeder
      */
     public function run(): void
     {
-        $settings = [
+        Settings::query()->updateOrCreate(
             [
                 'setting_type' => 'email',
-                'name' => Settings::EMAIL_SMTP_NAME,
-                'slug' => 'email-smtp',
-                'details' => null,
-                'status' => 0,
-                'is_global' => 0,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'name' => Settings::EMAIL_SETTING_NAME,
             ],
-        ];
-
-        Settings::insert($settings);
+            [
+                'slug' => 'email-resend',
+                'details' => null,
+                'status' => false,
+                'is_global' => true,
+            ]
+        );
     }
 }

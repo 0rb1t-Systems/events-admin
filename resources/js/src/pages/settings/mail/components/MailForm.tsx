@@ -12,6 +12,7 @@ interface MailFormProps {
     isSubmitting: boolean;
     isPending: boolean;
     generalError: string | null;
+    hasApiKey?: boolean;
     onSubmit: (e?: React.BaseSyntheticEvent) => void;
     showTestButton?: boolean;
     onShowTestModal?: () => void;
@@ -24,74 +25,40 @@ const MailForm: React.FC<MailFormProps> = ({
     isSubmitting,
     isPending,
     generalError,
+    hasApiKey,
     onSubmit,
     showTestButton,
     onShowTestModal,
 }) => (
     <form className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5" onSubmit={onSubmit} noValidate>
-        <Controller
-            name="host"
-            control={control}
-            render={({ field }) => (
-                <FormInput
-                    id="mail_host"
-                    label="Mail Host *"
-                    error={errors.host?.message}
-                    disabled={isLoading || isSubmitting || isPending}
-                    {...field}
-                />
-            )}
-        />
-        <Controller
-            name="port"
-            control={control}
-            render={({ field }) => (
-                <FormInput
-                    id="mail_port"
-                    label="Mail Port *"
-                    error={errors.port?.message}
-                    disabled={isLoading || isSubmitting || isPending}
-                    {...field}
-                />
-            )}
-        />
-        <Controller
-            name="username"
-            control={control}
-            render={({ field }) => (
-                <FormInput
-                    id="mail_username"
-                    label="Mail Username *"
-                    error={errors.username?.message}
-                    disabled={isLoading || isSubmitting || isPending}
-                    {...field}
-                />
-            )}
-        />
-        <Controller
-            name="password"
-            control={control}
-            render={({ field }) => (
-                <FormInput
-                    id="mail_password"
-                    label="Mail Password"
-                    type="password"
-                    error={errors.password?.message}
-                    disabled={isLoading || isSubmitting || isPending}
-                    autoComplete="new-password"
-                    value={field.value ?? ""}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                />
-            )}
-        />
+        <div className="md:col-span-2">
+            <Controller
+                name="api_key"
+                control={control}
+                render={({ field }) => (
+                    <FormInput
+                        id="mail_api_key"
+                        label={hasApiKey ? "Resend API Key (leave blank to keep current)" : "Resend API Key *"}
+                        type="password"
+                        error={errors.api_key?.message}
+                        disabled={isLoading || isSubmitting || isPending}
+                        autoComplete="new-password"
+                        placeholder={hasApiKey ? "••••••••••••••••" : "re_..."}
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                    />
+                )}
+            />
+        </div>
+
         <Controller
             name="from_name"
             control={control}
             render={({ field }) => (
                 <FormInput
                     id="mail_from_name"
-                    label="Mail From Name *"
+                    label="From Name *"
                     error={errors.from_name?.message}
                     disabled={isLoading || isSubmitting || isPending}
                     {...field}
@@ -104,58 +71,21 @@ const MailForm: React.FC<MailFormProps> = ({
             render={({ field }) => (
                 <FormInput
                     id="mail_from_email"
-                    label="Mail From Email *"
+                    label="From Email *"
                     error={errors.from_email?.message}
                     disabled={isLoading || isSubmitting || isPending}
+                    placeholder="noreply@yourdomain.com"
                     {...field}
                 />
             )}
         />
-        <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-                Mail Encryption *
-            </label>
-            <Controller
-                name="encryption"
-                control={control}
-                render={({ field }) => (
-                    <div className="flex items-center gap-6">
-                        <label className="flex items-center gap-2">
-                            <input
-                                type="radio"
-                                value="ssl"
-                                checked={field.value === "ssl"}
-                                onChange={() => field.onChange("ssl")}
-                                disabled={isLoading || isSubmitting || isPending}
-                                className="form-radio"
-                            />
-                            <span>SSL</span>
-                        </label>
-                        <label className="flex items-center gap-2">
-                            <input
-                                type="radio"
-                                value="tls"
-                                checked={field.value === "tls"}
-                                onChange={() => field.onChange("tls")}
-                                disabled={isLoading || isSubmitting || isPending}
-                                className="form-radio"
-                            />
-                            <span>TLS</span>
-                        </label>
-                        {errors.encryption?.message && (
-                            <span className="text-red-500 text-sm ml-4">{errors.encryption.message}</span>
-                        )}
-                    </div>
-                )}
-            />
-        </div>
+
         {generalError && (
             <div className="md:col-span-2">
                 <div className="text-red-500 text-sm mb-2">{generalError}</div>
             </div>
         )}
         <div className="md:col-span-2 mt-6 flex gap-3">
-
             <ActionButton
                 type="submit"
                 variant="primary"

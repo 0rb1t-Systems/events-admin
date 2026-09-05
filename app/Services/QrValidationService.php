@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Events\ParticipationCheckedIn;
+use App\Enums\EventStatus;
 use App\Enums\ParticipationPaymentStatus;
 use App\Enums\ParticipationStatus;
 use App\Enums\QrScanResult;
+use App\Models\Event;
 use App\Models\Organizer;
 use App\Models\Participation;
 use App\Models\QrScanLog;
@@ -18,19 +20,44 @@ use Illuminate\Support\Facades\DB;
  * Three DISTINCT outcomes (never fold already_used into invalid):
  * - valid        — unseen token, participation claimable → check-in side effects
  * - already_used — previously checked in successfully → log only, NO side effects
- * - invalid      — missing token, cancelled, refunded, or not claimable
+ * - invalid      — missing token, cancelled, refunded, event ended, or not claimable
  *
  * Branch order (critical):
  * 1) not found → invalid
  * 2) cancelled / refunded → invalid   (BEFORE already_used)
- * 3) checked_in → already_used
- * 4) not claimable → invalid
- * 5) claimable → valid + check-in
+ * 3) event ended / cancelled / completed → invalid (BEFORE already_used)
+ * 4) checked_in → already_used
+ * 5) not claimable → invalid
+ * 6) claimable → valid + check-in
  *
  * Every attempt is logged as its own qr_scan_logs row (first and re-scans alike).
  */
 class QrValidationService
 {
+    /**
+     * Event no longer accepts door check-in (ended by clock or terminal status).
+     */
+    public function isEventClosedForCheckIn(?Event $event): bool
+    {
+        if (! $event) {
+            return true;
+        }
+
+        $status = $event->status instanceof EventStatus
+            ? $event->status
+            : EventStatus::tryFrom((string) $event->status);
+
+        if ($status === EventStatus::COMPLETED || $status === EventStatus::CANCELLED) {
+            return true;
+        }
+
+        if ($event->ends_at && $event->ends_at->isPast()) {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * @return array{
      *   result: QrScanResult,
@@ -108,6 +135,39 @@ class QrValidationService
                     $scannerUser,
                     $scannerOrganizer,
                     ['reason' => 'refunded']
+                );
+
+                return $this->response(QrScanResult::INVALID, $participation, $log, false);
+            }
+
+            // --- Branch 2c: event ended → invalid (BEFORE already_used) ---
+            $event = $participation->relationLoaded('event')
+                ? $participation->event
+                : $participation->event()->first();
+
+            if ($this->isEventClosedForCheckIn($event)) {
+                $reason = 'event_ended';
+                $status = $event?->status instanceof EventStatus
+                    ? $event->status
+                    : EventStatus::tryFrom((string) ($event?->status ?? ''));
+                if ($status === EventStatus::CANCELLED) {
+                    $reason = 'event_cancelled';
+                } elseif ($status === EventStatus::COMPLETED) {
+                    $reason = 'event_completed';
+                }
+
+                $log = $this->recordScan(
+                    $token,
+                    $participation,
+                    QrScanResult::INVALID,
+                    $gate,
+                    $scannerUser,
+                    $scannerOrganizer,
+                    [
+                        'reason' => $reason,
+                        'event_status' => $status?->value,
+                        'ends_at' => $event?->ends_at?->toIso8601String(),
+                    ]
                 );
 
                 return $this->response(QrScanResult::INVALID, $participation, $log, false);

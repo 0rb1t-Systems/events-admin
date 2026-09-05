@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-09-03 (short 8-char door qr_tokens; invitation templates removed; tickets are static Web App design)
+Last updated: 2026-09-05 (QR check-in denied for ended/completed/cancelled events)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -69,7 +69,7 @@ These were decided during Admin Prompts 1–12. Confirm or correct before Web Ap
 12. **Suspension cascade** — Suspending an organizer does **not** delete events; events stay admin-visible; organizer Web edits blocked while suspended.
 13. **Soft-delete FK policy** — Future `organizer_id` FKs use **`restrictOnDelete`**; soft-delete preserves rows for relations.
 14. **Form field delete** — If answers exist → deactivate (`active=false`); else hard-delete. Historical answers never retroactively invalidated. **Key cannot change on update.**
-15. **QR outcomes** — Three results: `valid` | `already_used` | `invalid`. Cancelled/refunded → `invalid` **before** `already_used`. Re-scan logs `already_used` without double check-in.
+15. **QR outcomes** — Three results: `valid` | `already_used` | `invalid`. Cancelled/refunded/event-ended → `invalid` **before** `already_used`. Re-scan of a live checked-in ticket logs `already_used` without double check-in; after the event ends, even that re-scan is `invalid`.
 16. **Packages delete/archive** — Blocked if any subscription history exists (active or cancelled).
 17. **Ticket type force-delete** — Blocked when `quantity_sold > 0`; soft-delete still allowed.
 18. **Cancelled events** — Cannot be force-deleted.
@@ -101,7 +101,7 @@ These were decided during Admin Prompts 1–11. Confirm or correct before Web Ap
 12. **Suspension cascade** — Suspending an organizer does **not** delete events; events stay admin-visible; organizer Web edits blocked while suspended.
 13. **Soft-delete FK policy** — Future `organizer_id` FKs use **`restrictOnDelete`**; soft-delete preserves rows for relations.
 14. **Form field delete** — If answers exist → deactivate (`active=false`); else hard-delete. Historical answers never retroactively invalidated.
-15. **QR outcomes** — Three results: `valid` | `already_used` | `invalid`. Cancelled/refunded → `invalid` **before** `already_used`. Re-scan logs `already_used` without double check-in.
+15. **QR outcomes** — Three results: `valid` | `already_used` | `invalid`. Cancelled/refunded/event-ended → `invalid` **before** `already_used`. Re-scan of a live checked-in ticket logs `already_used` without double check-in; after the event ends, even that re-scan is `invalid`.
 16. **Packages delete/archive** — Blocked if any subscription history exists (active or cancelled).
 17. **Ticket type force-delete** — Blocked when `quantity_sold > 0`; soft-delete still allowed.
 18. **Cancelled events** — Cannot be force-deleted.
@@ -420,9 +420,9 @@ Participant auth codes are **4-digit numeric strings** stored on `users` and del
 
 **Delivery path:** `AuthController` → `MailService::sendEmailQueued()` → `SendEmailJob` (implements `ShouldQueue`) → Blade templates `mail.verification` / `mail.password-reset`. Queue uses the configured **`QUEUE_CONNECTION`** (local default **`database`**); a running queue worker is required for delivery (`php artisan queue:listen` — included in `composer run dev` / `dev:windows`).
 
-**SMTP source (intentional):** Auth/announcement mail does **not** use `.env` `MAIL_MAILER=log`. At send time `MailService::configureMailSettings()` loads the **active** row from `settings` where `setting_type=email` and name matches **`smtp`** (case-insensitive via `Settings::emailSmtp()` scope). Admin saves credentials in **Settings → Mail** (`SettingsController::updateMailConfig`), which sets `status=true` and JSON `details` (`host`, `port`, `encryption`, `username`, `password`, `from_email`, `from_name`). Seeded mail setting (`SettingsSeeder`) is **`name=smtp`**, **`slug=email-smtp`**, **`status=false`**, **`details=null`** — inactive until an administrator configures real SMTP. No credentials in code/seeders.
+**SMTP source (intentional):** Auth/announcement mail does **not** use `.env` `MAIL_MAILER=log`. At send time `MailService::configureMailSettings()` loads the **active** row from `settings` where `setting_type=email` and name matches **`resend`** (legacy `smtp` rows still match via `Settings::emailMail()` / `emailSmtp()`). Admin saves credentials in **Settings → Mail** (`SettingsController::updateMailConfig`), which sets `status=true` and JSON `details` (`api_key`, `from_email`, `from_name`). Seeded mail setting (`SettingsSeeder`) is **`name=resend`**, **`slug=email-resend`**, **`status=false`**, **`details=null`** — inactive until an administrator configures Resend. Package: `resend/resend-php`. Runtime sets `config('services.resend.key')` + `mail.default=resend` — **not** `.env` `RESEND_KEY` (optional unused fallback only). Migration `2026_09_05_100000_migrate_email_settings_smtp_to_resend.php` renames legacy SMTP rows and clears SMTP secrets.
 
-**Local participant email delivery requires:** (1) administrator-configured active SMTP in Admin Settings, and (2) a running queue worker. Without both, codes exist only in the database.
+**Local participant email delivery requires:** (1) administrator-configured active **Resend** in Admin Settings → Mail (API key + from address on a verified domain), and (2) a running queue worker. Without both, codes exist only in the database.
 
 **Password reset success:** clears `reset_code` + `reset_code_expires_at`, revokes **all** User Sanctum tokens, queues confirmation email (`password_reset_confirmation`).
 
@@ -790,9 +790,12 @@ Branch order (locked + transactional):
 1. **invalid** — empty / token not found
 2. **invalid** — `status=cancelled` (BEFORE already_used)
 3. **invalid** — `payment_status=refunded` (BEFORE already_used)
-4. **already_used** — `status=checked_in` → log only, **no** check-in side effects
-5. **invalid** — not claimable (pending unpaid, cancelled, legacy waitlisted, etc.)
-6. **valid** — claimable → set `checked_in=true`, log; dispatch `ParticipationCheckedIn` (certificate listener — not inline)
+4. **invalid** — event closed for check-in: `status` is `completed`/`cancelled`, or `ends_at` is past (BEFORE already_used — so even previously checked-in tickets cannot re-scan after the event ends)
+5. **already_used** — `status=checked_in` → log only, **no** check-in side effects
+6. **invalid** — not claimable (pending unpaid, cancelled, legacy waitlisted, etc.)
+7. **valid** — claimable → set `checked_in=true`, log; dispatch `ParticipationCheckedIn` (certificate listener — not inline)
+
+Organizer/public scanner unlock (`POST .../scanner/unlock`) also rejects closed events with 400 `event_check_in_closed`.
 
 Re-scan of a checked-in token → `already_used` + **separate** `qr_scan_logs` row; participation untouched.
 
@@ -981,7 +984,7 @@ Domain status / constrained-choice columns are native MySQL `ENUM` (not free-tex
 - `monetized` derived from paid ticket types.
 - Participations: no waitlist — full events reject join. Confirmed seats occupy `registrations_count`; pending unpaid **holds** a seat until pay/fail/expire. Failed/expired Waafi **cancels** the row and releases ticket quantity. Join/cancel in DB transaction with atomic ticket claim/release.
 - Form answers validated at submit only; no FK from answers → schema rows.
-- QR token issued for confirmed (paid/free) participations; validation order: not found → cancelled → refunded → already_used → not claimable → valid.
+- QR token issued for confirmed (paid/free) participations; validation order: not found → cancelled → refunded → **event ended** → already_used → not claimable → valid.
 
 ### Money
 - `payments` is SoT; participation `payment_status` is mirror.
@@ -1080,6 +1083,17 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - Rule: if staged/pushed changes touch critical project paths and `.agent` is not included, fail.
 
 ## Change Log
+
+### 2026-09-05 — Deny QR check-in after event ends
+
+`QrValidationService` rejects scans when the event is `completed`/`cancelled` or `ends_at` is past — **before** `already_used`, so previously checked-in tickets also cannot re-scan after expiry. Public/organizer `scanner/unlock` returns 400 `event_check_in_closed`. Web scanner shows “This event has ended. Check-in is closed.”
+
+### 2026-09-05 - Admin Mail: SMTP replaced with Resend (DB settings)
+- **Provider:** Resend HTTP API via Laravel `mail.mailers.resend` + `resend/resend-php`. Credentials live in `settings` table (Admin Settings → Mail), **not** required in `.env`.
+- **Fields:** `api_key`, `from_name`, `from_email`. Removed host/port/encryption/username/password (and unused admin notification email).
+- **Files:** `MailService`, `SettingsController`, `Settings` model (`EMAIL_SETTING_NAME=resend`, `scopeEmailMail`), `SettingsSeeder`, migration `2026_09_05_100000_migrate_email_settings_smtp_to_resend.php`, FE `pages/settings/mail/*` + `types/mail.ts`, `mail/test.blade.php`, `config/services.php` note, `MailSettingsLookupTest`, `composer.json`/`composer.lock`.
+- **Behavior:** GET never returns full API key (`has_api_key`); blank API key on save keeps existing key. Test email template says Resend.
+- **Verification:** `php artisan migrate`; `php artisan test --filter=MailSettingsLookupTest` — 2 passed.
 
 ### 2026-09-03 — Short 8-char door `qr_token`
 

@@ -53,6 +53,23 @@ class PublicScannerApiTest extends TestCase
             ->assertJsonPath('data.event_id', $event->id);
     }
 
+    public function test_public_unlock_rejects_ended_event(): void
+    {
+        $organizer = Organizer::factory()->create();
+        Event::factory()->create([
+            'organizer_id' => $organizer->id,
+            'scan_token' => 'ENDED-DOOR-TOKEN',
+            'ends_at' => now()->subHour(),
+        ]);
+
+        $this->postJson('/api/v1/public/scanner/unlock', [
+            'scan_token' => 'ENDED-DOOR-TOKEN',
+        ])
+            ->assertStatus(400)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('errors.error_code.0', 'event_check_in_closed');
+    }
+
     public function test_public_unlock_rejects_invalid_token(): void
     {
         $this->postJson('/api/v1/public/scanner/unlock', [

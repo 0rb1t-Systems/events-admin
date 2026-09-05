@@ -243,6 +243,40 @@ class QrInvitationModuleTest extends TestCase
         $this->assertSame('refunded', $outcome['scan_log']->meta['reason'] ?? null);
     }
 
+    public function test_ended_event_returns_invalid_before_check_in(): void
+    {
+        $p = $this->confirmedParticipation();
+        $p->event->update([
+            'ends_at' => now()->subHour(),
+            'status' => EventStatus::ONGOING,
+        ]);
+
+        $outcome = $this->validator->validate($p->qr_token);
+
+        $this->assertSame(QrScanResult::INVALID, $outcome['result']);
+        $this->assertFalse($outcome['checked_in']);
+        $this->assertSame(ParticipationStatus::JOINED, $p->fresh()->status);
+        $this->assertSame('event_ended', $outcome['scan_log']->meta['reason'] ?? null);
+    }
+
+    public function test_completed_event_blocks_already_checked_in_rescan(): void
+    {
+        $p = $this->confirmedParticipation([
+            'status' => ParticipationStatus::CHECKED_IN,
+            'payment_status' => ParticipationPaymentStatus::NOT_REQUIRED,
+        ]);
+        if (! $p->qr_token) {
+            $p = $this->tokens->assignToken($p);
+        }
+        $p->event->update(['status' => EventStatus::COMPLETED]);
+
+        $outcome = $this->validator->validate($p->qr_token);
+
+        $this->assertSame(QrScanResult::INVALID, $outcome['result']);
+        $this->assertNotSame(QrScanResult::ALREADY_USED, $outcome['result']);
+        $this->assertSame('event_completed', $outcome['scan_log']->meta['reason'] ?? null);
+    }
+
     public function test_check_in_stats_and_admin_api(): void
     {
         $p = $this->confirmedParticipation();

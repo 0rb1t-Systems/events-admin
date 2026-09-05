@@ -1,18 +1,18 @@
 @extends('mail.layout')
 
-@section('title', 'SMTP Configuration Test')
+@section('title', 'Resend Mail Configuration Test')
 @section('header-color', '#059669')
 @section('header-title', config('app.name'))
-@section('header-subtitle', 'SMTP Test Email')
+@section('header-subtitle', 'Resend Test Email')
 
 @section('content')
-<h2>SMTP Configuration Test</h2>
+<h2>Resend Mail Configuration Test</h2>
 
 <div class="success">
-    <strong>Congratulations!</strong> Your SMTP configuration is working correctly.
+    <strong>Congratulations!</strong> Your Resend mail configuration is working correctly.
 </div>
 
-<p>This is a test email to verify that your SMTP settings are properly configured and emails can be sent successfully from your {{ config('app.name') }} application.</p>
+<p>This is a test email to verify that your Resend settings are properly configured and emails can be sent successfully from your {{ config('app.name') }} application.</p>
 
 <p><strong>Test Details:</strong></p>
 <ul>

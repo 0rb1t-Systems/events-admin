@@ -19,34 +19,24 @@ class SettingsController extends Controller
     }
 
     /**
-     * Get current mail configuration
+     * Get current Resend mail configuration (API key never returned in full).
      */
     public function getMailConfig(Request $request)
     {
-        $mailSetting = Settings::emailSmtp()->first();
+        $mailSetting = Settings::emailMail()->first();
+        $details = $mailSetting && $mailSetting->details
+            ? (json_decode($mailSetting->details, true) ?: [])
+            : [];
 
-        if (! $mailSetting || ! $mailSetting->details) {
-            $config = [
-                'from_name' => '',
-                'from_email' => '',
-                'host' => '',
-                'port' => 587,
-                'encryption' => 'tls',
-                'username' => '',
-                'password' => '',
-            ];
-        } else {
-            $details = json_decode($mailSetting->details, true) ?: [];
-            $config = [
-                'from_name' => $details['from_name'] ?? '',
-                'from_email' => $details['from_email'] ?? '',
-                'host' => $details['host'] ?? '',
-                'port' => $details['port'] ?? 587,
-                'encryption' => $details['encryption'] ?? 'tls',
-                'username' => $details['username'] ?? '',
-                'password' => $details['password'] ?? '',
-            ];
-        }
+        $hasApiKey = filled($details['api_key'] ?? null);
+
+        $config = [
+            'from_name' => $details['from_name'] ?? '',
+            'from_email' => $details['from_email'] ?? '',
+            'api_key' => '',
+            'has_api_key' => $hasApiKey,
+            'configured' => (bool) ($mailSetting?->status && $hasApiKey && filled($details['from_email'] ?? null) && filled($details['from_name'] ?? null)),
+        ];
 
         return response()->json([
             'success' => true,
@@ -55,58 +45,75 @@ class SettingsController extends Controller
     }
 
     /**
-     * Update mail configuration
+     * Update Resend mail configuration (stored in settings table, not .env).
      */
     public function updateMailConfig(Request $request)
     {
         $request->validate([
             'from_name' => 'required|string|max:255',
             'from_email' => 'required|email|max:255',
-            'host' => 'required|string|max:255',
-            'port' => 'required|integer|min:1|max:65535',
-            'encryption' => 'required|string|in:tls,ssl,none',
-            'username' => 'required|string|max:255',
-            'password' => 'required|string|max:255',
+            'api_key' => 'nullable|string|max:255',
         ]);
 
         try {
+            $existing = Settings::emailMail()->first();
+            $existingDetails = $existing && $existing->details
+                ? (json_decode($existing->details, true) ?: [])
+                : [];
+
+            $apiKey = trim((string) $request->input('api_key', ''));
+            if ($apiKey === '') {
+                $apiKey = (string) ($existingDetails['api_key'] ?? '');
+            }
+
+            if ($apiKey === '') {
+                throw ValidationException::withMessages([
+                    'api_key' => ['Resend API key is required.'],
+                ]);
+            }
+
             $details = [
+                'api_key' => $apiKey,
                 'from_name' => $request->from_name,
                 'from_email' => $request->from_email,
-                'host' => $request->host,
-                'port' => $request->port,
-                'encryption' => $request->encryption,
-                'username' => $request->username,
-                'password' => $request->password,
             ];
 
-            $setting = Settings::updateOrCreate(
+            // Prefer updating the canonical resend row; remove legacy smtp duplicate if present
+            $setting = Settings::query()->updateOrCreate(
                 [
                     'setting_type' => 'email',
-                    'name' => Settings::EMAIL_SMTP_NAME,
+                    'name' => Settings::EMAIL_SETTING_NAME,
                 ],
                 [
-                    'slug' => 'email-smtp',
+                    'slug' => 'email-resend',
                     'details' => json_encode($details),
                     'status' => true,
                     'is_global' => true,
                 ]
             );
 
+            Settings::query()
+                ->where('setting_type', 'email')
+                ->whereRaw('LOWER(name) = ?', [Settings::EMAIL_SMTP_NAME])
+                ->where('id', '!=', $setting->id)
+                ->delete();
+
             activity('settings')
                 ->causedBy($request->user())
                 ->performedOn($setting)
                 ->withProperties([
                     'from_email' => $details['from_email'],
-                    'host' => $details['host'],
+                    'provider' => 'resend',
                 ])
                 ->event('updated')
-                ->log('Mail configuration updated');
+                ->log('Mail configuration updated (Resend)');
 
             return response()->json([
                 'success' => true,
                 'message' => 'Mail configuration updated successfully',
             ]);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             throw ValidationException::withMessages([
                 'config' => ['Failed to update mail configuration: '.$e->getMessage()],
@@ -115,7 +122,7 @@ class SettingsController extends Controller
     }
 
     /**
-     * Test mail configuration by sending a test mail
+     * Test mail configuration by sending a test mail via Resend.
      */
     public function testMailConfig(Request $request)
     {
