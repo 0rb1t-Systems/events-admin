@@ -1,5 +1,6 @@
 import React from "react";
 import { useOrganization } from "../contexts/OrganizationContext";
+import { APP_NAME } from "../utils/appName";
 
 const Footer = () => {
     const { organization } = useOrganization();
@@ -21,7 +22,7 @@ const Footer = () => {
             <div className="text-sm flex flex-wrap items-center justify-center gap-2">
                 <span>
                     {"\u00A9"} {new Date().getFullYear()}.{" "}
-                    {organization?.name || "Start Kit"} All rights reserved.
+                    {organization?.name || APP_NAME} All rights reserved.
                 </span>
                 {foundedYear && (
                     <span className="text-gray-500 dark:text-gray-400">

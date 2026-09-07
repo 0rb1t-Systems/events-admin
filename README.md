@@ -1,4 +1,4 @@
-# Laravel 12, React, and TypeScript (Vite-Powered)
+# Event24 — Laravel 12, React, and TypeScript (Vite-Powered)
 
 A modern web application built with Laravel 12 backend and React frontend admin dashboard. This platform provides user authentication, role-based access control, activity logging, and a comprehensive API for data operations.
 
@@ -57,7 +57,7 @@ cp .env.example .env
 Edit `.env` file with your database and application settings:
 
 ```env
-APP_NAME="Start Kit"
+APP_NAME="Event24"
 APP_ENV=local
 APP_KEY=
 APP_DEBUG=true

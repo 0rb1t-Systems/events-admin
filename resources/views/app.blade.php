@@ -20,7 +20,7 @@
 
 <body>
     <noscript>
-        <strong>We're sorry but Vristo doesn't work properly without JavaScript enabled. Please enable it to
+        <strong>We're sorry but Event24 doesn't work properly without JavaScript enabled. Please enable it to
             continue.</strong>
     </noscript>
 

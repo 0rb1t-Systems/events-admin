@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { organizationApi } from '../services/organization';
+import { APP_NAME } from '../utils/appName';
 
 export interface Organization {
     id?: number;
@@ -117,9 +118,7 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
     useEffect(() => {
         if (organization) {
             // Update page title with organization name
-            if (organization.name) {
-                document.title = organization.name;
-            }
+            document.title = organization.name || APP_NAME;
 
             // Update favicon
             const updateFavicon = (iconUrl: string | null | undefined) => {

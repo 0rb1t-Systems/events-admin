@@ -17,6 +17,7 @@ import { MenuItem } from "../types/sidebar";
 import { usePermission } from "../hooks";
 import { authUtils } from "../utils/auth";
 import { useOrganization } from "../contexts/OrganizationContext";
+import { APP_NAME } from "../utils/appName";
 
 const Sidebar = () => {
     const [activeMenus, setActiveMenus] = useState<string[]>([]);
@@ -347,11 +348,11 @@ const Sidebar = () => {
                             />
                             ) : (
                                 <div className="w-8 h-8 ml-[5px] flex items-center justify-center text-gray-400 dark:text-gray-500">
-                                    {organization?.name?.charAt(0).toUpperCase() || 'O'}
+                                    {organization?.name?.charAt(0).toUpperCase() || APP_NAME.charAt(0)}
                                 </div>
                             )}
                             <span className="text-2xl ltr:ml-1.5 rtl:mr-1.5 font-semibold align-middle lg:inline dark:text-white-light">
-                                {organization?.name || t("Start Kit")}
+                                {organization?.name || APP_NAME}
                             </span>
                         </NavLink>
 

@@ -1,6 +1,7 @@
 import { createSlice } from "@reduxjs/toolkit";
 import i18next from "i18next";
 import themeConfig from "../theme.config";
+import { APP_NAME } from "../utils/appName";
 
 const defaultState = {
     isDarkMode: false,
@@ -115,7 +116,7 @@ const themeConfigSlice = createSlice({
         },
 
         setPageTitle(state, { payload }) {
-            document.title = `${payload} | Start Kit - `;
+            document.title = `${payload} | ${APP_NAME}`;
         },
     },
 });

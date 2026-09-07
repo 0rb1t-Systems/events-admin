@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { IRootState } from "../../../store";
 import LanguageSelector from "./LanguageSelector";
+import { APP_NAME } from "../../../utils/appName";
 
 interface LoginCoverProps {
     children: React.ReactNode;
@@ -31,16 +32,9 @@ const LoginCover: React.FC<LoginCoverProps> = ({ children }) => {
                     {/* Left Side - Branding */}
                     <div className="hidden lg:flex flex-col items-center justify-center p-8">
                         <Link to="/" className="mb-8">
-                            <img
-                                src="/assets/images/auth/logo-white.svg"
-                                alt="Logo"
-                                className="w-48 dark:hidden"
-                            />
-                            <img
-                                src="/assets/images/auth/logo-white.svg"
-                                alt="Logo"
-                                className="w-48 hidden dark:block"
-                            />
+                            <span className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-white">
+                                {APP_NAME}
+                            </span>
                         </Link>
                         <div className="relative">
                             <div className="absolute -inset-4">
@@ -62,7 +56,7 @@ const LoginCover: React.FC<LoginCoverProps> = ({ children }) => {
 
                 {/* Footer */}
                 <div className="absolute bottom-6 text-center w-full text-sm text-gray-600 dark:text-gray-400">
-                    © {new Date().getFullYear()} Start Kit. All rights reserved.
+                    © {new Date().getFullYear()} {APP_NAME}. All rights reserved.
                 </div>
             </div>
         </div>

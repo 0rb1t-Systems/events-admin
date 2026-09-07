@@ -61,6 +61,7 @@ const MailForm: React.FC<MailFormProps> = ({
                     label="From Name *"
                     error={errors.from_name?.message}
                     disabled={isLoading || isSubmitting || isPending}
+                    placeholder="Event24"
                     {...field}
                 />
             )}

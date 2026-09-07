@@ -6,6 +6,7 @@ import { toggleSidebar } from "../../store/themeConfigSlice";
 import { authUtils } from "../../utils/auth";
 import { useOrganization } from "../../contexts/OrganizationContext";
 import { IRootState } from "../../store";
+import { APP_NAME } from "../../utils/appName";
 
 const Logo = () => {
     const dispatch = useDispatch();
@@ -35,11 +36,11 @@ const Logo = () => {
                 />
                 ) : (
                     <div className="w-8 h-8 flex items-center justify-center text-gray-400 dark:text-gray-500">
-                        {organization?.name?.charAt(0).toUpperCase() || 'O'}
+                        {organization?.name?.charAt(0).toUpperCase() || APP_NAME.charAt(0)}
                     </div>
                 )}
                 <span className="text-2xl ltr:ml-1.5 rtl:mr-1.5 font-semibold align-middle hidden md:inline dark:text-white-light transition-all duration-300">
-                    {organization?.name || "Start Kit"}
+                    {organization?.name || APP_NAME}
                 </span>
             </Link>
             <button

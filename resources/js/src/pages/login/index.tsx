@@ -10,6 +10,7 @@ import { IRootState } from "../../store";
 import LoginCover from "./components/LoginCover";
 import { LoginFormData, loginSchema } from "./schema";
 import { authUtils } from "../../utils/auth";
+import { APP_NAME } from "../../utils/appName";
 
 const Login = () => {
     const navigate = useNavigate();
@@ -74,10 +75,10 @@ const Login = () => {
                         </div>
                     </div>
                     <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-center text-gray-900 dark:text-white mb-2">
-                        Admin Login
+                        {APP_NAME} Admin
                     </h1>
                     <p className="text-center text-gray-600 dark:text-gray-400 text-sm sm:text-base">
-                        Please sign in to continue to dashboard
+                        Sign in to continue to the {APP_NAME} dashboard
                     </p>
                 </div>
 

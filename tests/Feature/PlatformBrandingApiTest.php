@@ -55,7 +55,7 @@ class PlatformBrandingApiTest extends TestCase
     public function test_public_branding_returns_safe_fields_only(): void
     {
         Organization::query()->create([
-            'name' => 'EventHub Demo',
+            'name' => 'Event24 Demo',
             'email' => 'secret@example.com',
             'phone' => '+252611111111',
             'address' => 'Hidden Street',
@@ -66,7 +66,7 @@ class PlatformBrandingApiTest extends TestCase
 
         $response = $this->getJson('/api/v1/platform/branding')
             ->assertOk()
-            ->assertJsonPath('data.name', 'EventHub Demo')
+            ->assertJsonPath('data.name', 'Event24 Demo')
             ->assertJsonPath('data.logo_url', '/assets/images/logo.png')
             ->assertJsonPath('data.logo_dark_url', '/assets/images/logo-dark.png')
             ->assertJsonPath('data.icon_url', '/assets/images/icon.ico');
