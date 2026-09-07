@@ -14,7 +14,8 @@ table > thead > tr > th.mantine-187dsit {
 }
 .datatables table tbody tr td {
     @apply !border-0 !border-none text-sm text-gray-800 dark:text-white-light;
-    overflow: visible !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
     vertical-align: middle;
 }
 table tr .mantine-Checkbox-root {
@@ -22,7 +23,7 @@ table tr .mantine-Checkbox-root {
 }
 .datatables table {
     @apply font-nunito text-sm !text-black dark:!text-white-dark;
-    table-layout: auto;
+    table-layout: fixed;
     width: 100%;
     min-width: 960px;
 }
@@ -73,7 +74,7 @@ table tr .mantine-Checkbox-root {
 }
 .datatables table {
     @apply font-nunito text-sm !text-black dark:!text-white-dark;
-    table-layout: auto;
+    table-layout: fixed;
     width: 100%;
     min-width: 960px;
 }

@@ -116,7 +116,17 @@ const MailSettings = () => {
             setTestModalOpen(false);
             setTestEmail("");
         } catch (err: any) {
-            toast.error(err?.message || "Failed to send test email");
+            const fieldErrors = err?.errors;
+            const firstFieldError =
+                fieldErrors &&
+                Object.values(fieldErrors)
+                    .flat()
+                    .find((msg) => typeof msg === "string" && msg.length > 0);
+            toast.error(
+                (typeof firstFieldError === "string" && firstFieldError) ||
+                    err?.message ||
+                    "Failed to send test email"
+            );
         } finally {
             setTestLoading(false);
         }

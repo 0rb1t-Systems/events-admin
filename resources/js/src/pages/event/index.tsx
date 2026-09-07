@@ -72,7 +72,12 @@ const EventList = () => {
             sortable: true,
             width: 220,
             render: ({ title }) => (
-                <div className="font-medium text-gray-900 dark:text-white">{title}</div>
+                <div
+                    className="font-medium text-gray-900 dark:text-white truncate max-w-full"
+                    title={title}
+                >
+                    {title}
+                </div>
             ),
         },
         {
@@ -83,7 +88,10 @@ const EventList = () => {
             width: 170,
             hideBelow: "lg",
             render: ({ organizer }) => (
-                <span className="text-gray-800 dark:text-white-light">
+                <span
+                    className="block truncate text-gray-800 dark:text-white-light"
+                    title={organizer?.business_name ?? undefined}
+                >
                     {organizer?.business_name ?? "—"}
                 </span>
             ),

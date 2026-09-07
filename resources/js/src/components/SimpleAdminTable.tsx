@@ -27,7 +27,7 @@ const SimpleAdminTable: React.FC<TableProps> = ({
 }) => {
     return (
         <div className="admin-table-scroll rounded border border-white-light dark:border-[#1b2e4b]">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[640px] table-fixed text-sm">
                 <thead>
                     <tr className="bg-white-light/30 dark:bg-[#1a2941]">
                         {columns.map((col) => (
@@ -73,7 +73,7 @@ export const SimpleAdminTd: React.FC<{
 }> = ({ children, align, hideBelow, className }) => (
     <td
         className={clsx(
-            "px-4 py-3 text-gray-800 dark:text-white-light",
+            "max-w-0 overflow-hidden text-ellipsis px-4 py-3 text-gray-800 dark:text-white-light",
             !className?.includes("whitespace") && "whitespace-nowrap",
             align === "right" && "text-right",
             align === "center" && "text-center",
