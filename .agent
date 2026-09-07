@@ -1,6 +1,6 @@
 # Project Context Ledger (.agent)
 
-Last updated: 2026-09-07 (Product name rebranded to Event24)
+Last updated: 2026-09-07 (Production Vite rebuild with Event24 branding)
 Repository: C:\Users\Hp\Documents\personal\event management
 Default branch: main
 
@@ -1092,7 +1092,13 @@ Do not write vague Change Log-only stubs. Sync living sections whenever reality 
 - **Frontend:** `resources/js/src/utils/appName.ts` used by Logo, Sidebar, Footer, login, page titles. Login wordmark is text `Event24` (no Vristo SVG). i18n `app_name` / `starter_kit`. Mail from-name placeholder `Event24`.
 - **Tests/docs:** `PlatformBrandingApiTest` fixture `Event24 Demo`; README / `PROJECT_ANALYSIS.md` / `composer.json` description.
 - **Not renamed:** Composer package `laravel/laravel`, repo folder, DB name `eventdb`, or the Admin **Event hub** (`/events/:id`) pattern.
-- **Note:** Committed `public/build` still has the previous branding until a new `npm run build`.
+- **Note:** `public/build` rebuilt 2026-09-07 (`main-CfsyQWvV.js` / `main-CCTy-u7_.css`).
+
+### 2026-09-07 — Production Vite rebuild (Event24)
+- **Command:** `npm run build` — 9285 modules, ~33s, exit 0.
+- **Output:** `public/build/manifest.json` + hashed assets (entry `main-CfsyQWvV.js` / `main-CCTy-u7_.css`).
+- **Why:** Source Event24 branding was committed without a matching production bundle; Hostinger serves `public/build` only.
+- **Verification:** build completed with only chunk-size warnings.
 
 ### 2026-09-07 - DataTable cells no longer overlap on long text
 - Cause: `.datatables` used `table-layout: auto` + `overflow: visible` on body cells, so long Event titles spilled into the next column.
